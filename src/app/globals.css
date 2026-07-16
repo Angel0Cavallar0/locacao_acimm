@@ -173,3 +173,26 @@
     @apply font-sans;
   }
 }
+
+/* Movimento único e sutil de entrada (Spec 01) — desativado sob
+   prefers-reduced-motion. */
+@keyframes entrada {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-entrada {
+  animation: entrada 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-entrada {
+    animation: none;
+  }
+}
