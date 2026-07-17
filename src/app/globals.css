@@ -196,3 +196,93 @@
     animation: none;
   }
 }
+
+/* -------------------------------------------------------------------------
+ *  Calendário consolidado (Spec 05) — tema do FullCalendar (plugins MIT).
+ *  Escopado em .calendario-acimm para não vazar. Cores/estados dos eventos
+ *  seguem os tokens da marca.
+ * ------------------------------------------------------------------------- */
+.calendario-acimm {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--surface);
+  --fc-neutral-bg-color: var(--surface-muted);
+  --fc-today-bg-color: color-mix(in oklab, var(--brand) 8%, transparent);
+  --fc-button-text-color: var(--brand-foreground);
+  --fc-button-bg-color: var(--brand);
+  --fc-button-border-color: var(--brand);
+  --fc-button-hover-bg-color: color-mix(in oklab, var(--brand) 88%, black);
+  --fc-button-hover-border-color: color-mix(in oklab, var(--brand) 88%, black);
+  --fc-button-active-bg-color: color-mix(in oklab, var(--brand) 78%, black);
+  --fc-button-active-border-color: color-mix(in oklab, var(--brand) 78%, black);
+  --fc-list-event-hover-bg-color: var(--surface-muted);
+  font-size: 0.85rem;
+}
+
+.calendario-acimm .fc {
+  color: var(--ink);
+}
+
+.calendario-acimm .fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.calendario-acimm .fc .fc-button {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.calendario-acimm .fc .fc-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.calendario-acimm .fc .fc-col-header-cell-cushion,
+.calendario-acimm .fc .fc-daygrid-day-number {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+
+.calendario-acimm .fc .fc-event {
+  cursor: pointer;
+  font-size: 0.72rem;
+  border-radius: 4px;
+  border-width: 1px;
+}
+
+/* Solicitação pendente (não-bloqueante): tracejado + hachura translúcida. */
+.calendario-acimm .ev-pendente {
+  border-style: dashed !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(120, 120, 120, 0.12) 0,
+    rgba(120, 120, 120, 0.12) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+/* Bloqueio manual: cinza hachurado. */
+.calendario-acimm .ev-bloqueio {
+  border-style: dashed !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(120, 120, 120, 0.28) 0,
+    rgba(120, 120, 120, 0.28) 4px,
+    transparent 4px,
+    transparent 9px
+  ) !important;
+}
+
+/* Evento ACIMM de prioridade alta: contorno de destaque. */
+.calendario-acimm .ev-alta {
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+/* Envolvido numa sobreposição pendente: realce âmbar (vence o de prioridade). */
+.calendario-acimm .ev-conflito {
+  box-shadow: 0 0 0 2px #f59e0b !important;
+}
