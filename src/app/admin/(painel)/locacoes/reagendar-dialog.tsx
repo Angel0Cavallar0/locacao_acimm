@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { utcParaNaiveSP } from "@/lib/calendario/tempo";
@@ -103,13 +104,7 @@ export function ReagendarDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="reag-data">Data</Label>
-              <Input
-                id="reag-data"
-                type="date"
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-                required
-              />
+              <DatePicker id="reag-data" value={data} onChange={setData} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="reag-periodo">Período</Label>
@@ -178,8 +173,12 @@ export function ReagendarDialog({
             <DialogClose render={<Button variant="outline" type="button" />}>
               Cancelar
             </DialogClose>
-            <Button type="submit" disabled={salvando || salaIds.length === 0}>
-              {salvando ? "Reagendando…" : "Reagendar"}
+            <Button
+              type="submit"
+              loading={salvando}
+              disabled={salaIds.length === 0}
+            >
+              Reagendar
             </Button>
           </DialogFooter>
         </form>

@@ -61,8 +61,8 @@ export function LoginForm({ next }: { next: string }) {
             </p>
           ) : null}
 
-          <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? "Entrando…" : "Entrar"}
+          <Button type="submit" className="w-full" loading={pending}>
+            Entrar
           </Button>
         </form>
       </CardContent>

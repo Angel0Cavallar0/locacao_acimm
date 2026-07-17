@@ -101,8 +101,8 @@ function ConviteDialog() {
             <DialogClose render={<Button variant="outline" type="button" />}>
               Cancelar
             </DialogClose>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Enviando…" : "Enviar convite"}
+            <Button type="submit" loading={pending}>
+              Enviar convite
             </Button>
           </DialogFooter>
         </form>

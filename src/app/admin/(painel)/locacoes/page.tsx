@@ -16,11 +16,11 @@ import { LocacoesTabela } from "./locacoes-tabela";
 
 export const metadata: Metadata = { title: "Locações" };
 
-const VISTAS: { valor: VistaLista; rotulo: string }[] = [
+// "Todas" é a visão padrão/primária; as demais são atalhos secundários.
+const VISTAS_SECUNDARIAS: { valor: VistaLista; rotulo: string }[] = [
   { valor: "pendentes", rotulo: "Pendentes" },
   { valor: "andamento", rotulo: "Em andamento" },
   { valor: "proximas", rotulo: "Próximas 7 dias" },
-  { valor: "todas", rotulo: "Todas" },
 ];
 
 const FORMAS_VALIDAS = new Set<FormaPagamento>([
@@ -47,7 +47,7 @@ export default async function LocacoesPage({
     ["pendentes", "andamento", "proximas", "todas"] as VistaLista[]
   ).includes(sp.vista as VistaLista)
     ? (sp.vista as VistaLista)
-    : "pendentes";
+    : "todas";
 
   const cond = texto(sp.cond);
   const forma = texto(sp.forma);
@@ -114,17 +114,30 @@ export default async function LocacoesPage({
         </Link>
       </div>
 
-      {/* Visões rápidas */}
-      <div className="flex flex-wrap gap-1 border-b">
-        {VISTAS.map((v) => (
+      {/* "Todas" como visão primária; atalhos rápidos secundários ao lado */}
+      <div className="flex flex-wrap items-center gap-2 border-b pb-2">
+        <Link
+          href={linkVista("todas")}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+            vista === "todas"
+              ? "bg-brand text-brand-foreground"
+              : "text-ink-muted hover:bg-surface-muted hover:text-ink",
+          )}
+        >
+          Todas
+        </Link>
+        <span className="mx-0.5 h-4 w-px bg-border" />
+        <span className="text-xs text-ink-muted">Atalhos:</span>
+        {VISTAS_SECUNDARIAS.map((v) => (
           <Link
             key={v.valor}
             href={linkVista(v.valor)}
             className={cn(
-              "-mb-px border-b-2 px-3 py-2 text-sm font-medium",
+              "rounded-full border px-2.5 py-1 text-xs transition-colors",
               vista === v.valor
-                ? "border-brand text-ink"
-                : "border-transparent text-ink-muted hover:text-ink",
+                ? "border-brand bg-brand/10 text-brand"
+                : "border-border text-ink-muted hover:text-ink",
             )}
           >
             {v.rotulo}

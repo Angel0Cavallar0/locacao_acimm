@@ -246,8 +246,8 @@ export function PrecoDialog({
           <DialogClose render={<Button variant="outline" type="button" />}>
             Cancelar
           </DialogClose>
-          <Button type="button" onClick={salvar} disabled={salvando}>
-            {salvando ? "Salvando…" : "Salvar"}
+          <Button type="button" onClick={salvar} loading={salvando}>
+            Salvar
           </Button>
         </DialogFooter>
       </DialogContent>

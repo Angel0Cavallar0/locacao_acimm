@@ -46,8 +46,8 @@ export function RecuperarForm() {
                 autoFocus
               />
             </div>
-            <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? "Enviando…" : "Enviar instruções"}
+            <Button type="submit" className="w-full" loading={pending}>
+              Enviar instruções
             </Button>
           </form>
         )}

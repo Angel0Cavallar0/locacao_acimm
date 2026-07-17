@@ -131,8 +131,8 @@ export function HoraAdicionalForm({
         </div>
 
         <div>
-          <Button onClick={salvar} disabled={salvando}>
-            {salvando ? "Salvando…" : "Salvar horas adicionais"}
+          <Button onClick={salvar} loading={salvando}>
+            Salvar horas adicionais
           </Button>
         </div>
       </CardContent>

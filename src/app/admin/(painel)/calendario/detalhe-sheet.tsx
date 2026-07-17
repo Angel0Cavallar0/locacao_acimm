@@ -178,10 +178,10 @@ export function DetalheSheet({
                       <Button
                         variant="destructive"
                         size="sm"
-                        disabled={removendo}
+                        loading={removendo}
                         onClick={() => aoRemoverBloqueio(item.id)}
                       >
-                        {removendo ? "Removendo…" : "Sim, remover"}
+                        Sim, remover
                       </Button>
                       <Button
                         variant="outline"

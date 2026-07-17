@@ -17,7 +17,7 @@
 | 04 | Salas e preços | CRUD de salas, tabela de preços com vigência, fotos (Storage) | 03 | ✅ |
 | 05 | Calendário consolidado | Visão mensal + lista (FullCalendar MIT), filtros, alertas de sobreposição, bloqueio manual de sala (`origem = bloqueio`) | 04 | ✅ |
 | 06 | Locações — lista e detalhe | Listagem com filtros, detalhe com linha do tempo, máquina de estados (aprovar/recusar/cancelar), tratamento do conflito na aprovação (23P01) | 04 | ✅ |
-| 07 | Nova locação assistida | Formulário do colaborador: busca de associado (base Sophus), locatário externo, adicionais, cálculo server-side | 06 | ⬜ |
+| 07 | Nova locação assistida | Formulário do colaborador: busca de associado (base Sophus), locatário externo, adicionais, cálculo server-side | 06 | ✅ |
 | 08 | Coffee break | Config de níveis (valores + composição), coffee na locação, tela de pedidos, PDF de compras (geração manual) | 06 | ⬜ |
 
 ## Bloco C — Portal do Associado

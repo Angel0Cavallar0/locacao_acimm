@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { criarBloqueio } from "./actions";
@@ -117,13 +118,7 @@ export function BloqueioDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="bloq-data">Data</Label>
-              <Input
-                id="bloq-data"
-                type="date"
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-                required
-              />
+              <DatePicker id="bloq-data" value={data} onChange={setData} />
             </div>
             <label className="mt-6 flex cursor-pointer items-center gap-2 text-sm text-ink">
               <input
@@ -181,8 +176,8 @@ export function BloqueioDialog({
             <DialogClose render={<Button variant="outline" type="button" />}>
               Cancelar
             </DialogClose>
-            <Button type="submit" disabled={salvando || !salaId}>
-              {salvando ? "Criando…" : "Criar bloqueio"}
+            <Button type="submit" loading={salvando} disabled={!salaId}>
+              Criar bloqueio
             </Button>
           </DialogFooter>
         </form>
