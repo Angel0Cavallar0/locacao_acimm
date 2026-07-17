@@ -6,7 +6,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireColaborador } from "@/lib/auth/guards";
 import { parseDaterange } from "@/lib/precos/resolver-core";
 import { createClient } from "@/lib/supabase/server";
-import { ComboForm, type ComboDados } from "../../combo-form";
+import {
+  ComboForm,
+  type ComboDados,
+  type PrecosPorSala,
+} from "../../combo-form";
 
 export const metadata: Metadata = { title: "Editar combo" };
 
@@ -19,12 +23,12 @@ export default async function EditarComboPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: combo }, { data: comboSalas }, { data: salas }, { data: precosDia }] =
+  const [{ data: combo }, { data: comboSalas }, { data: salas }, { data: precos }] =
     await Promise.all([
       supabase
         .from("combos")
         .select(
-          "id, nome, descricao, tipo, tipo_desconto, desconto_valor, valor_centavos, dias_no_mes",
+          "id, nome, descricao, tipo, tipo_desconto, desconto_valor, valor_centavos, dias_no_mes, periodo",
         )
         .eq("id", id)
         .maybeSingle(),
@@ -41,8 +45,7 @@ export default async function EditarComboPage({
         .order("nome", { ascending: true }),
       supabase
         .from("precos_sala")
-        .select("sala_id, valor_centavos, vigencia")
-        .eq("periodo", "dia_inteiro")
+        .select("sala_id, periodo, valor_centavos, indisponivel, vigencia")
         .eq("condicao", "associado"),
     ]);
 
@@ -51,14 +54,15 @@ export default async function EditarComboPage({
   const hoje = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
   }).format(new Date());
-  const diariaPorSala: Record<string, number | null> = {};
-  for (const p of precosDia ?? []) {
+  const precosPorSala: PrecosPorSala = {};
+  for (const p of precos ?? []) {
+    if (p.indisponivel) continue;
     const { inicio, fim } = parseDaterange(String(p.vigencia));
     const vigente =
       (inicio === null || hoje >= inicio) && (fim === null || hoje < fim);
-    if (vigente && diariaPorSala[p.sala_id] == null) {
-      diariaPorSala[p.sala_id] = p.valor_centavos;
-    }
+    if (!vigente) continue;
+    const sala = (precosPorSala[p.sala_id] ??= {});
+    if (sala[p.periodo] == null) sala[p.periodo] = p.valor_centavos;
   }
 
   const dados: ComboDados = {
@@ -70,6 +74,7 @@ export default async function EditarComboPage({
     descontoValor: combo.desconto_valor,
     valorCentavos: combo.valor_centavos,
     diasNoMes: combo.dias_no_mes,
+    periodo: combo.periodo,
     salas: (comboSalas ?? []).map((s) => ({
       salaId: s.sala_id,
       aplicaDesconto: s.aplica_desconto,
@@ -91,7 +96,7 @@ export default async function EditarComboPage({
       <ComboForm
         modo="editar"
         salasDisponiveis={salas ?? []}
-        diariaPorSala={diariaPorSala}
+        precosPorSala={precosPorSala}
         combo={dados}
       />
     </div>

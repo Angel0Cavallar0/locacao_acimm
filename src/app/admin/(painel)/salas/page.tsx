@@ -67,7 +67,7 @@ export default async function SalasPage() {
         "id, nome, tipo, tipo_desconto, desconto_valor, valor_centavos, ativo, criado_em",
       )
       .order("criado_em", { ascending: true }),
-    supabase.from("combo_salas").select("combo_id"),
+    supabase.from("combo_salas").select("combo_id, salas(nome)"),
   ]);
 
   const hoje = new Intl.DateTimeFormat("en-CA", {
@@ -97,18 +97,30 @@ export default async function SalasPage() {
     };
   });
 
-  const qtdPorCombo = new Map<string, number>();
+  const salasPorCombo = new Map<string, string[]>();
   for (const cs of comboSalas ?? []) {
-    qtdPorCombo.set(cs.combo_id, (qtdPorCombo.get(cs.combo_id) ?? 0) + 1);
+    const rel = cs.salas as unknown as
+      | { nome: string }
+      | { nome: string }[]
+      | null;
+    const nome = Array.isArray(rel) ? rel[0]?.nome : rel?.nome;
+    if (!nome) continue;
+    const arr = salasPorCombo.get(cs.combo_id) ?? [];
+    arr.push(nome);
+    salasPorCombo.set(cs.combo_id, arr);
   }
 
-  const comboCards: ComboCard[] = ((combos ?? []) as ComboRow[]).map((c) => ({
-    id: c.id,
-    nome: c.nome,
-    tipo: c.tipo,
-    ativo: c.ativo,
-    resumo: resumoCombo(c, qtdPorCombo.get(c.id) ?? 0),
-  }));
+  const comboCards: ComboCard[] = ((combos ?? []) as ComboRow[]).map((c) => {
+    const nomes = salasPorCombo.get(c.id) ?? [];
+    return {
+      id: c.id,
+      nome: c.nome,
+      tipo: c.tipo,
+      ativo: c.ativo,
+      resumo: resumoCombo(c, nomes.length),
+      salas: nomes,
+    };
+  });
 
   return (
     <>

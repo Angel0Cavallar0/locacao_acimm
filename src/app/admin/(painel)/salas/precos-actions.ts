@@ -15,6 +15,7 @@ export async function reajustarPreco(input: {
   periodo: string;
   diasSemana: number[];
   valorCentavos: number;
+  indisponivel?: boolean;
 }): Promise<ResultadoPrecoAcao> {
   await requireColaborador();
 
@@ -30,6 +31,7 @@ export async function reajustarPreco(input: {
     p_periodo: parsed.data.periodo,
     p_dias_semana: parsed.data.diasSemana,
     p_valor_centavos: parsed.data.valorCentavos,
+    p_indisponivel: parsed.data.indisponivel,
   });
 
   if (error) {

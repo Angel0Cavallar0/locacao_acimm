@@ -17,6 +17,7 @@ export interface ComboCard {
   tipo: TipoCombo;
   ativo: boolean;
   resumo: string;
+  salas: string[];
 }
 
 export function ComboLista({ combos }: { combos: ComboCard[] }) {
@@ -78,6 +79,13 @@ export function ComboLista({ combos }: { combos: ComboCard[] }) {
                   <p className="mt-0.5 text-xs text-ink-muted">
                     {rotuloTipo(c.tipo)} · {c.resumo}
                   </p>
+                  {(c.tipo === "desconto_multi_sala" ||
+                    c.tipo === "assinatura_mensal") &&
+                  c.salas.length > 0 ? (
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      Salas: {c.salas.join(", ")}
+                    </p>
+                  ) : null}
                 </Link>
                 <Button
                   variant={c.ativo ? "ghost" : "outline"}

@@ -312,7 +312,9 @@ export function SalaForm({
                   >
                     <div className="min-w-0 flex-1">
                       <span className="font-medium text-ink">
-                        {centavosParaBRL(p.valorCentavos)}
+                        {p.indisponivel
+                          ? "Sem locação"
+                          : centavosParaBRL(p.valorCentavos)}
                       </span>
                       <span className="text-xs text-ink-muted">
                         {" · "}

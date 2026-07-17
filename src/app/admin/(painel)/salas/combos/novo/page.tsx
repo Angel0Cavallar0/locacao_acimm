@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { requireColaborador } from "@/lib/auth/guards";
 import { parseDaterange } from "@/lib/precos/resolver-core";
 import { createClient } from "@/lib/supabase/server";
-import { ComboForm } from "../../combo-form";
+import { ComboForm, type PrecosPorSala } from "../../combo-form";
 
 export const metadata: Metadata = { title: "Novo combo" };
 
@@ -13,7 +13,7 @@ export default async function NovoComboPage() {
   await requireColaborador();
   const supabase = await createClient();
 
-  const [{ data: salas }, { data: precosDia }] = await Promise.all([
+  const [{ data: salas }, { data: precos }] = await Promise.all([
     supabase
       .from("salas")
       .select("id, nome")
@@ -23,22 +23,22 @@ export default async function NovoComboPage() {
       .order("nome", { ascending: true }),
     supabase
       .from("precos_sala")
-      .select("sala_id, valor_centavos, vigencia")
-      .eq("periodo", "dia_inteiro")
+      .select("sala_id, periodo, valor_centavos, indisponivel, vigencia")
       .eq("condicao", "associado"),
   ]);
 
   const hoje = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
   }).format(new Date());
-  const diariaPorSala: Record<string, number | null> = {};
-  for (const p of precosDia ?? []) {
+  const precosPorSala: PrecosPorSala = {};
+  for (const p of precos ?? []) {
+    if (p.indisponivel) continue;
     const { inicio, fim } = parseDaterange(String(p.vigencia));
     const vigente =
       (inicio === null || hoje >= inicio) && (fim === null || hoje < fim);
-    if (vigente && diariaPorSala[p.sala_id] == null) {
-      diariaPorSala[p.sala_id] = p.valor_centavos;
-    }
+    if (!vigente) continue;
+    const sala = (precosPorSala[p.sala_id] ??= {});
+    if (sala[p.periodo] == null) sala[p.periodo] = p.valor_centavos;
   }
 
   return (
@@ -56,7 +56,7 @@ export default async function NovoComboPage() {
       <ComboForm
         modo="criar"
         salasDisponiveis={salas ?? []}
-        diariaPorSala={diariaPorSala}
+        precosPorSala={precosPorSala}
       />
     </div>
   );

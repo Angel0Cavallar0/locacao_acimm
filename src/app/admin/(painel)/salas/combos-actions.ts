@@ -30,6 +30,10 @@ function linhasCombo(id: string, input: ComboInput) {
           : null,
       dias_no_mes:
         input.tipo === "assinatura_mensal" ? input.diasNoMes : null,
+      periodo:
+        input.tipo === "assinatura_mensal" || input.tipo === "evento_privativo"
+          ? input.periodo
+          : null,
     },
     salas:
       input.tipo === "evento_privativo"

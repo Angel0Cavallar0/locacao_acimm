@@ -83,7 +83,9 @@ export default async function EditarSalaPage({
       .maybeSingle(),
     supabase
       .from("precos_sala")
-      .select("id, condicao, periodo, dias_semana, valor_centavos, vigencia")
+      .select(
+        "id, condicao, periodo, dias_semana, valor_centavos, indisponivel, vigencia",
+      )
       .eq("sala_id", id),
     supabase
       .from("locacao_salas")
@@ -118,6 +120,7 @@ export default async function EditarSalaPage({
       periodo: p.periodo,
       diasSemana: (p.dias_semana as number[]) ?? [],
       valorCentavos: p.valor_centavos,
+      indisponivel: p.indisponivel ?? false,
       vigenciaInicio: inicio,
       vigenciaFim: fim,
       vigente: (inicio === null || hoje >= inicio) && (fim === null || hoje < fim),

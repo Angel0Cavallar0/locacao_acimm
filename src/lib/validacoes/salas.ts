@@ -32,6 +32,7 @@ export const precoSchema = z.object({
     .number()
     .int("Valor inválido")
     .min(0, "Valor não pode ser negativo"),
+  indisponivel: z.boolean().default(false),
 });
 
 export type PrecoInput = z.infer<typeof precoSchema>;
@@ -72,6 +73,7 @@ export const comboSchema = z
     descontoValor: z.number().int().min(0).nullable().default(null),
     valorCentavos: z.number().int().min(0).nullable().default(null),
     diasNoMes: z.number().int().min(1).max(31).nullable().default(null),
+    periodo: periodoSchema.nullable().default(null),
     salas: z
       .array(z.object({ salaId: z.uuid(), aplicaDesconto: z.boolean() }))
       .default([]),
@@ -128,13 +130,26 @@ export const comboSchema = z
           message: "Informe a quantidade de dias no mês.",
           path: ["diasNoMes"],
         });
+      if (!v.periodo)
+        ctx.addIssue({
+          code: "custom",
+          message: "Selecione o período.",
+          path: ["periodo"],
+        });
     }
-    if (v.tipo === "evento_privativo" && v.valorCentavos == null) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Informe o valor do evento privativo.",
-        path: ["valorCentavos"],
-      });
+    if (v.tipo === "evento_privativo") {
+      if (v.valorCentavos == null)
+        ctx.addIssue({
+          code: "custom",
+          message: "Informe o valor do evento privativo.",
+          path: ["valorCentavos"],
+        });
+      if (!v.periodo)
+        ctx.addIssue({
+          code: "custom",
+          message: "Selecione o horário (período).",
+          path: ["periodo"],
+        });
     }
   });
 

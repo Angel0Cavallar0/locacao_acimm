@@ -15,7 +15,7 @@ import {
   type PeriodoDia,
 } from "@/lib/dominio";
 import { centavosParaBRL } from "@/lib/utils/moeda";
-import { PrecoDialog } from "./preco-dialog";
+import { PrecoDialog, type PrecoEntrada } from "./preco-dialog";
 import { encerrarPreco, reajustarPreco } from "./precos-actions";
 
 export interface PrecoVM {
@@ -24,6 +24,7 @@ export interface PrecoVM {
   periodo: PeriodoDia;
   diasSemana: number[];
   valorCentavos: number;
+  indisponivel: boolean;
   vigenciaInicio: string | null;
   vigenciaFim: string | null;
   vigente: boolean;
@@ -53,13 +54,16 @@ export function PrecosGrade({
   const vigentes = precos.filter((p) => p.vigente);
   const historico = precos.filter((p) => !p.vigente);
 
+  // "Dia inteiro" é exceção (alternativa aos períodos fracionados) e não conta
+  // como lacuna. Um período marcado como "sem locação" também não é lacuna.
   const lacunas: string[] = [];
   for (const c of CONDICOES) {
     for (const p of PERIODOS) {
-      const temPreco = vigentes.some(
+      if (p.valor === "dia_inteiro") continue;
+      const temEntrada = vigentes.some(
         (v) => v.condicao === c.valor && v.periodo === p.valor,
       );
-      if (!temPreco) lacunas.push(`${p.rotulo} — ${c.rotulo}`);
+      if (!temEntrada) lacunas.push(`${p.rotulo} — ${c.rotulo}`);
     }
   }
 
@@ -75,12 +79,7 @@ export function PrecosGrade({
   }
 
   const salvarNoServidor = () => ({
-    aoSubmeter: (e: {
-      condicao: CondicaoLocatario;
-      periodo: PeriodoDia;
-      diasSemana: number[];
-      valorCentavos: number;
-    }) => reajustarPreco({ salaId, ...e }),
+    aoSubmeter: (e: PrecoEntrada) => reajustarPreco({ salaId, ...e }),
     aoConcluir: () => {
       toast.success("Preço salvo.");
       router.refresh();
@@ -146,7 +145,13 @@ export function PrecosGrade({
                         >
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-ink">
-                              {centavosParaBRL(p.valorCentavos)}
+                              {p.indisponivel ? (
+                                <span className="text-ink-muted">
+                                  Sem locação
+                                </span>
+                              ) : (
+                                centavosParaBRL(p.valorCentavos)
+                              )}
                             </p>
                             <p className="text-xs text-ink-muted">
                               {rotuloPeriodo(p.periodo)} · {diasLabel(p.diasSemana)}
@@ -158,6 +163,7 @@ export function PrecosGrade({
                               periodo: p.periodo,
                               diasSemana: p.diasSemana,
                               valorCentavos: p.valorCentavos,
+                              indisponivel: p.indisponivel,
                             }}
                             {...salvarNoServidor()}
                           />

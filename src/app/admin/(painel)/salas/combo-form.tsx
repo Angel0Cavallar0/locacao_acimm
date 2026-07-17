@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TIPOS_COMBO, type TipoCombo, type TipoDesconto } from "@/lib/dominio";
+import {
+  PERIODOS,
+  type PeriodoDia,
+  TIPOS_COMBO,
+  type TipoCombo,
+  type TipoDesconto,
+} from "@/lib/dominio";
 import { brlParaCentavos, centavosParaBRL } from "@/lib/utils/moeda";
 import type { ComboInput } from "@/lib/validacoes/salas";
 import { atualizarCombo, criarCombo } from "./combos-actions";
@@ -21,8 +27,12 @@ export interface ComboDados {
   descontoValor: number | null;
   valorCentavos: number | null;
   diasNoMes: number | null;
+  periodo: PeriodoDia | null;
   salas: { salaId: string; aplicaDesconto: boolean }[];
 }
+
+/** Preço de referência (associado, vigente) por sala e por período, em centavos. */
+export type PrecosPorSala = Record<string, Record<string, number>>;
 
 const inputClasses =
   "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -34,13 +44,12 @@ function centavosParaTexto(c: number) {
 export function ComboForm({
   modo,
   salasDisponiveis,
-  diariaPorSala,
+  precosPorSala,
   combo,
 }: {
   modo: "criar" | "editar";
   salasDisponiveis: { id: string; nome: string }[];
-  /** Diária de referência (dia inteiro, associado, vigente) por sala, em centavos. */
-  diariaPorSala: Record<string, number | null>;
+  precosPorSala: PrecosPorSala;
   combo?: ComboDados;
 }) {
   const router = useRouter();
@@ -71,6 +80,7 @@ export function ComboForm({
   const [diasNoMes, setDiasNoMes] = useState(
     combo?.diasNoMes != null ? String(combo.diasNoMes) : "",
   );
+  const [periodo, setPeriodo] = useState<string>(combo?.periodo ?? "");
   const [valorFechado, setValorFechado] = useState(
     combo?.valorCentavos != null ? centavosParaTexto(combo.valorCentavos) : "",
   );
@@ -109,6 +119,10 @@ export function ComboForm({
         tipo === "assinatura_mensal"
           ? Number.parseInt(diasNoMes, 10) || null
           : null,
+      periodo:
+        (tipo === "assinatura_mensal" || tipo === "evento_privativo") && periodo
+          ? (periodo as PeriodoDia)
+          : null,
       salas:
         tipo === "desconto_multi_sala"
           ? salasSel.map((id) => ({
@@ -137,11 +151,13 @@ export function ComboForm({
 
   const tipoInfo = TIPOS_COMBO.find((t) => t.valor === tipo);
 
-  // Comparativo da assinatura mensal.
-  const diariaRef = salaAssinatura ? diariaPorSala[salaAssinatura] : null;
+  // Comparativo da assinatura, usando o preço do período escolhido.
+  const diariaRef =
+    salaAssinatura && periodo
+      ? (precosPorSala[salaAssinatura]?.[periodo] ?? null)
+      : null;
   const dias = Number.parseInt(diasNoMes, 10) || 0;
-  const semCombo =
-    diariaRef != null && dias > 0 ? diariaRef * dias : null;
+  const semCombo = diariaRef != null && dias > 0 ? diariaRef * dias : null;
   const comCombo = brlParaCentavos(valorFechado);
   const economia = semCombo != null ? semCombo - comCombo : null;
 
@@ -274,7 +290,7 @@ export function ComboForm({
 
           {tipo === "assinatura_mensal" ? (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="sa">Sala</Label>
                   <select
@@ -287,6 +303,22 @@ export function ComboForm({
                     {salasDisponiveis.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="per">Período</Label>
+                  <select
+                    id="per"
+                    className={inputClasses}
+                    value={periodo}
+                    onChange={(e) => setPeriodo(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {PERIODOS.map((p) => (
+                      <option key={p.valor} value={p.valor}>
+                        {p.rotulo}
                       </option>
                     ))}
                   </select>
@@ -320,16 +352,14 @@ export function ComboForm({
               <div className="rounded-md border bg-surface-muted p-3 text-sm">
                 {diariaRef == null ? (
                   <p className="text-ink-muted">
-                    Cadastre um preço de <strong>dia inteiro (associado)</strong>{" "}
-                    para esta sala para estimar o valor sem o combo.
+                    Selecione a sala e o período (com preço associado vigente)
+                    para estimar o valor sem o combo.
                   </p>
                 ) : (
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between">
                       <span className="text-ink-muted">
-                        Sem o combo ({dias || 0} diária
-                        {dias === 1 ? "" : "s"} de{" "}
-                        {centavosParaBRL(diariaRef)})
+                        Sem o combo ({dias || 0} × {centavosParaBRL(diariaRef)})
                       </span>
                       <span className="text-ink">
                         {semCombo != null ? centavosParaBRL(semCombo) : "—"}
@@ -356,20 +386,39 @@ export function ComboForm({
           ) : null}
 
           {tipo === "evento_privativo" ? (
-            <div className="flex flex-col gap-1.5">
+            <>
               <p className="rounded-md bg-surface-muted px-3 py-2 text-xs text-ink-muted">
                 Inclui todas as salas da ACIMM.
               </p>
-              <Label htmlFor="ve">Valor do evento (R$)</Label>
-              <Input
-                id="ve"
-                inputMode="decimal"
-                value={valorFechado}
-                onChange={(e) => setValorFechado(e.target.value)}
-                placeholder="0,00"
-                className="max-w-xs"
-              />
-            </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pe">Horário (período)</Label>
+                  <select
+                    id="pe"
+                    className={inputClasses}
+                    value={periodo}
+                    onChange={(e) => setPeriodo(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {PERIODOS.map((p) => (
+                      <option key={p.valor} value={p.valor}>
+                        {p.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="ve">Valor do evento (R$)</Label>
+                  <Input
+                    id="ve"
+                    inputMode="decimal"
+                    value={valorFechado}
+                    onChange={(e) => setValorFechado(e.target.value)}
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+            </>
           ) : null}
 
           {erro ? (

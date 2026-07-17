@@ -26,6 +26,7 @@ export interface PrecoEntrada {
   periodo: PeriodoDia;
   diasSemana: number[];
   valorCentavos: number;
+  indisponivel: boolean;
 }
 
 const inputClasses =
@@ -63,6 +64,9 @@ export function PrecoDialog({
   const [valor, setValor] = useState(
     inicial ? (inicial.valorCentavos / 100).toFixed(2).replace(".", ",") : "",
   );
+  const [indisponivel, setIndisponivel] = useState(
+    inicial?.indisponivel ?? false,
+  );
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, startSalvar] = useTransition();
 
@@ -79,7 +83,7 @@ export function PrecoDialog({
 
   function salvar() {
     setErro(null);
-    const valorCentavos = brlParaCentavos(valor);
+    const valorCentavos = indisponivel ? 0 : brlParaCentavos(valor);
     if (dias.length === 0) {
       setErro("Selecione ao menos um dia.");
       return;
@@ -96,6 +100,7 @@ export function PrecoDialog({
           periodo: per,
           diasSemana: dias,
           valorCentavos,
+          indisponivel,
         });
         if (r.error) erros.push(`${rotuloPeriodo(per)}: ${r.error}`);
       }
@@ -207,17 +212,29 @@ export function PrecoDialog({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="valor">Valor (R$)</Label>
+          <label className="flex items-center gap-2 text-sm text-ink">
             <input
-              id="valor"
-              inputMode="decimal"
-              placeholder="0,00"
-              className={inputClasses}
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
+              type="checkbox"
+              className="size-4"
+              checked={indisponivel}
+              onChange={(e) => setIndisponivel(e.target.checked)}
             />
-          </div>
+            Sem locação disponível neste período
+          </label>
+
+          {!indisponivel ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="valor">Valor (R$)</Label>
+              <input
+                id="valor"
+                inputMode="decimal"
+                placeholder="0,00"
+                className={inputClasses}
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+              />
+            </div>
+          ) : null}
 
           {erro ? (
             <p role="alert" className="text-sm text-destructive">
