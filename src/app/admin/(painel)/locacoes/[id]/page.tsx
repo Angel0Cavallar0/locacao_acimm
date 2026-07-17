@@ -79,6 +79,7 @@ export default async function LocacaoDetalhePage({
     id: n.id,
     nome: n.nome,
     faixas: n.faixas,
+    adicionais: n.adicionais,
   }));
 
   const periodoRotulo = loc.periodo

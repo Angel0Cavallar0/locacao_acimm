@@ -23,6 +23,16 @@ function composicaoParaBanco(
   }));
 }
 
+/** Catálogo de adicionais gravado em snake_case no JSONB. */
+function adicionaisParaBanco(
+  itens: { descricao: string; valorCentavos: number }[],
+) {
+  return itens.map((a) => ({
+    descricao: a.descricao,
+    valor_centavos: a.valorCentavos,
+  }));
+}
+
 /** Faixas gravadas em snake_case no JSONB. */
 function faixasParaBanco(
   faixas: {
@@ -82,6 +92,7 @@ export async function criarNivel(input: unknown): Promise<ResultadoNivel> {
       descricao: parsed.data.descricao || null,
       faixas_preco: faixasParaBanco(parsed.data.faixasPreco),
       composicao: composicaoParaBanco(parsed.data.composicao),
+      adicionais: adicionaisParaBanco(parsed.data.adicionais),
       ativo: parsed.data.ativo,
       ordem,
     })
@@ -120,6 +131,7 @@ export async function atualizarNivel(
       descricao: parsed.data.descricao || null,
       faixas_preco: faixasParaBanco(parsed.data.faixasPreco),
       composicao: composicaoParaBanco(parsed.data.composicao),
+      adicionais: adicionaisParaBanco(parsed.data.adicionais),
       ativo: parsed.data.ativo,
       atualizado_em: new Date().toISOString(),
     })

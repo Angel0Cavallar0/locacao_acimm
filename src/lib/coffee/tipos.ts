@@ -27,6 +27,8 @@ export interface NivelCoffee {
   descricao: string | null;
   faixas: FaixaPreco[];
   composicao: ItemComposicao[];
+  /** Catálogo de adicionais opcionais (valor fixo por item, não por pessoa). */
+  adicionais: AdicionalCoffee[];
   ativo: boolean;
   ordem: number;
 }

@@ -31,6 +31,11 @@ export const faixaPrecoSchema = z
     path: ["maxPessoas"],
   });
 
+export const adicionalCoffeeSchema = z.object({
+  descricao: z.string().trim().min(1).max(160),
+  valorCentavos: z.coerce.number().int().min(0),
+});
+
 export const nivelCoffeeSchema = z.object({
   nome: z.string().trim().min(1, "Informe o nome").max(80),
   descricao: z.string().trim().max(2000).optional().default(""),
@@ -39,15 +44,11 @@ export const nivelCoffeeSchema = z.object({
     .min(1, "Cadastre ao menos uma faixa de preço.")
     .max(20),
   composicao: z.array(itemComposicaoSchema).max(60).default([]),
+  adicionais: z.array(adicionalCoffeeSchema).max(30).default([]),
   ativo: z.boolean().default(true),
 });
 
 export type NivelCoffeeInput = z.infer<typeof nivelCoffeeSchema>;
-
-export const adicionalCoffeeSchema = z.object({
-  descricao: z.string().trim().min(1).max(160),
-  valorCentavos: z.coerce.number().int().min(0),
-});
 
 /** Coffee no detalhe da locação — `coffeeId` presente = edição. */
 export const coffeeLocacaoSchema = z.object({

@@ -41,6 +41,17 @@ interface LinhaFaixa {
   ate: string;
   valor: string;
 }
+interface LinhaAdic {
+  descricao: string;
+  valor: string;
+}
+
+function adicionaisParaLinhas(nivel?: NivelCoffee): LinhaAdic[] {
+  return (nivel?.adicionais ?? []).map((a) => ({
+    descricao: a.descricao,
+    valor: (a.valorCentavos / 100).toFixed(2).replace(".", ","),
+  }));
+}
 
 function itensParaLinhas(nivel?: NivelCoffee): LinhaItem[] {
   return (nivel?.composicao ?? []).map((c) => ({
@@ -75,6 +86,9 @@ function NivelDialog({
   const [ativo, setAtivo] = useState(nivel?.ativo ?? true);
   const [faixas, setFaixas] = useState<LinhaFaixa[]>(faixasParaLinhas(nivel));
   const [itens, setItens] = useState<LinhaItem[]>(itensParaLinhas(nivel));
+  const [adicionais, setAdicionais] = useState<LinhaAdic[]>(
+    adicionaisParaLinhas(nivel),
+  );
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -83,6 +97,9 @@ function NivelDialog({
   }
   function setItem(i: number, patch: Partial<LinhaItem>) {
     setItens((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  }
+  function setAdic(i: number, patch: Partial<LinhaAdic>) {
+    setAdicionais((as) => as.map((a, j) => (j === i ? { ...a, ...patch } : a)));
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -107,6 +124,12 @@ function NivelDialog({
           qtd: Number(l.qtd.replace(",", ".")) || 0,
           unidade: l.unidade.trim() || "un",
         })),
+      adicionais: adicionais
+        .filter((a) => a.descricao.trim())
+        .map((a) => ({
+          descricao: a.descricao.trim(),
+          valorCentavos: brlParaCentavos(a.valor),
+        })),
     };
     const r = nivel
       ? await atualizarNivel(nivel.id, payload)
@@ -129,7 +152,7 @@ function NivelDialog({
         </DialogHeader>
         <form
           onSubmit={onSubmit}
-          className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto"
+          className="flex max-h-[70vh] min-w-0 flex-col gap-4 overflow-x-hidden overflow-y-auto"
           noValidate
         >
           <div className="flex flex-col gap-1.5">
@@ -161,7 +184,7 @@ function NivelDialog({
               <Label>Preço por faixa de pessoas</Label>
               <span className="text-xs text-ink-muted">valor por pessoa</span>
             </div>
-            <div className="grid grid-cols-[1fr_1fr_1.2fr_auto] gap-2 text-xs text-ink-muted">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] gap-2 text-xs text-ink-muted">
               <span>De (pessoas)</span>
               <span>Até (vazio = sem limite)</span>
               <span>Valor/pessoa (R$)</span>
@@ -169,7 +192,7 @@ function NivelDialog({
             </div>
             {faixas.map((f, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras
-              <div key={i} className="grid grid-cols-[1fr_1fr_1.2fr_auto] gap-2">
+              <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto] gap-2">
                 <Input
                   inputMode="numeric"
                   value={f.de}
@@ -232,6 +255,7 @@ function NivelDialog({
                     value={l.item}
                     onChange={(e) => setItem(i, { item: e.target.value })}
                     placeholder="Item (ex.: Mini salgado)"
+                    className="min-w-0 flex-1"
                   />
                   <Input
                     value={l.qtd}
@@ -269,6 +293,64 @@ function NivelDialog({
               >
                 <Plus className="size-4" />
                 Adicionar item
+              </Button>
+            </div>
+          </div>
+
+          {/* Adicionais opcionais (catálogo) */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <Label>Adicionais opcionais</Label>
+              <span className="text-xs text-ink-muted">
+                valor fixo por item · escolhidos na reserva
+              </span>
+            </div>
+            {adicionais.length === 0 ? (
+              <p className="text-xs text-ink-muted">
+                Nenhum adicional — extras que a atendente pode incluir na reserva.
+              </p>
+            ) : (
+              adicionais.map((a, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras
+                <div key={i} className="flex gap-2">
+                  <Input
+                    value={a.descricao}
+                    onChange={(e) => setAdic(i, { descricao: e.target.value })}
+                    placeholder="Adicional (ex.: Brigadeiro)"
+                    className="min-w-0 flex-1"
+                  />
+                  <Input
+                    value={a.valor}
+                    inputMode="decimal"
+                    onChange={(e) => setAdic(i, { valor: e.target.value })}
+                    placeholder="0,00"
+                    className="w-28"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Remover adicional"
+                    onClick={() =>
+                      setAdicionais((as) => as.filter((_, j) => j !== i))
+                    }
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              ))
+            )}
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setAdicionais((as) => [...as, { descricao: "", valor: "" }])
+                }
+              >
+                <Plus className="size-4" />
+                Adicionar adicional
               </Button>
             </div>
           </div>

@@ -69,7 +69,7 @@ export async function listarNiveis(
   const admin = createAdminClient();
   let q = admin
     .from("coffee_niveis")
-    .select("id, nome, descricao, faixas_preco, composicao, ativo, ordem")
+    .select("id, nome, descricao, faixas_preco, composicao, adicionais, ativo, ordem")
     .order("ordem", { ascending: true })
     .order("criado_em", { ascending: true });
   if (apenasAtivos) q = q.eq("ativo", true);
@@ -81,6 +81,7 @@ export async function listarNiveis(
     descricao: (n.descricao as string) ?? null,
     faixas: parsearFaixas(n.faixas_preco),
     composicao: parsearComposicao(n.composicao),
+    adicionais: parsearAdicionaisCoffee(n.adicionais),
     ativo: n.ativo as boolean,
     ordem: n.ordem as number,
   }));

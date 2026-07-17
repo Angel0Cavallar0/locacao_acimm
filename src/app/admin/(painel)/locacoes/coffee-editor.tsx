@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { horaSP } from "@/lib/calendario/tempo";
 import { valorPessoaDe } from "@/lib/coffee/faixas-core";
-import type { FaixaPreco } from "@/lib/coffee/tipos";
+import type { AdicionalCoffee, FaixaPreco } from "@/lib/coffee/tipos";
 import type { CoffeeLinha } from "@/lib/locacoes/tipos";
 import { brlParaCentavos, centavosParaBRL } from "@/lib/utils/moeda";
 import { removerCoffeeAction, salvarCoffeeAction } from "./actions";
@@ -29,6 +29,7 @@ export interface NivelOpcao {
   id: string;
   nome: string;
   faixas: FaixaPreco[];
+  adicionais: AdicionalCoffee[];
 }
 
 interface LinhaAdic {
@@ -55,7 +56,12 @@ function CoffeeDialog({
   const opcoes = useMemo(() => {
     if (coffee && !niveis.some((n) => n.id === coffee.nivelId)) {
       return [
-        { id: coffee.nivelId, nome: `${coffee.nivelNome} (inativo)`, faixas: [] },
+        {
+          id: coffee.nivelId,
+          nome: `${coffee.nivelNome} (inativo)`,
+          faixas: [],
+          adicionais: [],
+        },
         ...niveis,
       ];
     }
@@ -81,7 +87,9 @@ function CoffeeDialog({
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const faixasSel = opcoes.find((n) => n.id === nivelId)?.faixas ?? [];
+  const nivelSel = opcoes.find((n) => n.id === nivelId);
+  const faixasSel = nivelSel?.faixas ?? [];
+  const catalogo = nivelSel?.adicionais ?? [];
   const qtdPessoas = Number(pessoas) || 0;
   const valorPessoa = valorPessoaDe(faixasSel, qtdPessoas);
   const adicionaisCentavos = adicionais.reduce(
@@ -168,6 +176,31 @@ function CoffeeDialog({
 
           <div className="flex flex-col gap-2">
             <Label>Adicionais do coffee</Label>
+            {catalogo.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {catalogo.map((a) => (
+                  <button
+                    key={`${a.descricao}-${a.valorCentavos}`}
+                    type="button"
+                    onClick={() =>
+                      setAdicionais((ls) => [
+                        ...ls,
+                        {
+                          descricao: a.descricao,
+                          valor: (a.valorCentavos / 100)
+                            .toFixed(2)
+                            .replace(".", ","),
+                        },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs text-ink-muted hover:border-brand hover:text-brand"
+                  >
+                    <Plus className="size-3" />
+                    {a.descricao} · {centavosParaBRL(a.valorCentavos)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {adicionais.map((a, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras
               <div key={i} className="flex gap-2">
