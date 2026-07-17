@@ -301,6 +301,7 @@ export async function criarLocacaoAssistida(
     p_documento: v.locatarioDocumento,
     p_email: v.locatarioEmail,
     p_telefone: v.locatarioTelefone,
+    p_responsavel_nome: v.responsavelNome,
     p_inicio: inicio,
     p_fim: fim,
     p_periodo: v.periodo,

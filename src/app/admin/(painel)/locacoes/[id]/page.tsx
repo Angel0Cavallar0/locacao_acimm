@@ -191,6 +191,9 @@ export default async function LocacaoDetalhePage({
               />
               <Linha rotulo="E-mail" valor={loc.locatarioEmail} />
               <Linha rotulo="Telefone" valor={loc.locatarioTelefone} />
+              {loc.responsavelNome ? (
+                <Linha rotulo="Responsável" valor={loc.responsavelNome} />
+              ) : null}
               {loc.associadoNome ? (
                 <Linha
                   rotulo="Associado"

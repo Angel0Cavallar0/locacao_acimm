@@ -119,6 +119,7 @@ export interface LocacaoDetalhe {
   locatarioDocumento: string;
   locatarioEmail: string;
   locatarioTelefone: string;
+  responsavelNome: string | null;
   associadoId: string | null;
   associadoNome: string | null;
   formaPagamento: FormaPagamento | null;

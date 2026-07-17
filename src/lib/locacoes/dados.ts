@@ -294,6 +294,7 @@ export async function carregarLocacao(
     locatarioDocumento: loc.locatario_documento,
     locatarioEmail: loc.locatario_email,
     locatarioTelefone: loc.locatario_telefone,
+    responsavelNome: loc.responsavel_nome ?? null,
     associadoId: loc.associado_id ?? null,
     associadoNome,
     formaPagamento: (loc.forma_pagamento_preferida as FormaPagamento) ?? null,

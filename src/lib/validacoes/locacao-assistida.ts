@@ -42,6 +42,7 @@ export const criarLocacaoSchema = z
       .refine(documentoValido, "CPF/CNPJ inválido"),
     locatarioEmail: z.email("E-mail inválido"),
     locatarioTelefone: z.string().trim().min(8, "Telefone inválido").max(20),
+    responsavelNome: z.string().trim().max(200).optional().default(""),
     salaIds: z.array(z.uuid()).min(1, "Selecione ao menos uma sala"),
     data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
     periodo: periodoSchema,

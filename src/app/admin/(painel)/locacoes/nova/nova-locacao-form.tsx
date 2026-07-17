@@ -89,6 +89,7 @@ export function NovaLocacaoForm({
   const [documento, setDocumento] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [responsavelNome, setResponsavelNome] = useState("");
 
   // Evento
   const [salaIds, setSalaIds] = useState<string[]>(
@@ -289,6 +290,7 @@ export function NovaLocacaoForm({
       locatarioDocumento: documento,
       locatarioEmail: email.trim(),
       locatarioTelefone: telefone.trim(),
+      responsavelNome: responsavelNome.trim(),
       salaIds,
       data,
       periodo,
@@ -438,6 +440,15 @@ export function NovaLocacaoForm({
                 onChange={(e) => setTelefone(mascararTelefone(e.target.value))}
                 placeholder="(00) 00000-0000"
                 inputMode="tel"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <Label htmlFor="responsavel">Responsável pela locação</Label>
+              <Input
+                id="responsavel"
+                value={responsavelNome}
+                onChange={(e) => setResponsavelNome(e.target.value)}
+                placeholder="Pessoa que responde pela reserva"
               />
             </div>
           </div>

@@ -57,6 +57,7 @@ export interface CriarLocacaoPayload {
   locatarioDocumento: string;
   locatarioEmail: string;
   locatarioTelefone: string;
+  responsavelNome: string;
   salaIds: string[];
   data: string;
   periodo: PeriodoDia;
