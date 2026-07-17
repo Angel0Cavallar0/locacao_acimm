@@ -113,7 +113,7 @@ Supabase Auth (e-mail + senha) como base. Três situações de acesso:
 
 ### 5.1 Colaborador
 - Login em `/admin/login` com **e-mail + senha**.
-- Perfil na tabela `colaboradores` vinculada ao `auth.users`, com `role` (`admin` | `operacional` — refinar níveis com a ACIMM).
+- Perfil na tabela `colaboradores` vinculada ao `auth.users`, com `role` (`admin` | `colaborador` — enum `role_colaborador` já existente no banco).
 - Middleware protege todo o segmento `/admin/*`; sem sessão de colaborador → redirect para login. Checagem de role repetida em cada server action (middleware não é suficiente sozinho).
 - Colaborador é criado por convite de um admin (sem cadastro público de colaborador).
 
@@ -131,7 +131,7 @@ Supabase Auth (e-mail + senha) como base. Três situações de acesso:
 ## 6. Integrações
 
 ### 6.1 Sophus (dados do associado)
-- Workflow n8n (OAuth client credentials) busca associados e faz **upsert** em `associados`: documento, razão social, nome fantasia, e-mail, telefone, **status (ativo/inativo/suspenso)**, `sincronizado_em`.
+- Workflow n8n (OAuth client credentials) busca associados e faz **upsert** em `associados`: documento, razão social, nome fantasia, e-mail, telefone, **situação (ativo/suspenso/excluido — enum `situacao_associado`)**, `sincronizado_em`. **Já implementado e populado** (~2k associados).
 - A aplicação **nunca chama o Sophus diretamente** — valida sempre contra a tabela local (Sophus fora do caminho crítico).
 - Sync periódico (~6h). Somente status **ativo** loca com condição de sócio.
 
@@ -197,7 +197,10 @@ Preços e salas **não são hardcoded** — cadastráveis pelo painel. Seed real
 
 1. **Disponibilidade — fonte da verdade é o banco** (constraint `tsrange` + revalidação transacional no submit). Google Calendar é só espelho.
 2. **Locação de associado nunca é remanejada.** Remanejamento só para eventos internos, conforme tag de prioridade e `qtd_inscritos` (Sympla) vs. capacidade da sala.
-3. **Conflito de horário:** não bloquear silenciosamente. Oferecer ao associado: segunda opção de data / verificação de possibilidade / convite ao evento ACIMM que ocupa o espaço. Gerar **alerta visual** no painel do colaborador.
+3. **Conflito de horário — três cenários, nunca bloquear silenciosamente:**
+   - **(a) Horário confirmado/ocupado:** informar indisponibilidade e oferecer segunda opção de data ou entrada na lista de espera.
+   - **(b) Horário com solicitação pendente (aguardando aprovação):** exibir informativo de que o horário já foi solicitado por outro associado e está aguardando aprovação, oferecendo entrada na **fila de espera** (não criar solicitação concorrente pelo portal). No painel do colaborador, sobreposições pendentes geram **alerta visual** para a responsável administrar.
+   - **(c) Horário ocupado por evento ACIMM:** **convidar o associado a participar do evento** (título e, quando vinculado, link do Sympla) e informar que, caso precise realmente daquela sala específica, deve entrar em contato com a equipe da ACIMM.
 4. **Período gratuito do sócio:** aplicado automaticamente quando elegível, com aviso ao exceder e ciclo de renovação visível. Registrar o consumo na locação.
 5. **Desconto multi-sala:** automático ao locar múltiplas salas na mesma data; regras em `configuracoes` (pendente ACIMM).
 6. **Locação em nome de terceiro:** dados do locatário no contrato editáveis, mantendo vínculo com o associado.
@@ -288,12 +291,13 @@ Landing pública e minimalista:
 - Recuperação de senha por e-mail.
 
 ### 10.3 Disponibilidade (`/disponibilidade`)
-- Calendário visual por sala com horários livres/ocupados. Ocupado aparece apenas como "indisponível" — **nunca expor dados de outras locações**.
-- Filtros por sala, data e capacidade. CTA "Solicitar locação" a partir de um horário livre.
+- Calendário visual por sala com três estados: **livre**, **indisponível** (ocupado/confirmado ou evento ACIMM) e **aguardando aprovação** (solicitação pendente de outro associado). Nunca expor dados de outras locações — apenas o estado do horário.
+- Horário de evento ACIMM exibe o título do evento e convite para participar (link Sympla quando vinculado), com orientação para contatar a ACIMM caso precise daquela sala específica (§8.3c).
+- Filtros por sala, data e capacidade. CTA "Solicitar locação" a partir de um horário livre; horário pendente oferece "Entrar na fila de espera".
 
 ### 10.4 Nova solicitação (`/locacoes/nova`)
 Formulário guiado em etapas:
-1. **Sala e data:** sala(s), data desejada, período/horário. Conflito → oferecer segunda opção de data / lista de espera / convite ao evento ACIMM (§8.3).
+1. **Sala e data:** sala(s), data desejada, período/horário. Conflito segue §8.3: confirmado → segunda data/lista de espera; pendente → informativo "horário já solicitado, aguardando aprovação" + fila de espera; evento ACIMM → convite ao evento + orientação de contato.
 2. **Dados do associado:** auto-preenchidos da base (razão social, CNPJ, contato) — apenas confirma. Opção "locação em nome de terceiro" abre campos do locatário do contrato.
 3. **Evento:** tipo, nº de pessoas, observações + campos dinâmicos do editor de formulário.
 4. **Coffee break:** com/sem; nível (Bronze/Prata/Ouro), horário de servir, adicionais — subtotal em tempo real.
