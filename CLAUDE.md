@@ -356,7 +356,8 @@ Prazo contratual: 60 dias. Meta interna: primeira versão testável (Fases 0–2
 - Não usar Google Calendar como fonte de disponibilidade; não bloquear locação por falha no espelho.
 - Não tentar criar eventos no Sympla via API (é somente leitura).
 - Não colocar secrets no código, em `NEXT_PUBLIC_*` ou em arquivos commitados.
-- Não citar FacioFlow/stack em textos visíveis ao cliente final.
+- Citar a FacioFlow apenas como desenvolvedora da plataforma.
+- Não citar stack em textos visíveis ao cliente final.
 - Não criar migration sem spec do módulo aprovado.
 - Não implementar integração bancária na v1.
 - Não usar Next.js 15 ou dependências com CVEs conhecidos sem patch.

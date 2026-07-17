@@ -83,7 +83,10 @@ export default async function HomePage() {
       </div>
 
       <footer className="absolute inset-x-0 bottom-4 px-6 text-center text-xs text-ink-muted">
-        ACIMM — Associação Comercial e Empresarial de Mogi Mirim
+        ACIMM — Associação Comercial e Empresarial de Mogi Mirim | Desenvolvido por{" "}
+        <Link href="https://www.facioflow.com.br" className="text-ink hover:text-ink-hover">
+          FacioFlow
+        </Link>
       </footer>
     </div>
   );
