@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   criarEquipamento,
   type Equipamento,
@@ -31,6 +32,7 @@ export function TagSelector({
   catalogoInicial: Equipamento[];
 }) {
   const [catalogo, setCatalogo] = useState<Equipamento[]>(catalogoInicial);
+  const [aberto, setAberto] = useState(false);
   const [novo, setNovo] = useState("");
   const [delAlvo, setDelAlvo] = useState<Equipamento | null>(null);
   const [pending, startTransition] = useTransition();
@@ -99,71 +101,80 @@ export function TagSelector({
         </div>
       ) : null}
 
-      <details className="group relative">
-        <summary className="flex w-full max-w-sm cursor-pointer list-none items-center justify-between rounded-lg border border-input px-3 py-2 text-sm text-ink-muted hover:bg-surface-muted [&::-webkit-details-marker]:hidden">
+      <div className="w-full max-w-sm">
+        <button
+          type="button"
+          onClick={() => setAberto((a) => !a)}
+          aria-expanded={aberto}
+          className="flex w-full items-center justify-between rounded-lg border border-input px-3 py-2 text-sm text-ink-muted hover:bg-surface-muted"
+        >
           Selecionar equipamentos
-          <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
-        </summary>
+          <ChevronDown
+            className={cn("size-4 transition-transform", aberto && "rotate-180")}
+          />
+        </button>
 
-        <div className="absolute z-40 mt-1 w-full max-w-sm rounded-md border bg-popover p-2 shadow-md">
-          <div className="flex gap-2">
-            <Input
-              value={novo}
-              onChange={(e) => setNovo(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  criar();
-                }
-              }}
-              placeholder="Nova tag"
-              className="h-8"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={criar}
-              disabled={pending}
-            >
-              <Plus className="size-4" />
-            </Button>
-          </div>
+        {aberto ? (
+          <div className="mt-1 rounded-md border bg-popover p-2 shadow-sm">
+            <div className="flex gap-2">
+              <Input
+                value={novo}
+                onChange={(e) => setNovo(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    criar();
+                  }
+                }}
+                placeholder="Nova tag"
+                className="h-8"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={criar}
+                disabled={pending}
+              >
+                <Plus className="size-4" />
+              </Button>
+            </div>
 
-          <ul className="mt-2 max-h-48 overflow-auto">
-            {catalogo.length === 0 ? (
-              <li className="px-1 py-2 text-xs text-ink-muted">
-                Nenhuma tag criada ainda.
-              </li>
-            ) : (
-              catalogo.map((eq) => (
-                <li
-                  key={eq.id}
-                  className="flex items-center justify-between gap-2 rounded px-1 py-1 hover:bg-surface-muted"
-                >
-                  <label className="flex flex-1 cursor-pointer items-center gap-2 text-sm text-ink">
-                    <input
-                      type="checkbox"
-                      className="size-4"
-                      checked={value.includes(eq.nome)}
-                      onChange={() => toggle(eq.nome)}
-                    />
-                    {eq.nome}
-                  </label>
-                  <button
-                    type="button"
-                    aria-label={`Excluir ${eq.nome}`}
-                    onClick={() => setDelAlvo(eq)}
-                    className="text-ink-muted hover:text-destructive"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+            <ul className="mt-2 max-h-48 overflow-auto">
+              {catalogo.length === 0 ? (
+                <li className="px-1 py-2 text-xs text-ink-muted">
+                  Nenhuma tag criada ainda.
                 </li>
-              ))
-            )}
-          </ul>
-        </div>
-      </details>
+              ) : (
+                catalogo.map((eq) => (
+                  <li
+                    key={eq.id}
+                    className="flex items-center justify-between gap-2 rounded px-1 py-1 hover:bg-surface-muted"
+                  >
+                    <label className="flex flex-1 cursor-pointer items-center gap-2 text-sm text-ink">
+                      <input
+                        type="checkbox"
+                        className="size-4"
+                        checked={value.includes(eq.nome)}
+                        onChange={() => toggle(eq.nome)}
+                      />
+                      {eq.nome}
+                    </label>
+                    <button
+                      type="button"
+                      aria-label={`Excluir ${eq.nome}`}
+                      onClick={() => setDelAlvo(eq)}
+                      className="text-ink-muted hover:text-destructive"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        ) : null}
+      </div>
 
       <AlertDialog
         open={delAlvo !== null}

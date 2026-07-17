@@ -57,6 +57,7 @@ export default async function SalasPage() {
     supabase
       .from("salas")
       .select("id, nome, capacidade, ativa, ordem, fotos, criado_em")
+      .is("excluida_em", null)
       .order("ordem", { ascending: true })
       .order("criado_em", { ascending: true }),
     supabase.from("precos_sala").select("sala_id, vigencia"),

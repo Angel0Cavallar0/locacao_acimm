@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import type { CategoriaHoraAdicional } from "@/lib/dominio";
 import { listarEquipamentos } from "../equipamentos-actions";
+import { ExcluirSalaButton } from "../excluir-sala-button";
 import { FotoGaleria } from "../foto-galeria";
 import {
   HoraAdicionalForm,
@@ -62,7 +63,7 @@ export default async function EditarSalaPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireColaborador();
+  const { colaborador } = await requireColaborador();
   const { id } = await params;
   const supabase = await createClient();
 
@@ -155,18 +156,23 @@ export default async function EditarSalaPage({
         </TabsList>
 
         <TabsContent value="dados" className="mt-4">
-          <SalaForm
-            modo="editar"
-            catalogo={catalogo}
-            sala={{
-              id: sala.id,
-              nome: sala.nome,
-              descricao: sala.descricao ?? "",
-              capacidade: sala.capacidade,
-              equipamentos: (sala.equipamentos as string[] | null) ?? [],
-              ativa: sala.ativa,
-            }}
-          />
+          <div className="flex flex-col gap-4">
+            <SalaForm
+              modo="editar"
+              catalogo={catalogo}
+              sala={{
+                id: sala.id,
+                nome: sala.nome,
+                descricao: sala.descricao ?? "",
+                capacidade: sala.capacidade,
+                equipamentos: (sala.equipamentos as string[] | null) ?? [],
+                ativa: sala.ativa,
+              }}
+            />
+            {colaborador.role === "admin" ? (
+              <ExcluirSalaButton salaId={sala.id} nome={sala.nome} />
+            ) : null}
+          </div>
         </TabsContent>
 
         <TabsContent value="fotos" className="mt-4">

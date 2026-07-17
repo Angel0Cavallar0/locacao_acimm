@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireColaborador } from "@/lib/auth/guards";
+import { requireAdmin, requireColaborador } from "@/lib/auth/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { salaSchema } from "@/lib/validacoes/salas";
 
@@ -191,6 +191,37 @@ export async function moverSala(
   await Promise.all(
     lista.map((s, i) => admin.from("salas").update({ ordem: i }).eq("id", s.id)),
   );
+
+  revalidatePath("/admin/salas");
+  return {};
+}
+
+/**
+ * Exclusão lógica (admin only). Não apaga nada — locações, logs, preços e
+ * fotos permanecem; a sala só some da tela. Exige confirmar o nome.
+ */
+export async function excluirSala(
+  salaId: string,
+  nomeConfirmacao: string,
+): Promise<ResultadoSala> {
+  await requireAdmin();
+  const admin = createAdminClient();
+
+  const { data: sala } = await admin
+    .from("salas")
+    .select("nome")
+    .eq("id", salaId)
+    .maybeSingle();
+  if (!sala) return { error: "Sala não encontrada." };
+  if (nomeConfirmacao.trim() !== sala.nome.trim()) {
+    return { error: "O nome digitado não confere." };
+  }
+
+  const { error } = await admin
+    .from("salas")
+    .update({ excluida_em: new Date().toISOString(), ativa: false })
+    .eq("id", salaId);
+  if (error) return { error: "Não foi possível excluir a sala." };
 
   revalidatePath("/admin/salas");
   return {};
