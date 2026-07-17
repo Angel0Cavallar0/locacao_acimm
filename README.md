@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema de Locação de Salas — ACIMM
 
-## Getting Started
+Aplicação web para a ACIMM gerenciar a locação dos ambientes da sede.
+Stack, regras e contexto: ver [`CLAUDE.md`](./CLAUDE.md). Specs por módulo em
+[`docs/features/`](./docs/features).
 
-First, run the development server:
+## Desenvolvimento
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # preencher as variáveis (ver abaixo)
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Scripts: `npm run dev` · `npm run build` · `npm run lint` (Biome) · `npm run format`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variáveis de ambiente
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Todos os nomes estão em [`.env.example`](./.env.example). Para desenvolvimento,
+o mínimo para subir é o bloco Supabase. As integrações ausentes viram warning
+(stub) em dev e são obrigatórias em produção — validação em
+[`src/lib/env.ts`](./src/lib/env.ts).
 
-## Learn More
+Para o painel do colaborador (Spec 03) é necessário, além das chaves públicas:
 
-To learn more about Next.js, take a look at the following resources:
+- `SUPABASE_SERVICE_ROLE_KEY` — usada nas server actions administrativas
+  (convite de colaborador etc.). Sem ela o convite falha com erro claro.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Bootstrap do primeiro admin
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Não há cadastro público de colaborador. O primeiro admin é criado **uma única
+vez**, manualmente:
 
-## Deploy on Vercel
+1. No **Dashboard do Supabase → Authentication → Users → Add user**, crie um
+   usuário com e-mail e senha (marque "Auto Confirm User").
+2. No **SQL Editor**, vincule esse usuário como admin (troque o e-mail):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   ```sql
+   insert into public.colaboradores (user_id, nome, email, role, ativo)
+   select id, 'Nome do Admin', email, 'admin', true
+   from auth.users
+   where email = 'admin@acimm.org.br';
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+3. Acesse `/admin/login` com essas credenciais. Os demais colaboradores são
+   criados por convite dentro do painel
+   (`/admin/configuracoes/colaboradores`).
+
+## E-mails de autenticação (convite / recuperação de senha)
+
+Os fluxos de convite e reset dependem do envio de e-mail pelo Supabase Auth.
+Em produção, configurar **SMTP com o Resend** e os templates em pt-BR com a
+identidade ACIMM (sem menção a ferramentas):
+
+- **Dashboard → Authentication → Emails → SMTP Settings:** apontar para o Resend.
+- **Templates (Invite / Reset Password):** o link deve levar a
+  `.../admin/definir-senha` (o `redirectTo` já é enviado pelas actions). O
+  cliente Supabase troca o `code` da URL por sessão em cookies e a tela permite
+  definir a nova senha.
+
+Sem SMTP configurado, o convite ainda cria o usuário, mas o e-mail pode não ser
+entregue — nesse caso, use o fluxo de "Recuperar senha" ou o dashboard.
+
+## Estrutura
+
+- `src/app/(site)` — área pública (tela inicial).
+- `src/app/admin/(auth)` — login, recuperar/definir senha (sem shell).
+- `src/app/admin/(painel)` — painel autenticado (guard `requireColaborador`).
+- `src/lib/supabase` — clients browser/server/admin.
+- `src/lib/auth` — guards, rate limit, sessão.
+- `supabase/migrations` — schema versionado (aplicado no projeto `acimm_db`).
