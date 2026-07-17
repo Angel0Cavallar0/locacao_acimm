@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CONDICOES, DIAS_SEMANA, PERIODOS } from "@/lib/dominio";
 import { cn } from "@/lib/utils";
+import { centavosParaBRL } from "@/lib/utils/moeda";
 import { atualizarSala, criarSala, type EstadoSala } from "./actions";
 import type { Equipamento } from "./equipamentos-actions";
 import {
@@ -17,7 +19,18 @@ import {
   subirFotoSala,
   TIPOS_FOTO,
 } from "./foto-upload";
+import { PrecoDialog, type PrecoEntrada } from "./preco-dialog";
+import { reajustarPreco } from "./precos-actions";
 import { TagSelector } from "./tag-selector";
+
+const rotuloCond = (c: string) =>
+  CONDICOES.find((x) => x.valor === c)?.rotulo ?? c;
+const rotuloPer = (p: string) =>
+  PERIODOS.find((x) => x.valor === p)?.rotulo ?? p;
+const diasCurto = (dias: number[]) =>
+  DIAS_SEMANA.filter((d) => dias.includes(d.valor))
+    .map((d) => d.curto)
+    .join(", ");
 
 export interface SalaDados {
   id: string;
@@ -117,8 +130,9 @@ export function SalaForm({
     if (stateEdit.success) toast.success(stateEdit.success);
   }, [stateEdit.success]);
 
-  // -------- Criação (submit manual: cria sala + envia fotos pendentes) --------
+  // -------- Criação (submit manual: cria sala + fotos + preços pendentes) --------
   const [pendentes, setPendentes] = useState<FotoPendente[]>([]);
+  const [precosPendentes, setPrecosPendentes] = useState<PrecoEntrada[]>([]);
   const [comprimindo, setComprimindo] = useState(false);
   const [criando, setCriando] = useState(false);
   const [erroCriar, setErroCriar] = useState<string | null>(null);
@@ -172,6 +186,10 @@ export function SalaForm({
     for (const p of pendentes) {
       const up = await subirFotoSala(r.id, p.file);
       if ("error" in up) toast.error(`Foto não enviada: ${up.error}`);
+    }
+    for (const preco of precosPendentes) {
+      const pr = await reajustarPreco({ salaId: r.id, ...preco });
+      if (pr.error) toast.error(`Preço não salvo: ${pr.error}`);
     }
     toast.success("Sala criada.");
     router.push(`/admin/salas/${r.id}`);
@@ -268,6 +286,60 @@ export function SalaForm({
                 ))}
               </div>
             ) : null}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label>Preços</Label>
+                <p className="text-xs text-ink-muted">
+                  Adicione os valores por condição, período e dias.
+                </p>
+              </div>
+              <PrecoDialog
+                aoSubmeter={(e) => {
+                  setPrecosPendentes((prev) => [...prev, e]);
+                  return Promise.resolve({});
+                }}
+              />
+            </div>
+            {precosPendentes.length > 0 ? (
+              <ul className="divide-y rounded-md border">
+                {precosPendentes.map((p, i) => (
+                  <li
+                    key={`${p.condicao}-${p.periodo}-${i}`}
+                    className="flex items-center gap-2 px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium text-ink">
+                        {centavosParaBRL(p.valorCentavos)}
+                      </span>
+                      <span className="text-xs text-ink-muted">
+                        {" · "}
+                        {rotuloCond(p.condicao)} · {rotuloPer(p.periodo)} ·{" "}
+                        {diasCurto(p.diasSemana)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Remover preço"
+                      onClick={() =>
+                        setPrecosPendentes((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        )
+                      }
+                      className="text-ink-muted hover:text-destructive"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-ink-muted">
+                Nenhum preço adicionado — você também pode cadastrar depois.
+              </p>
+            )}
           </div>
 
           {erroCriar ? (
