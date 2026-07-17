@@ -2,18 +2,30 @@ import type { StatusLocacao } from "@/lib/locacoes/maquina-estados-core";
 
 /** Tipos e formatadores de coffee break (Spec 08), compartilhados server + client. */
 
-/** Item da composição de um nível — quantidade SEMPRE por pessoa. */
+/** Item do nível (base da lista de compras) — quantidade FIXA por pedido. */
 export interface ItemComposicao {
   item: string;
-  qtdPorPessoa: number;
+  qtd: number;
   unidade: string;
+}
+
+/**
+ * Faixa de preço por nº de pessoas. `valorPessoaCentavos` é POR PESSOA dentro
+ * da faixa (total = valor × pessoas). `maxPessoas` nulo = faixa aberta (ex.:
+ * "15 pessoas ou mais").
+ */
+export interface FaixaPreco {
+  minPessoas: number;
+  maxPessoas: number | null;
+  valorPessoaCentavos: number;
 }
 
 /** Nível de coffee configurável (Bronze/Prata/Ouro… — nome livre). */
 export interface NivelCoffee {
   id: string;
   nome: string;
-  valorPessoaCentavos: number;
+  descricao: string | null;
+  faixas: FaixaPreco[];
   composicao: ItemComposicao[];
   ativo: boolean;
   ordem: number;
@@ -42,13 +54,14 @@ export interface PedidoCoffee {
   locatario: string;
   salas: string[];
   nivelNome: string;
+  nivelDescricao: string | null;
   qtdPessoas: number;
   valorCentavos: number;
   adicionais: AdicionalCoffee[];
   observacoes: string | null;
   /**
-   * Composição ATUAL do nível (não é snapshot — `coffee_breaks` não guarda
-   * composição). O consolidado reflete a receita vigente do nível.
+   * Itens ATUAIS do nível (não é snapshot — `coffee_breaks` não guarda
+   * composição). O consolidado reflete os itens vigentes do nível.
    */
   composicao: ItemComposicao[];
 }

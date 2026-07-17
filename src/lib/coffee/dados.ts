@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { StatusLocacao } from "@/lib/locacoes/maquina-estados-core";
 import { calcularItensCoffee } from "./calcular-itens-core";
+import { parsearFaixas } from "./faixas-core";
 import type { IntervaloCoffee } from "./periodo";
 import type {
   AdicionalCoffee,
@@ -32,7 +33,7 @@ const STATUS_PENDENTES: StatusLocacao[] = ["solicitada", "em_analise"];
 
 const FIRMES = new Set<StatusLocacao>(STATUS_FIRMES);
 
-/** Aceita `qtd_por_pessoa` (padrão do banco) ou `qtdPorPessoa`. */
+/** Item com quantidade fixa por pedido. Aceita `qtd` ou o legado `qtd_por_pessoa`. */
 export function parsearComposicao(raw: unknown): ItemComposicao[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -40,7 +41,7 @@ export function parsearComposicao(raw: unknown): ItemComposicao[] {
       const o = (r ?? {}) as Record<string, unknown>;
       return {
         item: String(o.item ?? "").trim(),
-        qtdPorPessoa: Number(o.qtd_por_pessoa ?? o.qtdPorPessoa ?? 0) || 0,
+        qtd: Number(o.qtd ?? o.qtd_por_pessoa ?? o.qtdPorPessoa ?? 0) || 0,
         unidade: String(o.unidade ?? "").trim(),
       };
     })
@@ -68,7 +69,7 @@ export async function listarNiveis(
   const admin = createAdminClient();
   let q = admin
     .from("coffee_niveis")
-    .select("id, nome, valor_pessoa_centavos, composicao, ativo, ordem")
+    .select("id, nome, descricao, faixas_preco, composicao, ativo, ordem")
     .order("ordem", { ascending: true })
     .order("criado_em", { ascending: true });
   if (apenasAtivos) q = q.eq("ativo", true);
@@ -77,7 +78,8 @@ export async function listarNiveis(
   return (data ?? []).map((n) => ({
     id: n.id as string,
     nome: n.nome as string,
-    valorPessoaCentavos: n.valor_pessoa_centavos as number,
+    descricao: (n.descricao as string) ?? null,
+    faixas: parsearFaixas(n.faixas_preco),
     composicao: parsearComposicao(n.composicao),
     ativo: n.ativo as boolean,
     ordem: n.ordem as number,
@@ -129,7 +131,7 @@ export async function carregarPedidosCoffee(
     .from("coffee_breaks")
     .select(
       `id, qtd_pessoas, valor_centavos, horario_servir, adicionais, observacoes,
-       coffee_niveis ( nome, composicao ),
+       coffee_niveis ( nome, descricao, composicao ),
        locacoes!inner ( id, numero, status, inicio, fim, locatario_nome,
          locacao_salas ( salas ( nome ) ) )`,
     )
@@ -144,7 +146,10 @@ export async function carregarPedidosCoffee(
     horario_servir: string | null;
     adicionais: unknown;
     observacoes: string | null;
-    coffee_niveis: { nome?: string; composicao?: unknown } | Array<{ nome?: string; composicao?: unknown }> | null;
+    coffee_niveis:
+      | { nome?: string; descricao?: string | null; composicao?: unknown }
+      | Array<{ nome?: string; descricao?: string | null; composicao?: unknown }>
+      | null;
     locacoes: LocacaoJoin | LocacaoJoin[] | null;
   };
 
@@ -168,6 +173,7 @@ export async function carregarPedidosCoffee(
         locatario: loc.locatario_nome,
         salas: nomesDasSalas(loc),
         nivelNome: nivel?.nome ?? "",
+        nivelDescricao: nivel?.descricao ?? null,
         qtdPessoas: r.qtd_pessoas,
         valorCentavos: r.valor_centavos,
         adicionais: parsearAdicionaisCoffee(r.adicionais),

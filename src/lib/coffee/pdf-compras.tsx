@@ -124,6 +124,9 @@ function EventoBloco({ p }: { p: PedidoCoffee }) {
         {p.salas.join(", ") || "—"} · {p.nivelNome || "—"} · {p.qtdPessoas}{" "}
         pessoas
       </Text>
+      {p.nivelDescricao ? (
+        <Text style={styles.eventoAdic}>{p.nivelDescricao}</Text>
+      ) : null}
       {p.adicionais.length > 0 ? (
         <Text style={styles.eventoAdic}>
           Adicionais:{" "}

@@ -6,8 +6,9 @@ import type {
 
 /**
  * Cálculo PURO do consolidado de compras (Spec 08 §4). Sem I/O — recebe os
- * pedidos já materializados (composição do nível × pessoas) e agrega por
- * (item, unidade). Reutilizado pela tela `/admin/coffee` e pelo PDF.
+ * pedidos já materializados e agrega por (item, unidade). A quantidade de cada
+ * item é FIXA por pedido (não multiplica por pessoas). `qtdPessoas` é usado só
+ * para o total de pessoas atendidas. Reutilizado pela tela e pelo PDF.
  */
 
 export interface PedidoParaConsolidar {
@@ -51,7 +52,8 @@ export function calcularItensCoffee(
       const unidade = c.unidade.trim();
       if (!item) continue;
       const chave = `${item.toLowerCase()}|${unidade.toLowerCase()}`;
-      const inc = Math.max(0, c.qtdPorPessoa) * pessoas;
+      // Quantidade fixa por pedido — não multiplica por pessoas.
+      const inc = Math.max(0, c.qtd);
       const atual = mapa.get(chave);
       if (atual) atual.quantidade += inc;
       else mapa.set(chave, { item, unidade, quantidade: inc });

@@ -14,9 +14,10 @@ Configurar os níveis de coffee (valores e composição), acompanhar os pedidos 
 
 ## 2. Configuração de níveis (`/admin/coffee/niveis`)
 
-- CRUD de `coffee_niveis`: nome (ex.: Bronze/Prata/Ouro — livre e cadastrável), **valor por pessoa** (BRL na UI, centavos no banco), **composição**, ativo, ordem.
-- **Composição** (`composicao` JSONB): lista de itens *por pessoa* — `[{ item: "Mini sanduíche", qtd_por_pessoa: 2, unidade: "un" }, { item: "Suco", qtd_por_pessoa: 300, unidade: "ml" }, …]`. Editor de linhas simples (item, quantidade, unidade). É a base do cálculo de compras (§4).
-- **Alteração de valor NÃO cria vigência** (diferente de `precos_sala`): o valor do coffee é **snapshot** em `coffee_breaks.valor_centavos` no momento do cálculo da locação — mudar o nível afeta apenas locações novas ou recalculadas (reagendamento). Documentar esse contraste no código.
+- CRUD de `coffee_niveis`: nome (ex.: Bronze/Prata/Ouro — livre e cadastrável), **descrição** (texto do que tem no coffee), **preço por faixa de pessoas**, **itens** (composição), ativo, ordem.
+- **Preço por faixa** (`faixas_preco` JSONB): `[{ min_pessoas: 8, max_pessoas: 14, valor_pessoa_centavos: 2500 }, { min_pessoas: 15, max_pessoas: null, valor_pessoa_centavos: 2000 }]`. O valor é **por pessoa dentro da faixa** — total = `valor_pessoa × pessoas`. `max_pessoas` nulo = faixa aberta ("15+"). A faixa aplicável é escolhida pelo nº de pessoas da reserva (regra em `lib/coffee/faixas-core.ts`, testada: match exato → abaixo de tudo usa a menor faixa → lacuna usa a maior faixa cujo min ≤ qtd).
+- **Itens** (`composicao` JSONB): lista de itens com **quantidade fixa por pedido** (NÃO por pessoa) — `[{ item: "Mini salgado", qtd: 40, unidade: "un" }, { item: "Suco", qtd: 3000, unidade: "ml" }, …]`. Editor de linhas simples (item, quantidade, unidade). É a base do cálculo de compras (§4).
+- **Alteração de preço NÃO cria vigência** (diferente de `precos_sala`): o valor do coffee é **snapshot** em `coffee_breaks.valor_centavos` no momento do cálculo da locação — mudar o nível afeta apenas locações novas ou recalculadas (reagendamento). Documentar esse contraste no código.
 - Desativar nível: some das opções de novas locações; locações existentes que o usam não são afetadas (FK permanece).
 - Sem hard delete (padrão do projeto).
 
@@ -26,17 +27,18 @@ Configurar os níveis de coffee (valores e composição), acompanhar os pedidos 
 - Tabela de pedidos do período — coffee de locações cujo **evento** cai no intervalo:
   - Colunas: data/horário do evento, horário de servir, LOC-nº (link), locatário, sala(s), nível, pessoas, adicionais, valor, status da locação (badge).
   - **Filtro de status**: padrão exibe locações "firmes" (`aprovada` → `realizada`); toggle "incluir pendentes" mostra `solicitada`/`em_analise` com destaque visual (podem não se confirmar — a equipe decide se compra contando com elas).
-- **Consolidado de compras do período** (card acima da tabela): soma da composição × pessoas de cada pedido firme, agrupada por item/unidade — ex.: "Mini sanduíche: 240 un · Suco: 36 L". Adicionais listados à parte (são texto livre, não consolidam).
+- **Consolidado de compras do período** (card acima da tabela): soma da quantidade **fixa por pedido** de cada item dos pedidos firmes, agrupada por item/unidade — ex.: "Mini salgado: 240 un · Suco: 36 L". Adicionais listados à parte (são texto livre, não consolidam).
 - Botão **"Gerar PDF de compras"** (§5) + nota "Envio automático semanal ao setor de compras: em breve" (Spec 16).
 
 ## 4. Cálculo de itens — `lib/coffee/calcular-itens.ts` (server-only)
 
 ```ts
 calcularItensCoffee(pedidos: PedidoCoffee[]): ConsolidadoCompras
-// composicao × qtd_pessoas por pedido → agregação por (item, unidade)
+// soma da quantidade FIXA de cada item por pedido → agregação por (item, unidade)
+// (não multiplica por pessoas — a quantidade do item já é o total do pedido)
 // converte unidades óbvias para exibição (ml→L quando ≥ 1000; g→kg quando ≥ 1000)
 ```
-Função pura com testes unitários (agregação, conversão de unidade, período sem pedidos).
+Função pura com testes unitários (agregação, conversão de unidade, período sem pedidos). O preço por faixa fica em `lib/coffee/faixas-core.ts` (também puro e testado).
 
 ## 5. PDF de compras — `lib/coffee/pdf-compras.tsx`
 

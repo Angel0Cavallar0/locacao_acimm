@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { rotuloFaixa } from "@/lib/coffee/faixas-core";
 import type { NivelCoffee } from "@/lib/coffee/tipos";
 import { cn } from "@/lib/utils";
 import { brlParaCentavos, centavosParaBRL } from "@/lib/utils/moeda";
@@ -30,17 +31,32 @@ import {
 const inputClasses =
   "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-interface LinhaComposicao {
+interface LinhaItem {
   item: string;
   qtd: string;
   unidade: string;
 }
+interface LinhaFaixa {
+  de: string;
+  ate: string;
+  valor: string;
+}
 
-function paraLinhas(nivel?: NivelCoffee): LinhaComposicao[] {
+function itensParaLinhas(nivel?: NivelCoffee): LinhaItem[] {
   return (nivel?.composicao ?? []).map((c) => ({
     item: c.item,
-    qtd: String(c.qtdPorPessoa).replace(".", ","),
+    qtd: String(c.qtd).replace(".", ","),
     unidade: c.unidade,
+  }));
+}
+
+function faixasParaLinhas(nivel?: NivelCoffee): LinhaFaixa[] {
+  const fs = nivel?.faixas ?? [];
+  if (fs.length === 0) return [{ de: "1", ate: "", valor: "" }];
+  return fs.map((f) => ({
+    de: String(f.minPessoas),
+    ate: f.maxPessoas === null ? "" : String(f.maxPessoas),
+    valor: (f.valorPessoaCentavos / 100).toFixed(2).replace(".", ","),
   }));
 }
 
@@ -55,16 +71,18 @@ function NivelDialog({
 }) {
   const router = useRouter();
   const [nome, setNome] = useState(nivel?.nome ?? "");
-  const [valor, setValor] = useState(
-    nivel ? (nivel.valorPessoaCentavos / 100).toFixed(2).replace(".", ",") : "",
-  );
+  const [descricao, setDescricao] = useState(nivel?.descricao ?? "");
   const [ativo, setAtivo] = useState(nivel?.ativo ?? true);
-  const [linhas, setLinhas] = useState<LinhaComposicao[]>(paraLinhas(nivel));
+  const [faixas, setFaixas] = useState<LinhaFaixa[]>(faixasParaLinhas(nivel));
+  const [itens, setItens] = useState<LinhaItem[]>(itensParaLinhas(nivel));
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  function atualizarLinha(i: number, patch: Partial<LinhaComposicao>) {
-    setLinhas((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  function setFaixa(i: number, patch: Partial<LinhaFaixa>) {
+    setFaixas((fs) => fs.map((f, j) => (j === i ? { ...f, ...patch } : f)));
+  }
+  function setItem(i: number, patch: Partial<LinhaItem>) {
+    setItens((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -73,13 +91,20 @@ function NivelDialog({
     setSalvando(true);
     const payload = {
       nome: nome.trim(),
-      valorPessoaCentavos: brlParaCentavos(valor),
+      descricao: descricao.trim(),
       ativo,
-      composicao: linhas
+      faixasPreco: faixas
+        .filter((f) => f.de.trim() !== "" || f.valor.trim() !== "")
+        .map((f) => ({
+          minPessoas: Number(f.de.replace(",", ".")) || 1,
+          maxPessoas: f.ate.trim() === "" ? null : Number(f.ate.replace(",", ".")),
+          valorPessoaCentavos: brlParaCentavos(f.valor),
+        })),
+      composicao: itens
         .filter((l) => l.item.trim())
         .map((l) => ({
           item: l.item.trim(),
-          qtdPorPessoa: Number(l.qtd.replace(",", ".")) || 0,
+          qtd: Number(l.qtd.replace(",", ".")) || 0,
           unidade: l.unidade.trim() || "un",
         })),
     };
@@ -98,84 +123,140 @@ function NivelDialog({
 
   return (
     <Dialog open={aberto} onOpenChange={aoAbrir}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{nivel ? "Editar" : "Novo"} nível de coffee</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="nv-nome">Nome</Label>
-              <Input
-                id="nv-nome"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Bronze, Prata, Ouro…"
-                required
-              />
+        <form
+          onSubmit={onSubmit}
+          className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto"
+          noValidate
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="nv-nome">Nome</Label>
+            <Input
+              id="nv-nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Bronze, Prata, Ouro…"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="nv-desc">Descrição (o que tem no coffee)</Label>
+            <textarea
+              id="nv-desc"
+              rows={2}
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              placeholder="Café, sucos, mini salgados, bolo…"
+              className="min-h-16 rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </div>
+
+          {/* Faixas de preço */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <Label>Preço por faixa de pessoas</Label>
+              <span className="text-xs text-ink-muted">valor por pessoa</span>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="nv-valor">Valor por pessoa (R$)</Label>
-              <Input
-                id="nv-valor"
-                inputMode="decimal"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                placeholder="0,00"
-              />
+            <div className="grid grid-cols-[1fr_1fr_1.2fr_auto] gap-2 text-xs text-ink-muted">
+              <span>De (pessoas)</span>
+              <span>Até (vazio = sem limite)</span>
+              <span>Valor/pessoa (R$)</span>
+              <span />
+            </div>
+            {faixas.map((f, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras
+              <div key={i} className="grid grid-cols-[1fr_1fr_1.2fr_auto] gap-2">
+                <Input
+                  inputMode="numeric"
+                  value={f.de}
+                  onChange={(e) => setFaixa(i, { de: e.target.value })}
+                  placeholder="8"
+                />
+                <Input
+                  inputMode="numeric"
+                  value={f.ate}
+                  onChange={(e) => setFaixa(i, { ate: e.target.value })}
+                  placeholder="14"
+                />
+                <Input
+                  inputMode="decimal"
+                  value={f.valor}
+                  onChange={(e) => setFaixa(i, { valor: e.target.value })}
+                  placeholder="0,00"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Remover faixa"
+                  onClick={() => setFaixas((fs) => fs.filter((_, j) => j !== i))}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setFaixas((fs) => [...fs, { de: "", ate: "", valor: "" }])
+                }
+              >
+                <Plus className="size-4" />
+                Adicionar faixa
+              </Button>
             </div>
           </div>
 
+          {/* Itens (compras) */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <Label>Composição (por pessoa)</Label>
-              <span className="text-xs text-ink-muted">
-                base da lista de compras
-              </span>
+              <Label>Itens (quantidade por pedido)</Label>
+              <span className="text-xs text-ink-muted">base da lista de compras</span>
             </div>
-            {linhas.length === 0 ? (
+            {itens.length === 0 ? (
               <p className="text-xs text-ink-muted">
-                Nenhum item — adicione o que compõe este nível.
+                Nenhum item — adicione o que compõe este nível (opcional).
               </p>
             ) : (
-              <div className="flex flex-col gap-2">
-                {linhas.map((l, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras
-                  <div key={i} className="flex gap-2">
-                    <Input
-                      value={l.item}
-                      onChange={(e) => atualizarLinha(i, { item: e.target.value })}
-                      placeholder="Item (ex.: Mini sanduíche)"
-                    />
-                    <Input
-                      value={l.qtd}
-                      inputMode="decimal"
-                      onChange={(e) => atualizarLinha(i, { qtd: e.target.value })}
-                      placeholder="Qtd"
-                      className="w-20"
-                    />
-                    <Input
-                      value={l.unidade}
-                      onChange={(e) =>
-                        atualizarLinha(i, { unidade: e.target.value })
-                      }
-                      placeholder="un"
-                      className="w-20"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Remover item"
-                      onClick={() =>
-                        setLinhas((ls) => ls.filter((_, j) => j !== i))
-                      }
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              itens.map((l, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras
+                <div key={i} className="flex gap-2">
+                  <Input
+                    value={l.item}
+                    onChange={(e) => setItem(i, { item: e.target.value })}
+                    placeholder="Item (ex.: Mini salgado)"
+                  />
+                  <Input
+                    value={l.qtd}
+                    inputMode="decimal"
+                    onChange={(e) => setItem(i, { qtd: e.target.value })}
+                    placeholder="Qtd"
+                    className="w-20"
+                  />
+                  <Input
+                    value={l.unidade}
+                    onChange={(e) => setItem(i, { unidade: e.target.value })}
+                    placeholder="un"
+                    className="w-20"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Remover item"
+                    onClick={() => setItens((ls) => ls.filter((_, j) => j !== i))}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              ))
             )}
             <div>
               <Button
@@ -183,7 +264,7 @@ function NivelDialog({
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  setLinhas((ls) => [...ls, { item: "", qtd: "1", unidade: "un" }])
+                  setItens((ls) => [...ls, { item: "", qtd: "1", unidade: "un" }])
                 }
               >
                 <Plus className="size-4" />
@@ -222,6 +303,15 @@ function NivelDialog({
   );
 }
 
+function resumoFaixas(nivel: NivelCoffee): string {
+  if (nivel.faixas.length === 0) return "sem preço";
+  return nivel.faixas
+    .map(
+      (f) => `${rotuloFaixa(f)}: ${centavosParaBRL(f.valorPessoaCentavos)}/pessoa`,
+    )
+    .join(" · ");
+}
+
 export function NiveisClient({ niveis }: { niveis: NivelCoffee[] }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
@@ -256,7 +346,7 @@ export function NiveisClient({ niveis }: { niveis: NivelCoffee[] }) {
             Níveis de coffee
           </h2>
           <p className="text-sm text-ink-muted">
-            Valor por pessoa e composição de cada nível.
+            Descrição, preço por faixa de pessoas e itens de compra.
           </p>
         </div>
         <Button onClick={() => setNovoAberto(true)}>
@@ -266,7 +356,7 @@ export function NiveisClient({ niveis }: { niveis: NivelCoffee[] }) {
       </div>
 
       <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-ink-muted">
-        Alterar o valor de um nível afeta apenas locações novas ou recalculadas.
+        Alterar o preço de um nível afeta apenas locações novas ou recalculadas.
         Locações já existentes mantêm o valor que foi calculado na época
         (snapshot) — nada é alterado retroativamente.
       </p>
@@ -320,11 +410,14 @@ export function NiveisClient({ niveis }: { niveis: NivelCoffee[] }) {
                       {nivel.ativo ? "Ativo" : "Inativo"}
                     </Badge>
                   </div>
+                  {nivel.descricao ? (
+                    <p className="mt-0.5 line-clamp-1 text-xs text-ink-muted">
+                      {nivel.descricao}
+                    </p>
+                  ) : null}
                   <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
-                    <span>
-                      {centavosParaBRL(nivel.valorPessoaCentavos)}/pessoa
-                    </span>
-                    <span>{nivel.composicao.length} item(ns) na composição</span>
+                    <span>{resumoFaixas(nivel)}</span>
+                    <span>{nivel.composicao.length} item(ns)</span>
                   </p>
                 </button>
 

@@ -75,7 +75,7 @@ export function NovaLocacaoForm({
   prefill,
 }: {
   salas: { id: string; nome: string; capacidade: number }[];
-  niveis: { id: string; nome: string; valor_pessoa_centavos: number }[];
+  niveis: { id: string; nome: string }[];
   campos: Campo[];
   horarios: HorariosPeriodos;
   prefill: { salaId: string | null; data: string | null; periodo: PeriodoDia | null };
@@ -671,7 +671,7 @@ export function NovaLocacaoForm({
                     >
                       {niveis.map((n) => (
                         <option key={n.id} value={n.id}>
-                          {n.nome} — {centavosParaBRL(n.valor_pessoa_centavos)}/pessoa
+                          {n.nome}
                         </option>
                       ))}
                     </select>

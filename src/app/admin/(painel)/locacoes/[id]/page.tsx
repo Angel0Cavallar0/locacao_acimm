@@ -78,7 +78,7 @@ export default async function LocacaoDetalhePage({
   const niveisOpcoes = niveis.map((n) => ({
     id: n.id,
     nome: n.nome,
-    valorPessoaCentavos: n.valorPessoaCentavos,
+    faixas: n.faixas,
   }));
 
   const periodoRotulo = loc.periodo

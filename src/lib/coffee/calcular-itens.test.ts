@@ -6,15 +6,15 @@ import {
   type PedidoParaConsolidar,
 } from "./calcular-itens-core.ts";
 
-test("agrega item igual entre pedidos por (item, unidade)", () => {
+test("agrega item igual entre pedidos (qtd fixa por pedido, sem × pessoas)", () => {
   const pedidos: PedidoParaConsolidar[] = [
     {
       qtdPessoas: 10,
-      composicao: [{ item: "Mini sanduíche", qtdPorPessoa: 2, unidade: "un" }],
+      composicao: [{ item: "Mini sanduíche", qtd: 40, unidade: "un" }],
     },
     {
       qtdPessoas: 5,
-      composicao: [{ item: "Mini sanduíche", qtdPorPessoa: 2, unidade: "un" }],
+      composicao: [{ item: "Mini sanduíche", qtd: 20, unidade: "un" }],
     },
   ];
   const r = calcularItensCoffee(pedidos);
@@ -24,32 +24,32 @@ test("agrega item igual entre pedidos por (item, unidade)", () => {
   assert.deepEqual(r.itens[0], {
     item: "Mini sanduíche",
     unidade: "un",
-    quantidade: 30,
+    quantidade: 60,
   });
 });
 
 test("normaliza caixa e espaços na chave de agregação", () => {
   const r = calcularItensCoffee([
-    { qtdPessoas: 4, composicao: [{ item: "Suco", qtdPorPessoa: 1, unidade: "un" }] },
-    { qtdPessoas: 6, composicao: [{ item: " suco ", qtdPorPessoa: 1, unidade: "UN" }] },
+    { qtdPessoas: 4, composicao: [{ item: "Suco", qtd: 2, unidade: "un" }] },
+    { qtdPessoas: 6, composicao: [{ item: " suco ", qtd: 3, unidade: "UN" }] },
   ]);
   assert.equal(r.itens.length, 1);
-  assert.equal(r.itens[0].quantidade, 10);
+  assert.equal(r.itens[0].quantidade, 5);
 });
 
 test("converte ml→L e g→kg ao atingir 1000", () => {
   assert.deepEqual(converterUnidade(3600, "ml"), { quantidade: 3.6, unidade: "L" });
   assert.deepEqual(converterUnidade(1500, "g"), { quantidade: 1.5, unidade: "kg" });
-  // Abaixo do limiar, mantém a unidade original.
   assert.deepEqual(converterUnidade(300, "ml"), { quantidade: 300, unidade: "ml" });
 });
 
-test("consolidado aplica conversão de unidade no total", () => {
-  // 300 ml/pessoa × 12 pessoas = 3600 ml → 3.6 L
+test("consolidado aplica conversão de unidade no total agregado", () => {
+  // 2 L por pedido × 2 pedidos = 4000 ml → 4 L
   const r = calcularItensCoffee([
-    { qtdPessoas: 12, composicao: [{ item: "Suco", qtdPorPessoa: 300, unidade: "ml" }] },
+    { qtdPessoas: 12, composicao: [{ item: "Suco", qtd: 2000, unidade: "ml" }] },
+    { qtdPessoas: 8, composicao: [{ item: "Suco", qtd: 2000, unidade: "ml" }] },
   ]);
-  assert.deepEqual(r.itens[0], { item: "Suco", unidade: "L", quantidade: 3.6 });
+  assert.deepEqual(r.itens[0], { item: "Suco", unidade: "L", quantidade: 4 });
 });
 
 test("período sem pedidos devolve consolidado vazio", () => {
@@ -62,8 +62,8 @@ test("ignora itens sem nome e quantidades negativas", () => {
     {
       qtdPessoas: 10,
       composicao: [
-        { item: "  ", qtdPorPessoa: 5, unidade: "un" },
-        { item: "Água", qtdPorPessoa: -2, unidade: "un" },
+        { item: "  ", qtd: 5, unidade: "un" },
+        { item: "Água", qtd: -2, unidade: "un" },
       ],
     },
   ]);
@@ -77,9 +77,9 @@ test("ordena itens alfabeticamente (pt-BR)", () => {
     {
       qtdPessoas: 1,
       composicao: [
-        { item: "Café", qtdPorPessoa: 1, unidade: "un" },
-        { item: "Água", qtdPorPessoa: 1, unidade: "un" },
-        { item: "Bolo", qtdPorPessoa: 1, unidade: "un" },
+        { item: "Café", qtd: 1, unidade: "un" },
+        { item: "Água", qtd: 1, unidade: "un" },
+        { item: "Bolo", qtd: 1, unidade: "un" },
       ],
     },
   ]);

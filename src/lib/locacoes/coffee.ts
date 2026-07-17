@@ -2,6 +2,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { spWallParaUtc, utcParaNaiveSP } from "@/lib/calendario/tempo";
 import { requireColaborador } from "@/lib/auth/guards";
+import { parsearFaixas, valorPessoaDe } from "@/lib/coffee/faixas-core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CoffeeLocacaoInput } from "@/lib/validacoes/coffee";
 import { totalCoffee } from "./calcular-core";
@@ -103,7 +104,7 @@ export async function salvarCoffeeLocacao(
 
   const { data: nivel } = await admin
     .from("coffee_niveis")
-    .select("nome, valor_pessoa_centavos")
+    .select("nome, faixas_preco")
     .eq("id", input.nivelId)
     .maybeSingle();
   if (!nivel) return { erro: "Nível de coffee não encontrado." };
@@ -116,8 +117,12 @@ export async function salvarCoffeeLocacao(
     (s, a) => s + a.valorCentavos,
     0,
   );
+  const valorPessoa = valorPessoaDe(
+    parsearFaixas(nivel.faixas_preco),
+    input.qtdPessoas,
+  );
   const valorSnapshot = totalCoffee(
-    nivel.valor_pessoa_centavos as number,
+    valorPessoa,
     input.qtdPessoas,
     adicionaisCentavos,
   );

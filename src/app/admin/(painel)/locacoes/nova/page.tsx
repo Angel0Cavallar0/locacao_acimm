@@ -33,7 +33,7 @@ export default async function NovaLocacaoPage({
         .order("ordem", { ascending: true }),
       supabase
         .from("coffee_niveis")
-        .select("id, nome, valor_pessoa_centavos")
+        .select("id, nome")
         .eq("ativo", true)
         .order("ordem", { ascending: true }),
       supabase

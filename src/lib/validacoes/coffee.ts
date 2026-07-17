@@ -4,19 +4,40 @@ import { z } from "zod";
 
 export const itemComposicaoSchema = z.object({
   item: z.string().trim().min(1, "Informe o item").max(120),
-  qtdPorPessoa: z.coerce
+  qtd: z.coerce
     .number()
     .min(0, "Quantidade inválida")
-    .max(100000, "Quantidade muito alta"),
+    .max(1000000, "Quantidade muito alta"),
   unidade: z.string().trim().min(1, "Informe a unidade").max(16),
 });
 
+export const faixaPrecoSchema = z
+  .object({
+    minPessoas: z.coerce.number().int().min(1, "Mínimo inválido"),
+    maxPessoas: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .nullable()
+      .optional()
+      .default(null),
+    valorPessoaCentavos: z.coerce
+      .number()
+      .int("Valor inválido")
+      .min(0, "Valor não pode ser negativo"),
+  })
+  .refine((f) => f.maxPessoas === null || f.maxPessoas >= f.minPessoas, {
+    message: "O máximo deve ser maior ou igual ao mínimo.",
+    path: ["maxPessoas"],
+  });
+
 export const nivelCoffeeSchema = z.object({
   nome: z.string().trim().min(1, "Informe o nome").max(80),
-  valorPessoaCentavos: z.coerce
-    .number()
-    .int("Valor inválido")
-    .min(0, "Valor não pode ser negativo"),
+  descricao: z.string().trim().max(2000).optional().default(""),
+  faixasPreco: z
+    .array(faixaPrecoSchema)
+    .min(1, "Cadastre ao menos uma faixa de preço.")
+    .max(20),
   composicao: z.array(itemComposicaoSchema).max(60).default([]),
   ativo: z.boolean().default(true),
 });

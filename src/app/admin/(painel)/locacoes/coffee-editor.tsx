@@ -16,6 +16,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { horaSP } from "@/lib/calendario/tempo";
+import { valorPessoaDe } from "@/lib/coffee/faixas-core";
+import type { FaixaPreco } from "@/lib/coffee/tipos";
 import type { CoffeeLinha } from "@/lib/locacoes/tipos";
 import { brlParaCentavos, centavosParaBRL } from "@/lib/utils/moeda";
 import { removerCoffeeAction, salvarCoffeeAction } from "./actions";
@@ -26,7 +28,7 @@ const inputClasses =
 export interface NivelOpcao {
   id: string;
   nome: string;
-  valorPessoaCentavos: number;
+  faixas: FaixaPreco[];
 }
 
 interface LinhaAdic {
@@ -53,7 +55,7 @@ function CoffeeDialog({
   const opcoes = useMemo(() => {
     if (coffee && !niveis.some((n) => n.id === coffee.nivelId)) {
       return [
-        { id: coffee.nivelId, nome: `${coffee.nivelNome} (inativo)`, valorPessoaCentavos: 0 },
+        { id: coffee.nivelId, nome: `${coffee.nivelNome} (inativo)`, faixas: [] },
         ...niveis,
       ];
     }
@@ -79,13 +81,14 @@ function CoffeeDialog({
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const valorPessoa =
-    opcoes.find((n) => n.id === nivelId)?.valorPessoaCentavos ?? 0;
+  const faixasSel = opcoes.find((n) => n.id === nivelId)?.faixas ?? [];
+  const qtdPessoas = Number(pessoas) || 0;
+  const valorPessoa = valorPessoaDe(faixasSel, qtdPessoas);
   const adicionaisCentavos = adicionais.reduce(
     (s, a) => s + brlParaCentavos(a.valor),
     0,
   );
-  const previa = valorPessoa * (Number(pessoas) || 0) + adicionaisCentavos;
+  const previa = valorPessoa * qtdPessoas + adicionaisCentavos;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -138,9 +141,6 @@ function CoffeeDialog({
                 {opcoes.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.nome}
-                    {n.valorPessoaCentavos > 0
-                      ? ` — ${centavosParaBRL(n.valorPessoaCentavos)}/pessoa`
-                      : ""}
                   </option>
                 ))}
               </select>

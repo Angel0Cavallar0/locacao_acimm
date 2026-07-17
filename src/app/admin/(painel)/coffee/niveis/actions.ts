@@ -12,15 +12,32 @@ export interface ResultadoNivel {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-/** Composição gravada em snake_case no JSONB (padrão do banco). */
+/** Itens gravados em snake_case no JSONB — quantidade FIXA por pedido. */
 function composicaoParaBanco(
-  itens: { item: string; qtdPorPessoa: number; unidade: string }[],
+  itens: { item: string; qtd: number; unidade: string }[],
 ) {
   return itens.map((c) => ({
     item: c.item,
-    qtd_por_pessoa: c.qtdPorPessoa,
+    qtd: c.qtd,
     unidade: c.unidade,
   }));
+}
+
+/** Faixas gravadas em snake_case no JSONB. */
+function faixasParaBanco(
+  faixas: {
+    minPessoas: number;
+    maxPessoas: number | null;
+    valorPessoaCentavos: number;
+  }[],
+) {
+  return [...faixas]
+    .sort((a, b) => a.minPessoas - b.minPessoas)
+    .map((f) => ({
+      min_pessoas: f.minPessoas,
+      max_pessoas: f.maxPessoas,
+      valor_pessoa_centavos: f.valorPessoaCentavos,
+    }));
 }
 
 async function nomeDuplicado(
@@ -62,7 +79,8 @@ export async function criarNivel(input: unknown): Promise<ResultadoNivel> {
     .from("coffee_niveis")
     .insert({
       nome: parsed.data.nome,
-      valor_pessoa_centavos: parsed.data.valorPessoaCentavos,
+      descricao: parsed.data.descricao || null,
+      faixas_preco: faixasParaBanco(parsed.data.faixasPreco),
       composicao: composicaoParaBanco(parsed.data.composicao),
       ativo: parsed.data.ativo,
       ordem,
@@ -99,7 +117,8 @@ export async function atualizarNivel(
     .from("coffee_niveis")
     .update({
       nome: parsed.data.nome,
-      valor_pessoa_centavos: parsed.data.valorPessoaCentavos,
+      descricao: parsed.data.descricao || null,
+      faixas_preco: faixasParaBanco(parsed.data.faixasPreco),
       composicao: composicaoParaBanco(parsed.data.composicao),
       ativo: parsed.data.ativo,
       atualizado_em: new Date().toISOString(),
