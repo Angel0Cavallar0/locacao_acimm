@@ -25,3 +25,43 @@ export const DIAS_SEMANA: { valor: number; curto: string; rotulo: string }[] = [
   { valor: 5, curto: "Sex", rotulo: "Sexta" },
   { valor: 6, curto: "Sáb", rotulo: "Sábado" },
 ];
+
+export type CategoriaHoraAdicional = "comercial" | "noturno" | "sabado_domingo";
+
+export const CATEGORIAS_HORA_ADICIONAL: {
+  valor: CategoriaHoraAdicional;
+  rotulo: string;
+}[] = [
+  { valor: "comercial", rotulo: "Horário comercial" },
+  { valor: "noturno", rotulo: "Noturno" },
+  { valor: "sabado_domingo", rotulo: "Sábado/Domingo" },
+];
+
+export type TipoCombo =
+  | "desconto_multi_sala"
+  | "assinatura_mensal"
+  | "evento_privativo";
+
+export const TIPOS_COMBO: {
+  valor: TipoCombo;
+  rotulo: string;
+  descricao: string;
+}[] = [
+  {
+    valor: "desconto_multi_sala",
+    rotulo: "Desconto multi-sala",
+    descricao: "Junte salas e aplique um desconto (ex.: Sala 1 + Área Gourmet).",
+  },
+  {
+    valor: "assinatura_mensal",
+    rotulo: "Assinatura mensal",
+    descricao: "Plano mensal de uma sala com valor reduzido.",
+  },
+  {
+    valor: "evento_privativo",
+    rotulo: "Evento privativo",
+    descricao: "Locação de todas as salas da ACIMM por um valor fechado.",
+  },
+];
+
+export type TipoDesconto = "percentual" | "valor";

@@ -19,8 +19,13 @@ import { parseDaterange } from "@/lib/precos/resolver-core";
 import { urlFotoSala } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { centavosParaBRL } from "@/lib/utils/moeda";
+import type { CategoriaHoraAdicional } from "@/lib/dominio";
 import { listarEquipamentos } from "../equipamentos-actions";
 import { FotoGaleria } from "../foto-galeria";
+import {
+  HoraAdicionalForm,
+  type ValorHoraAdicional,
+} from "../hora-adicional-form";
 import { PrecosGrade, type PrecoVM } from "../precos-grade";
 import { SalaForm } from "../sala-form";
 
@@ -61,27 +66,44 @@ export default async function EditarSalaPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: sala }, { data: precos }, { data: histRaw }, catalogo] =
-    await Promise.all([
-      supabase
-        .from("salas")
-        .select("id, nome, descricao, capacidade, equipamentos, ativa, fotos")
-        .eq("id", id)
-        .maybeSingle(),
-      supabase
-        .from("precos_sala")
-        .select("id, condicao, periodo, dias_semana, valor_centavos, vigencia")
-        .eq("sala_id", id),
-      supabase
-        .from("locacao_salas")
-        .select(
-          "locacoes!inner(numero, locatario_nome, inicio, fim, status, valor_total_centavos)",
-        )
-        .eq("sala_id", id),
-      listarEquipamentos(),
-    ]);
+  const [
+    { data: sala },
+    { data: precos },
+    { data: histRaw },
+    { data: haRows },
+    catalogo,
+  ] = await Promise.all([
+    supabase
+      .from("salas")
+      .select(
+        "id, nome, descricao, capacidade, equipamentos, ativa, fotos, hora_adicional_minutos",
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("precos_sala")
+      .select("id, condicao, periodo, dias_semana, valor_centavos, vigencia")
+      .eq("sala_id", id),
+    supabase
+      .from("locacao_salas")
+      .select(
+        "locacoes!inner(numero, locatario_nome, inicio, fim, status, valor_total_centavos)",
+      )
+      .eq("sala_id", id),
+    supabase
+      .from("precos_hora_adicional")
+      .select("condicao, categoria, valor_centavos")
+      .eq("sala_id", id),
+    listarEquipamentos(),
+  ]);
 
   if (!sala) notFound();
+
+  const haVM: ValorHoraAdicional[] = (haRows ?? []).map((r) => ({
+    condicao: r.condicao,
+    categoria: r.categoria as CategoriaHoraAdicional,
+    valorCentavos: r.valor_centavos,
+  }));
 
   const hoje = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -152,7 +174,14 @@ export default async function EditarSalaPage({
         </TabsContent>
 
         <TabsContent value="precos" className="mt-4">
-          <PrecosGrade salaId={sala.id} precos={precosVM} />
+          <div className="flex flex-col gap-4">
+            <PrecosGrade salaId={sala.id} precos={precosVM} />
+            <HoraAdicionalForm
+              salaId={sala.id}
+              minutosIniciais={sala.hora_adicional_minutos ?? null}
+              valoresIniciais={haVM}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="historico" className="mt-4">

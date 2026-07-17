@@ -35,3 +35,100 @@ export const precoSchema = z.object({
 });
 
 export type PrecoInput = z.infer<typeof precoSchema>;
+
+export const categoriaHoraAdicionalSchema = z.enum([
+  "comercial",
+  "noturno",
+  "sabado_domingo",
+]);
+
+export const horaAdicionalSchema = z.object({
+  salaId: z.uuid(),
+  minutos: z.number().int().min(0).max(1440).nullable(),
+  valores: z
+    .array(
+      z.object({
+        condicao: condicaoSchema,
+        categoria: categoriaHoraAdicionalSchema,
+        valorCentavos: z.number().int().min(0),
+      }),
+    )
+    .max(6),
+});
+
+export const tipoComboSchema = z.enum([
+  "desconto_multi_sala",
+  "assinatura_mensal",
+  "evento_privativo",
+]);
+export const tipoDescontoSchema = z.enum(["percentual", "valor"]);
+
+export const comboSchema = z
+  .object({
+    nome: z.string().trim().min(1, "Informe o nome"),
+    descricao: z.string().trim().max(2000).optional().default(""),
+    tipo: tipoComboSchema,
+    tipoDesconto: tipoDescontoSchema.nullable().default(null),
+    descontoValor: z.number().int().min(0).nullable().default(null),
+    valorCentavos: z.number().int().min(0).nullable().default(null),
+    salas: z
+      .array(z.object({ salaId: z.uuid(), aplicaDesconto: z.boolean() }))
+      .default([]),
+  })
+  .superRefine((v, ctx) => {
+    if (v.tipo === "desconto_multi_sala") {
+      if (v.salas.length < 2)
+        ctx.addIssue({
+          code: "custom",
+          message: "Selecione ao menos duas salas.",
+          path: ["salas"],
+        });
+      if (!v.tipoDesconto)
+        ctx.addIssue({
+          code: "custom",
+          message: "Escolha o tipo de desconto.",
+          path: ["tipoDesconto"],
+        });
+      if (v.descontoValor == null)
+        ctx.addIssue({
+          code: "custom",
+          message: "Informe o valor do desconto.",
+          path: ["descontoValor"],
+        });
+      if (v.tipoDesconto === "percentual" && (v.descontoValor ?? 0) > 100)
+        ctx.addIssue({
+          code: "custom",
+          message: "Percentual máximo de 100.",
+          path: ["descontoValor"],
+        });
+      if (!v.salas.some((s) => s.aplicaDesconto))
+        ctx.addIssue({
+          code: "custom",
+          message: "Marque em qual sala o desconto incide.",
+          path: ["salas"],
+        });
+    }
+    if (v.tipo === "assinatura_mensal") {
+      if (v.salas.length !== 1)
+        ctx.addIssue({
+          code: "custom",
+          message: "Selecione exatamente uma sala.",
+          path: ["salas"],
+        });
+      if (v.valorCentavos == null)
+        ctx.addIssue({
+          code: "custom",
+          message: "Informe o valor mensal.",
+          path: ["valorCentavos"],
+        });
+    }
+    if (v.tipo === "evento_privativo" && v.valorCentavos == null) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Informe o valor do evento privativo.",
+        path: ["valorCentavos"],
+      });
+    }
+  });
+
+export type ComboInput = z.infer<typeof comboSchema>;

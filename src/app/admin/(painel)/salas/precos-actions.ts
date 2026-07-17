@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { precoSchema } from "@/lib/validacoes/salas";
+import { horaAdicionalSchema, precoSchema } from "@/lib/validacoes/salas";
 
 export interface ResultadoPrecoAcao {
   error?: string;
@@ -52,5 +52,42 @@ export async function encerrarPreco(
   if (error) return { error: "Não foi possível encerrar o preço." };
 
   revalidatePath(`/admin/salas/${salaId}`);
+  return {};
+}
+
+export async function salvarHoraAdicional(input: {
+  salaId: string;
+  minutos: number | null;
+  valores: { condicao: string; categoria: string; valorCentavos: number }[];
+}): Promise<ResultadoPrecoAcao> {
+  await requireColaborador();
+
+  const parsed = horaAdicionalSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const admin = createAdminClient();
+
+  const { error: eMin } = await admin
+    .from("salas")
+    .update({ hora_adicional_minutos: parsed.data.minutos })
+    .eq("id", parsed.data.salaId);
+  if (eMin) return { error: "Não foi possível salvar a configuração." };
+
+  if (parsed.data.valores.length > 0) {
+    const rows = parsed.data.valores.map((v) => ({
+      sala_id: parsed.data.salaId,
+      condicao: v.condicao,
+      categoria: v.categoria,
+      valor_centavos: v.valorCentavos,
+    }));
+    const { error } = await admin
+      .from("precos_hora_adicional")
+      .upsert(rows, { onConflict: "sala_id,condicao,categoria" });
+    if (error) return { error: "Não foi possível salvar os valores." };
+  }
+
+  revalidatePath(`/admin/salas/${parsed.data.salaId}`);
   return {};
 }

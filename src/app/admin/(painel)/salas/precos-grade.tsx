@@ -310,43 +310,54 @@ export function PrecosGrade({
 
       <Card>
         <CardContent>
-          {vigentes.length === 0 ? (
-            <p className="py-4 text-center text-sm text-ink-muted">
-              Nenhum preço vigente cadastrado.
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {vigentes.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center gap-3 py-2 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-ink">
-                      {centavosParaBRL(p.valorCentavos)}
-                    </p>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {CONDICOES.map((c) => {
+              const doCond = vigentes.filter((v) => v.condicao === c.valor);
+              return (
+                <div key={c.valor}>
+                  <h4 className="mb-2 border-b pb-1 text-sm font-semibold text-ink">
+                    {c.rotulo}
+                  </h4>
+                  {doCond.length === 0 ? (
                     <p className="text-xs text-ink-muted">
-                      {rotuloPeriodo(p.periodo)} · {rotuloCondicao(p.condicao)} ·{" "}
-                      {diasLabel(p.diasSemana)}
+                      Nenhum preço vigente.
                     </p>
-                  </div>
-                  <PrecoDialog
-                    salaId={salaId}
-                    inicial={p}
-                    aoSalvar={() => router.refresh()}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() => encerrar(p)}
-                  >
-                    Encerrar
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
+                  ) : (
+                    <ul className="divide-y">
+                      {doCond.map((p) => (
+                        <li
+                          key={p.id}
+                          className="flex items-center gap-2 py-2 first:pt-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-ink">
+                              {centavosParaBRL(p.valorCentavos)}
+                            </p>
+                            <p className="text-xs text-ink-muted">
+                              {rotuloPeriodo(p.periodo)} · {diasLabel(p.diasSemana)}
+                            </p>
+                          </div>
+                          <PrecoDialog
+                            salaId={salaId}
+                            inicial={p}
+                            aoSalvar={() => router.refresh()}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isPending}
+                            onClick={() => encerrar(p)}
+                          >
+                            Encerrar
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
 
