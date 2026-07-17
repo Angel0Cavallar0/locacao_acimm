@@ -15,6 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { SalaCard } from "./page";
 import {
@@ -36,9 +38,13 @@ function DesativarDialog({
   const [open, setOpen] = useState(false);
   const [futuras, setFuturas] = useState<LocacaoFutura[] | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [texto, setTexto] = useState("");
+
+  const confere = texto.trim() === sala.nome.trim();
 
   async function abrir(aberto: boolean) {
     setOpen(aberto);
+    if (!aberto) setTexto("");
     if (aberto && futuras === null) {
       setCarregando(true);
       const r = await locacoesFuturasDaSala(sala.id);
@@ -49,7 +55,12 @@ function DesativarDialog({
 
   return (
     <Dialog open={open} onOpenChange={abrir}>
-      <Button variant="ghost" size="sm" onClick={() => abrir(true)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => abrir(true)}
+        className="bg-surface-muted text-ink-muted hover:bg-destructive/10 hover:text-destructive"
+      >
         Desativar
       </Button>
       <DialogContent>
@@ -80,15 +91,31 @@ function DesativarDialog({
             <p className="mt-3">Nenhuma locação futura confirmada.</p>
           )}
         </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="conf-desativar">
+            Digite <span className="font-medium text-ink">{sala.nome}</span> para
+            confirmar
+          </Label>
+          <Input
+            id="conf-desativar"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder={sala.nome}
+            autoComplete="off"
+          />
+        </div>
+
         <DialogFooter>
           <DialogClose render={<Button variant="outline" type="button" />}>
             Cancelar
           </DialogClose>
           <Button
             variant="destructive"
-            disabled={pendente}
+            disabled={pendente || !confere}
             onClick={() => {
               setOpen(false);
+              setTexto("");
               onConfirmar();
             }}
           >
