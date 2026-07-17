@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireColaborador } from "@/lib/auth/guards";
 import { dataSP, horaSP, intervaloSP, utcParaNaiveSP } from "@/lib/calendario/tempo";
+import { listarNiveis } from "@/lib/coffee/dados";
 import { PERIODOS } from "@/lib/dominio";
 import { carregarLocacao } from "@/lib/locacoes/dados";
 import { podeEditarAdicionais } from "@/lib/locacoes/maquina-estados-core";
@@ -17,6 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import { AcoesLocacao } from "../acoes-locacao";
 import { AdicionaisEditor } from "../adicionais-editor";
+import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
 import { StatusBadge } from "../status-badge";
 
@@ -65,11 +67,19 @@ export default async function LocacaoDetalhePage({
   if (!loc) notFound();
 
   const supabase = await createClient();
-  const { data: salasRows } = await supabase
-    .from("salas")
-    .select("id, nome")
-    .is("excluida_em", null)
-    .order("ordem", { ascending: true });
+  const [{ data: salasRows }, niveis] = await Promise.all([
+    supabase
+      .from("salas")
+      .select("id, nome")
+      .is("excluida_em", null)
+      .order("ordem", { ascending: true }),
+    listarNiveis(true),
+  ]);
+  const niveisOpcoes = niveis.map((n) => ({
+    id: n.id,
+    nome: n.nome,
+    valorPessoaCentavos: n.valorPessoaCentavos,
+  }));
 
   const periodoRotulo = loc.periodo
     ? (PERIODOS.find((p) => p.valor === loc.periodo)?.rotulo ?? loc.periodo)
@@ -252,19 +262,12 @@ export default async function LocacaoDetalhePage({
           </Secao>
 
           <Secao titulo="Coffee break">
-            {loc.coffee.length === 0 ? (
-              <p className="text-sm text-ink-muted">Sem coffee break.</p>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {loc.coffee.map((c, i) => (
-                  <Linha
-                    key={`${c.nivelNome}-${i}`}
-                    rotulo={`${c.nivelNome} · ${c.qtdPessoas} pessoas`}
-                    valor={centavosParaBRL(c.valorCentavos)}
-                  />
-                ))}
-              </div>
-            )}
+            <CoffeeEditor
+              locacaoId={loc.id}
+              coffee={loc.coffee}
+              niveis={niveisOpcoes}
+              editavel={editavelAdicionais}
+            />
           </Secao>
 
           <Secao titulo="Contrato">

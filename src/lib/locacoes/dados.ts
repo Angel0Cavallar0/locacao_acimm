@@ -1,5 +1,6 @@
 import "server-only";
 import { intervaloSP, spWallParaUtc } from "@/lib/calendario/tempo";
+import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
 import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { StatusLocacao } from "./maquina-estados-core";
@@ -182,8 +183,11 @@ export async function carregarLocacao(
       .order("criado_em", { ascending: false }),
     admin
       .from("coffee_breaks")
-      .select("qtd_pessoas, valor_centavos, horario_servir, coffee_niveis ( nome )")
-      .eq("locacao_id", id),
+      .select(
+        "id, nivel_id, qtd_pessoas, valor_centavos, horario_servir, adicionais, observacoes, coffee_niveis ( nome )",
+      )
+      .eq("locacao_id", id)
+      .order("criado_em", { ascending: true }),
     admin
       .from("contratos")
       .select("status, link_assinatura, pdf_url, enviado_em, assinado_em")
@@ -246,10 +250,14 @@ export async function carregarLocacao(
     const n = r.coffee_niveis as { nome?: string } | { nome?: string }[] | null;
     const nivelNome = Array.isArray(n) ? (n[0]?.nome ?? "") : (n?.nome ?? "");
     return {
+      id: r.id as string,
+      nivelId: r.nivel_id as string,
       nivelNome,
       qtdPessoas: r.qtd_pessoas as number,
       valorCentavos: r.valor_centavos as number,
       horarioServirUtc: (r.horario_servir as string) ?? null,
+      adicionais: parsearAdicionaisCoffee(r.adicionais),
+      observacoes: (r.observacoes as string) ?? null,
     };
   });
 

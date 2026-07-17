@@ -5,10 +5,15 @@ import {
   editarAdicional,
   removerAdicional,
 } from "@/lib/locacoes/adicionais";
+import {
+  removerCoffeeLocacao,
+  salvarCoffeeLocacao,
+} from "@/lib/locacoes/coffee";
 import { transicionarLocacao } from "@/lib/locacoes/maquina-estados";
 import type { StatusLocacao } from "@/lib/locacoes/maquina-estados-core";
 import { reagendarLocacao } from "@/lib/locacoes/reagendamento";
 import type { PeriodoDia } from "@/lib/dominio";
+import { coffeeLocacaoSchema } from "@/lib/validacoes/coffee";
 import {
   adicionalSchema,
   reagendarSchema,
@@ -84,5 +89,29 @@ export async function removerAdicionalAction(
   adicionalId: string,
 ): Promise<ResultadoAcao> {
   const r = await removerAdicional(adicionalId);
+  return "ok" in r ? {} : { error: r.erro };
+}
+
+export async function salvarCoffeeAction(input: {
+  locacaoId: string;
+  coffeeId?: string;
+  nivelId: string;
+  qtdPessoas: number;
+  horarioServir?: string;
+  adicionais: { descricao: string; valorCentavos: number }[];
+  observacoes?: string;
+}): Promise<ResultadoAcao> {
+  const parsed = coffeeLocacaoSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+  const r = await salvarCoffeeLocacao(parsed.data);
+  return "ok" in r ? {} : { error: r.erro };
+}
+
+export async function removerCoffeeAction(
+  coffeeId: string,
+): Promise<ResultadoAcao> {
+  const r = await removerCoffeeLocacao(coffeeId);
   return "ok" in r ? {} : { error: r.erro };
 }

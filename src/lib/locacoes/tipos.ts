@@ -1,3 +1,4 @@
+import type { AdicionalCoffee } from "@/lib/coffee/tipos";
 import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
 import type { StatusLocacao } from "./maquina-estados-core";
 
@@ -79,10 +80,14 @@ export interface EventoTimeline {
 }
 
 export interface CoffeeLinha {
+  id: string;
+  nivelId: string;
   nivelNome: string;
   qtdPessoas: number;
   valorCentavos: number;
   horarioServirUtc: string | null;
+  adicionais: AdicionalCoffee[];
+  observacoes: string | null;
 }
 
 export interface ContratoResumo {
