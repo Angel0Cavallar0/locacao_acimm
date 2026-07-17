@@ -42,6 +42,9 @@ export function AcoesLocacao({
 }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
+  const [executandoPara, setExecutandoPara] = useState<StatusLocacao | null>(
+    null,
+  );
   const [motivoDialog, setMotivoDialog] = useState<{
     para: StatusLocacao;
     rotulo: string;
@@ -56,6 +59,7 @@ export function AcoesLocacao({
     para: StatusLocacao,
     opts?: { motivo?: string },
   ) {
+    setExecutandoPara(para);
     iniciar(async () => {
       const r = await transicionar({
         locacaoId: locacao.id,
@@ -64,12 +68,14 @@ export function AcoesLocacao({
       });
       if (r.error) {
         toast.error(r.error);
+        setExecutandoPara(null);
         return;
       }
       toast.success("Status atualizado.");
       setMotivoDialog(null);
       setAprovarAberto(false);
       setMotivo("");
+      setExecutandoPara(null);
       router.refresh();
     });
   }
@@ -92,6 +98,7 @@ export function AcoesLocacao({
             key={a.para}
             variant={variante(a.variante)}
             size="sm"
+            loading={executandoPara === a.para}
             disabled={pendente}
             onClick={() => {
               if (a.tipo === "aprovar") setAprovarAberto(true);
@@ -150,8 +157,11 @@ export function AcoesLocacao({
             <DialogClose render={<Button variant="outline" type="button" />}>
               Cancelar
             </DialogClose>
-            <Button disabled={pendente} onClick={() => executa("aprovada")}>
-              {pendente ? "Aprovando…" : "Aprovar"}
+            <Button
+              loading={executandoPara === "aprovada"}
+              onClick={() => executa("aprovada")}
+            >
+              Aprovar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -188,13 +198,14 @@ export function AcoesLocacao({
             </DialogClose>
             <Button
               variant="destructive"
-              disabled={pendente || motivo.trim().length === 0}
+              loading={executandoPara === motivoDialog?.para}
+              disabled={motivo.trim().length === 0}
               onClick={() =>
                 motivoDialog &&
                 executa(motivoDialog.para, { motivo: motivo.trim() })
               }
             >
-              {pendente ? "Salvando…" : `Confirmar ${motivoDialog?.rotulo.toLowerCase()}`}
+              Confirmar {motivoDialog?.rotulo.toLowerCase()}
             </Button>
           </DialogFooter>
         </DialogContent>

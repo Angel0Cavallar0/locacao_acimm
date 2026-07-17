@@ -3,6 +3,7 @@
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { CONDICOES } from "@/lib/dominio";
 import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
@@ -100,24 +101,24 @@ export function FiltrosBar({
         ))}
       </select>
 
-      <label className="flex items-center gap-1 text-xs text-ink-muted">
+      <div className="flex items-center gap-1 text-xs text-ink-muted">
         de
-        <Input
-          type="date"
-          value={params.de ?? ""}
-          onChange={(e) => aplicar({ de: e.target.value || null })}
-          className="h-8 w-36 text-xs"
+        <DatePicker
+          value={params.de}
+          onChange={(v) => aplicar({ de: v || null })}
+          placeholder="dd/mm/aaaa"
+          className="h-8 w-36"
         />
-      </label>
-      <label className="flex items-center gap-1 text-xs text-ink-muted">
+      </div>
+      <div className="flex items-center gap-1 text-xs text-ink-muted">
         até
-        <Input
-          type="date"
-          value={params.ate ?? ""}
-          onChange={(e) => aplicar({ ate: e.target.value || null })}
-          className="h-8 w-36 text-xs"
+        <DatePicker
+          value={params.ate}
+          onChange={(v) => aplicar({ ate: v || null })}
+          placeholder="dd/mm/aaaa"
+          className="h-8 w-36"
         />
-      </label>
+      </div>
 
       {temFiltro ? (
         <button

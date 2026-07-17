@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
-import { spWallParaUtc } from "@/lib/calendario/tempo";
+import { spWallParaUtc, utcParaNaiveSP } from "@/lib/calendario/tempo";
 import { calcularValores } from "@/lib/locacoes/calcular";
 import { transicionarLocacao } from "@/lib/locacoes/maquina-estados";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,6 +16,7 @@ import type {
 
 interface AgendaItem {
   sala_id: string;
+  inicio: string;
   origem: "locacao" | "evento_interno" | "bloqueio";
   bloqueante: boolean;
   locacao_numero: number | null;
@@ -121,6 +122,38 @@ export async function consultarDisponibilidadeAction(input: {
   });
   const itens = (data ?? []) as AgendaItem[];
   return input.salaIds.map((salaId) => estadoDaSala(itens, salaId));
+}
+
+/** Dias com ocupação bloqueante das salas no mês — marcados no calendário. */
+export async function ocupacoesDaSalaAction(input: {
+  salaIds: string[];
+  ano: number;
+  mes: number; // 1-12
+}): Promise<string[]> {
+  await requireColaborador();
+  if (input.salaIds.length === 0) return [];
+
+  const mesPad = String(input.mes).padStart(2, "0");
+  const inicioMes = spWallParaUtc(`${input.ano}-${mesPad}-01`, "00:00");
+  const proximo =
+    input.mes === 12
+      ? `${input.ano + 1}-01-01`
+      : `${input.ano}-${String(input.mes + 1).padStart(2, "0")}-01`;
+  const fimMes = spWallParaUtc(proximo, "00:00");
+
+  const admin = createAdminClient();
+  const { data } = await admin.rpc("agenda_no_intervalo", {
+    p_inicio: inicioMes,
+    p_fim: fimMes,
+  });
+
+  const salaSet = new Set(input.salaIds);
+  const dias = new Set<string>();
+  for (const it of (data ?? []) as AgendaItem[]) {
+    if (!salaSet.has(it.sala_id) || !it.bloqueante) continue;
+    dias.add(utcParaNaiveSP(it.inicio).slice(0, 10));
+  }
+  return [...dias];
 }
 
 /** Resumo de valores em tempo real — o client nunca calcula preço. */

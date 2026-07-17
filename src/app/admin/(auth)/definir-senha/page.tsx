@@ -149,8 +149,8 @@ export default function DefinirSenhaPage() {
               </p>
             ) : null}
 
-            <Button type="submit" className="w-full" disabled={salvando}>
-              {salvando ? "Salvando…" : "Salvar senha"}
+            <Button type="submit" className="w-full" loading={salvando}>
+              Salvar senha
             </Button>
           </form>
         )}

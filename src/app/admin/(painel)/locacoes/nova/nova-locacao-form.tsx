@@ -15,14 +15,17 @@ import {
   type PeriodoDia,
 } from "@/lib/dominio";
 import type { HorariosPeriodos } from "@/lib/locacoes/horarios";
-import { FORMAS_PAGAMENTO, formatarDocumento } from "@/lib/locacoes/tipos";
+import { DatePicker } from "@/components/ui/date-picker";
+import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
 import type { FormaPagamento } from "@/lib/locacoes/tipos";
+import { mascararDocumento, mascararTelefone } from "@/lib/utils/mascaras";
 import { brlParaCentavos, centavosParaBRL } from "@/lib/utils/moeda";
 import { AssociadoAutocomplete } from "./associado-autocomplete";
 import {
   calcularResumoAction,
   consultarDisponibilidadeAction,
   criarLocacaoAssistida,
+  ocupacoesDaSalaAction,
 } from "./actions";
 import type {
   AssociadoBusca,
@@ -32,6 +35,18 @@ import type {
 
 const inputClasses =
   "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+function mesDeData(iso: string | null): { ano: number; mes: number } {
+  if (iso && /^\d{4}-\d{2}/.test(iso)) {
+    const [y, m] = iso.split("-").map(Number);
+    return { ano: y, mes: m };
+  }
+  const hoje = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date());
+  const [y, m] = hoje.split("-").map(Number);
+  return { ano: y, mes: m };
+}
 
 interface Campo {
   id: string;
@@ -88,6 +103,8 @@ export function NovaLocacaoForm({
   const [tipoEvento, setTipoEvento] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [diasOcupados, setDiasOcupados] = useState<Set<string>>(new Set());
+  const [mesVisto, setMesVisto] = useState(() => mesDeData(prefill.data));
 
   // Coffee
   const [coffeeIncluir, setCoffeeIncluir] = useState(false);
@@ -108,6 +125,9 @@ export function NovaLocacaoForm({
   const [resumo, setResumo] = useState<ResumoValores | null>(null);
   const [disp, setDisp] = useState<DisponibilidadeSala[]>([]);
   const [enviando, setEnviando] = useState(false);
+  const [enviandoQual, setEnviandoQual] = useState<"criar" | "aprovar" | null>(
+    null,
+  );
   const [erro, setErro] = useState<string | null>(null);
 
   function trocarPeriodo(p: PeriodoDia) {
@@ -119,9 +139,9 @@ export function NovaLocacaoForm({
   function selecionarAssociado(a: AssociadoBusca) {
     setAssoc(a);
     setNome(a.razaoSocial ?? a.nome);
-    setDocumento(a.documento ?? "");
+    setDocumento(mascararDocumento(a.documento ?? ""));
     setEmail(a.emails[0] ?? "");
-    setTelefone(a.telefone ?? "");
+    setTelefone(mascararTelefone(a.telefone ?? ""));
   }
 
   function toggleSala(id: string) {
@@ -224,6 +244,27 @@ export function NovaLocacaoForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveDisp]);
 
+  // Dias ocupados das salas selecionadas no mês visível — marcados no calendário.
+  const chaveOcupacoes = JSON.stringify({ salaIds, mesVisto });
+  useEffect(() => {
+    if (salaIds.length === 0) {
+      setDiasOcupados(new Set());
+      return;
+    }
+    let ativo = true;
+    ocupacoesDaSalaAction({
+      salaIds,
+      ano: mesVisto.ano,
+      mes: mesVisto.mes,
+    }).then((dias) => {
+      if (ativo) setDiasOcupados(new Set(dias));
+    });
+    return () => {
+      ativo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveOcupacoes]);
+
   const nomeSala = useMemo(
     () => new Map(salas.map((s) => [s.id, s.nome])),
     [salas],
@@ -240,6 +281,7 @@ export function NovaLocacaoForm({
       return;
     }
     setEnviando(true);
+    setEnviandoQual(aprovar ? "aprovar" : "criar");
     const r = await criarLocacaoAssistida({
       condicao,
       associadoId: condicao === "associado" ? (assoc?.id ?? null) : null,
@@ -282,6 +324,7 @@ export function NovaLocacaoForm({
       aprovar,
     });
     setEnviando(false);
+    setEnviandoQual(null);
 
     if (r.error) {
       setErro(r.error);
@@ -373,11 +416,9 @@ export function NovaLocacaoForm({
               <Input
                 id="doc"
                 value={documento}
-                onChange={(e) => setDocumento(e.target.value)}
-                onBlur={() =>
-                  setDocumento((d) => (d ? formatarDocumento(d) : d))
-                }
+                onChange={(e) => setDocumento(mascararDocumento(e.target.value))}
                 placeholder="00.000.000/0000-00"
+                inputMode="numeric"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -394,7 +435,9 @@ export function NovaLocacaoForm({
               <Input
                 id="tel"
                 value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
+                onChange={(e) => setTelefone(mascararTelefone(e.target.value))}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
               />
             </div>
           </div>
@@ -442,11 +485,12 @@ export function NovaLocacaoForm({
           <div className="grid gap-3 sm:grid-cols-4">
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <Label htmlFor="data">Data</Label>
-              <Input
+              <DatePicker
                 id="data"
-                type="date"
                 value={data}
-                onChange={(e) => setData(e.target.value)}
+                onChange={setData}
+                diasOcupados={diasOcupados}
+                aoMudarMes={(ano, mes) => setMesVisto({ ano, mes })}
               />
             </div>
             <div className="flex flex-col gap-1.5 sm:col-span-2">
@@ -563,16 +607,18 @@ export function NovaLocacaoForm({
                         </option>
                       ))}
                     </select>
+                  ) : c.tipo === "data" ? (
+                    <DatePicker
+                      id={`campo-${c.id}`}
+                      value={respostas[c.rotulo] ?? ""}
+                      onChange={(v) =>
+                        setRespostas((r) => ({ ...r, [c.rotulo]: v }))
+                      }
+                    />
                   ) : (
                     <Input
                       id={`campo-${c.id}`}
-                      type={
-                        c.tipo === "numero"
-                          ? "number"
-                          : c.tipo === "data"
-                            ? "date"
-                            : "text"
-                      }
+                      type={c.tipo === "numero" ? "number" : "text"}
                       value={respostas[c.rotulo] ?? ""}
                       onChange={(e) =>
                         setRespostas((r) => ({ ...r, [c.rotulo]: e.target.value }))
@@ -756,13 +802,15 @@ export function NovaLocacaoForm({
 
           <div className="flex flex-wrap gap-2">
             <Button
+              loading={enviandoQual === "criar"}
               disabled={enviando || bloqueado}
               onClick={() => enviar(false)}
             >
-              {enviando ? "Criando…" : "Criar solicitação"}
+              Criar solicitação
             </Button>
             <Button
               variant="outline"
+              loading={enviandoQual === "aprovar"}
               disabled={enviando || bloqueado}
               onClick={() => enviar(true)}
             >

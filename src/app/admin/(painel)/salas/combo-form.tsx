@@ -428,12 +428,8 @@ export function ComboForm({
           ) : null}
 
           <div>
-            <Button type="submit" disabled={salvando}>
-              {salvando
-                ? "Salvando…"
-                : modo === "criar"
-                  ? "Criar combo"
-                  : "Salvar combo"}
+            <Button type="submit" loading={salvando}>
+              {modo === "criar" ? "Criar combo" : "Salvar combo"}
             </Button>
           </div>
         </form>

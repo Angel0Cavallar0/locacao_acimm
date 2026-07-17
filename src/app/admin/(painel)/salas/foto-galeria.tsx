@@ -103,11 +103,12 @@ export function FotoGaleria({
             type="button"
             variant="outline"
             size="sm"
-            disabled={enviando || fotos.length >= MAX_FOTOS}
+            loading={enviando}
+            disabled={fotos.length >= MAX_FOTOS}
             onClick={() => inputRef.current?.click()}
           >
-            <Upload className="size-4" />
-            {enviando ? "Enviando…" : "Enviar fotos"}
+            {enviando ? null : <Upload className="size-4" />}
+            Enviar fotos
           </Button>
           <input
             ref={inputRef}

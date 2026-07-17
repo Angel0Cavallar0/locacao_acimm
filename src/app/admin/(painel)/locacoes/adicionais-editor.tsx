@@ -118,8 +118,8 @@ function AdicionalDialog({
             <DialogClose render={<Button variant="outline" type="button" />}>
               Cancelar
             </DialogClose>
-            <Button type="submit" disabled={salvando}>
-              {salvando ? "Salvando…" : "Salvar"}
+            <Button type="submit" loading={salvando}>
+              Salvar
             </Button>
           </DialogFooter>
         </form>

@@ -15,7 +15,7 @@ import type {
   SalaLinha,
 } from "./tipos";
 
-export const POR_PAGINA = 25;
+export const POR_PAGINA = 10;
 
 export type VistaLista = "pendentes" | "andamento" | "proximas" | "todas";
 

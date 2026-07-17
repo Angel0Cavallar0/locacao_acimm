@@ -218,8 +218,8 @@ export function SalaForm({
               </p>
             ) : null}
             <div>
-              <Button type="submit" disabled={editPending}>
-                {editPending ? "Salvando…" : "Salvar"}
+              <Button type="submit" loading={editPending}>
+                Salvar
               </Button>
             </div>
           </form>
@@ -350,8 +350,8 @@ export function SalaForm({
             </p>
           ) : null}
           <div>
-            <Button type="submit" disabled={criando || comprimindo}>
-              {criando ? "Criando…" : "Criar sala"}
+            <Button type="submit" loading={criando} disabled={comprimindo}>
+              Criar sala
             </Button>
           </div>
         </form>

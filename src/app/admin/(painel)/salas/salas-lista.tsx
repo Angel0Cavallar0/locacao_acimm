@@ -252,7 +252,7 @@ export function SalasLista({ salas }: { salas: SalaCard[] }) {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={isPending && pendingId === sala.id}
+                      loading={isPending && pendingId === sala.id}
                       onClick={() => alternar(sala)}
                     >
                       Ativar
