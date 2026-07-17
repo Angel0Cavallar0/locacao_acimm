@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TIPOS_COMBO, type TipoCombo, type TipoDesconto } from "@/lib/dominio";
-import { brlParaCentavos } from "@/lib/utils/moeda";
+import { brlParaCentavos, centavosParaBRL } from "@/lib/utils/moeda";
 import type { ComboInput } from "@/lib/validacoes/salas";
 import { atualizarCombo, criarCombo } from "./combos-actions";
 
@@ -20,6 +20,7 @@ export interface ComboDados {
   tipoDesconto: TipoDesconto | null;
   descontoValor: number | null;
   valorCentavos: number | null;
+  diasNoMes: number | null;
   salas: { salaId: string; aplicaDesconto: boolean }[];
 }
 
@@ -33,10 +34,13 @@ function centavosParaTexto(c: number) {
 export function ComboForm({
   modo,
   salasDisponiveis,
+  diariaPorSala,
   combo,
 }: {
   modo: "criar" | "editar";
   salasDisponiveis: { id: string; nome: string }[];
+  /** Diária de referência (dia inteiro, associado, vigente) por sala, em centavos. */
+  diariaPorSala: Record<string, number | null>;
   combo?: ComboDados;
 }) {
   const router = useRouter();
@@ -45,9 +49,12 @@ export function ComboForm({
   const [tipo, setTipo] = useState<TipoCombo>(
     combo?.tipo ?? "desconto_multi_sala",
   );
-  const [salasSel, setSalasSel] = useState<
-    { salaId: string; aplicaDesconto: boolean }[]
-  >(combo?.salas ?? []);
+  const [salasSel, setSalasSel] = useState<string[]>(
+    combo?.salas.map((s) => s.salaId) ?? [],
+  );
+  const [salaDesconto, setSalaDesconto] = useState(
+    combo?.salas.find((s) => s.aplicaDesconto)?.salaId ?? "",
+  );
   const [tipoDesconto, setTipoDesconto] = useState<TipoDesconto>(
     combo?.tipoDesconto ?? "percentual",
   );
@@ -61,6 +68,9 @@ export function ComboForm({
   const [salaAssinatura, setSalaAssinatura] = useState(
     combo?.tipo === "assinatura_mensal" ? (combo.salas[0]?.salaId ?? "") : "",
   );
+  const [diasNoMes, setDiasNoMes] = useState(
+    combo?.diasNoMes != null ? String(combo.diasNoMes) : "",
+  );
   const [valorFechado, setValorFechado] = useState(
     combo?.valorCentavos != null ? centavosParaTexto(combo.valorCentavos) : "",
   );
@@ -68,18 +78,11 @@ export function ComboForm({
   const [salvando, setSalvando] = useState(false);
 
   function toggleSala(id: string) {
-    setSalasSel((prev) =>
-      prev.some((s) => s.salaId === id)
-        ? prev.filter((s) => s.salaId !== id)
-        : [...prev, { salaId: id, aplicaDesconto: false }],
-    );
-  }
-  function toggleAplica(id: string) {
-    setSalasSel((prev) =>
-      prev.map((s) =>
-        s.salaId === id ? { ...s, aplicaDesconto: !s.aplicaDesconto } : s,
-      ),
-    );
+    setSalasSel((prev) => {
+      const tem = prev.includes(id);
+      if (tem && salaDesconto === id) setSalaDesconto("");
+      return tem ? prev.filter((x) => x !== id) : [...prev, id];
+    });
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -102,9 +105,16 @@ export function ComboForm({
         tipo === "assinatura_mensal" || tipo === "evento_privativo"
           ? brlParaCentavos(valorFechado)
           : null,
+      diasNoMes:
+        tipo === "assinatura_mensal"
+          ? Number.parseInt(diasNoMes, 10) || null
+          : null,
       salas:
         tipo === "desconto_multi_sala"
-          ? salasSel
+          ? salasSel.map((id) => ({
+              salaId: id,
+              aplicaDesconto: id === salaDesconto,
+            }))
           : tipo === "assinatura_mensal"
             ? salaAssinatura
               ? [{ salaId: salaAssinatura, aplicaDesconto: false }]
@@ -126,6 +136,14 @@ export function ComboForm({
   }
 
   const tipoInfo = TIPOS_COMBO.find((t) => t.valor === tipo);
+
+  // Comparativo da assinatura mensal.
+  const diariaRef = salaAssinatura ? diariaPorSala[salaAssinatura] : null;
+  const dias = Number.parseInt(diasNoMes, 10) || 0;
+  const semCombo =
+    diariaRef != null && dias > 0 ? diariaRef * dias : null;
+  const comCombo = brlParaCentavos(valorFechado);
+  const economia = semCombo != null ? semCombo - comCombo : null;
 
   return (
     <Card>
@@ -176,42 +194,50 @@ export function ComboForm({
               <div className="flex flex-col gap-1.5">
                 <Label>Salas do combo</Label>
                 <p className="text-xs text-ink-muted">
-                  Marque as salas que compõem o combo e em qual(is) o desconto
-                  incide.
+                  Marque as salas que compõem o combo.
                 </p>
-                <div className="rounded-lg border divide-y">
-                  {salasDisponiveis.map((s) => {
-                    const sel = salasSel.find((x) => x.salaId === s.id);
-                    return (
-                      <div
-                        key={s.id}
-                        className="flex items-center justify-between gap-2 px-3 py-2"
-                      >
-                        <label className="flex items-center gap-2 text-sm text-ink">
+                <div className="divide-y rounded-lg border">
+                  {salasDisponiveis.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-ink"
+                    >
+                      <input
+                        type="checkbox"
+                        className="size-4"
+                        checked={salasSel.includes(s.id)}
+                        onChange={() => toggleSala(s.id)}
+                      />
+                      {s.nome}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {salasSel.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <Label>Sala que recebe o desconto</Label>
+                  <div className="divide-y rounded-lg border">
+                    {salasDisponiveis
+                      .filter((s) => salasSel.includes(s.id))
+                      .map((s) => (
+                        <label
+                          key={s.id}
+                          className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-ink"
+                        >
                           <input
-                            type="checkbox"
+                            type="radio"
+                            name="sala-desconto"
                             className="size-4"
-                            checked={!!sel}
-                            onChange={() => toggleSala(s.id)}
+                            checked={salaDesconto === s.id}
+                            onChange={() => setSalaDesconto(s.id)}
                           />
                           {s.nome}
                         </label>
-                        {sel ? (
-                          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-                            <input
-                              type="checkbox"
-                              className="size-3.5"
-                              checked={sel.aplicaDesconto}
-                              onChange={() => toggleAplica(s.id)}
-                            />
-                            desconto aqui
-                          </label>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                      ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
@@ -230,7 +256,9 @@ export function ComboForm({
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="dv">
-                    {tipoDesconto === "percentual" ? "Desconto (%)" : "Desconto (R$)"}
+                    {tipoDesconto === "percentual"
+                      ? "Desconto (%)"
+                      : "Desconto (R$)"}
                   </Label>
                   <Input
                     id="dv"
@@ -245,34 +273,86 @@ export function ComboForm({
           ) : null}
 
           {tipo === "assinatura_mensal" ? (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="sa">Sala</Label>
-                <select
-                  id="sa"
-                  className={inputClasses}
-                  value={salaAssinatura}
-                  onChange={(e) => setSalaAssinatura(e.target.value)}
-                >
-                  <option value="">Selecione…</option>
-                  {salasDisponiveis.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nome}
-                    </option>
-                  ))}
-                </select>
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="sa">Sala</Label>
+                  <select
+                    id="sa"
+                    className={inputClasses}
+                    value={salaAssinatura}
+                    onChange={(e) => setSalaAssinatura(e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {salasDisponiveis.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="dm">Dias no mês</Label>
+                  <Input
+                    id="dm"
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={diasNoMes}
+                    onChange={(e) => setDiasNoMes(e.target.value)}
+                    placeholder="Ex.: 4"
+                  />
+                </div>
               </div>
+
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="vm">Valor mensal (R$)</Label>
+                <Label htmlFor="vm">Valor mensal com o combo (R$)</Label>
                 <Input
                   id="vm"
                   inputMode="decimal"
                   value={valorFechado}
                   onChange={(e) => setValorFechado(e.target.value)}
                   placeholder="0,00"
+                  className="max-w-xs"
                 />
               </div>
-            </div>
+
+              <div className="rounded-md border bg-surface-muted p-3 text-sm">
+                {diariaRef == null ? (
+                  <p className="text-ink-muted">
+                    Cadastre um preço de <strong>dia inteiro (associado)</strong>{" "}
+                    para esta sala para estimar o valor sem o combo.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">
+                        Sem o combo ({dias || 0} diária
+                        {dias === 1 ? "" : "s"} de{" "}
+                        {centavosParaBRL(diariaRef)})
+                      </span>
+                      <span className="text-ink">
+                        {semCombo != null ? centavosParaBRL(semCombo) : "—"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">Com o combo</span>
+                      <span className="font-medium text-ink">
+                        {centavosParaBRL(comCombo)}
+                      </span>
+                    </div>
+                    {economia != null && economia > 0 ? (
+                      <div className="flex justify-between border-t pt-1 text-brand">
+                        <span>Economia</span>
+                        <span className="font-medium">
+                          {centavosParaBRL(economia)}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </>
           ) : null}
 
           {tipo === "evento_privativo" ? (

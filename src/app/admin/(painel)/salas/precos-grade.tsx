@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export function PrecosGrade({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [alertaAberto, setAlertaAberto] = useState(true);
 
   const vigentes = precos.filter((p) => p.vigente);
   const historico = precos.filter((p) => !p.vigente);
@@ -96,15 +97,29 @@ export function PrecosGrade({
       </div>
 
       {lacunas.length > 0 ? (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-          <div>
-            <p className="font-medium text-ink">Cobertura incompleta</p>
-            <p className="text-ink-muted">
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 text-sm">
+          <button
+            type="button"
+            onClick={() => setAlertaAberto((a) => !a)}
+            aria-expanded={alertaAberto}
+            className="flex w-full items-center gap-2 p-3 text-left"
+          >
+            <AlertTriangle className="size-4 shrink-0 text-amber-600" />
+            <span className="flex-1 font-medium text-ink">
+              Cobertura incompleta ({lacunas.length})
+            </span>
+            {alertaAberto ? (
+              <ChevronUp className="size-4 text-ink-muted" />
+            ) : (
+              <ChevronDown className="size-4 text-ink-muted" />
+            )}
+          </button>
+          {alertaAberto ? (
+            <p className="-mt-1 px-3 pb-3 text-ink-muted">
               Sem preço vigente para: {lacunas.join("; ")}. Esses períodos ficam
               indisponíveis para locação na condição correspondente.
             </p>
-          </div>
+          ) : null}
         </div>
       ) : null}
 

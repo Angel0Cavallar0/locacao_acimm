@@ -71,6 +71,7 @@ export const comboSchema = z
     tipoDesconto: tipoDescontoSchema.nullable().default(null),
     descontoValor: z.number().int().min(0).nullable().default(null),
     valorCentavos: z.number().int().min(0).nullable().default(null),
+    diasNoMes: z.number().int().min(1).max(31).nullable().default(null),
     salas: z
       .array(z.object({ salaId: z.uuid(), aplicaDesconto: z.boolean() }))
       .default([]),
@@ -120,6 +121,12 @@ export const comboSchema = z
           code: "custom",
           message: "Informe o valor mensal.",
           path: ["valorCentavos"],
+        });
+      if (v.diasNoMes == null)
+        ctx.addIssue({
+          code: "custom",
+          message: "Informe a quantidade de dias no mês.",
+          path: ["diasNoMes"],
         });
     }
     if (v.tipo === "evento_privativo" && v.valorCentavos == null) {
