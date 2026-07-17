@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { requireColaborador } from "@/lib/auth/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { salaSchema } from "@/lib/validacoes/salas";
@@ -9,6 +8,11 @@ import { salaSchema } from "@/lib/validacoes/salas";
 export interface EstadoSala {
   error?: string;
   success?: string;
+}
+
+export interface ResultadoCriarSala {
+  error?: string;
+  id?: string;
 }
 
 const STATUS_FUTUROS_CONFIRMADOS = [
@@ -48,9 +52,9 @@ async function nomeDuplicado(
 }
 
 export async function criarSala(
-  _prev: EstadoSala,
+  _prev: ResultadoCriarSala,
   formData: FormData,
-): Promise<EstadoSala> {
+): Promise<ResultadoCriarSala> {
   await requireColaborador();
 
   const parsed = salaSchema.safeParse({
@@ -83,8 +87,9 @@ export async function criarSala(
 
   if (error || !data) return { error: "Não foi possível criar a sala." };
 
+  // Retorna o id para o client enviar as fotos pendentes e navegar.
   revalidatePath("/admin/salas");
-  redirect(`/admin/salas/${data.id}`);
+  return { id: data.id as string };
 }
 
 export async function atualizarSala(

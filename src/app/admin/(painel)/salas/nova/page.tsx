@@ -3,12 +3,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { requireColaborador } from "@/lib/auth/guards";
+import { listarEquipamentos } from "../equipamentos-actions";
 import { SalaForm } from "../sala-form";
 
 export const metadata: Metadata = { title: "Nova sala" };
 
 export default async function NovaSalaPage() {
   await requireColaborador();
+  const catalogo = await listarEquipamentos();
+
   return (
     <div className="mx-auto max-w-2xl">
       <Link
@@ -21,7 +24,7 @@ export default async function NovaSalaPage() {
       <h2 className="mt-2 mb-4 font-display text-lg font-semibold text-ink">
         Nova sala
       </h2>
-      <SalaForm modo="criar" />
+      <SalaForm modo="criar" catalogo={catalogo} />
     </div>
   );
 }

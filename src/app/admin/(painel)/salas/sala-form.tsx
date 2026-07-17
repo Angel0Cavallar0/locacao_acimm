@@ -1,13 +1,23 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useActionState, useEffect, useState } from "react";
+import { Upload, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { atualizarSala, criarSala, type EstadoSala } from "./actions";
+import type { Equipamento } from "./equipamentos-actions";
+import {
+  comprimirFoto,
+  MAX_FOTOS,
+  subirFotoSala,
+  TIPOS_FOTO,
+} from "./foto-upload";
+import { TagSelector } from "./tag-selector";
 
 export interface SalaDados {
   id: string;
@@ -18,137 +28,256 @@ export interface SalaDados {
   ativa: boolean;
 }
 
+interface FotoPendente {
+  file: File;
+  preview: string;
+}
+
+const textareaClasses =
+  "min-h-16 rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+function Campos({
+  sala,
+  equip,
+  setEquip,
+  catalogo,
+}: {
+  sala?: SalaDados;
+  equip: string[];
+  setEquip: (v: string[]) => void;
+  catalogo: Equipamento[];
+}) {
+  return (
+    <>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="nome">Nome</Label>
+        <Input id="nome" name="nome" defaultValue={sala?.nome} required />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="descricao">Descrição</Label>
+        <textarea
+          id="descricao"
+          name="descricao"
+          defaultValue={sala?.descricao}
+          rows={3}
+          className={textareaClasses}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="capacidade">Capacidade</Label>
+        <Input
+          id="capacidade"
+          name="capacidade"
+          type="number"
+          min={1}
+          defaultValue={sala?.capacidade}
+          required
+          className="w-32"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label>Equipamentos</Label>
+        <TagSelector value={equip} onChange={setEquip} catalogoInicial={catalogo} />
+      </div>
+
+      <label className="flex items-center gap-2 text-sm text-ink">
+        <input
+          type="checkbox"
+          name="ativa"
+          defaultChecked={sala?.ativa ?? true}
+          className="size-4"
+        />
+        Sala ativa (disponível para locação)
+      </label>
+    </>
+  );
+}
+
 export function SalaForm({
   modo,
   sala,
+  catalogo,
 }: {
   modo: "criar" | "editar";
   sala?: SalaDados;
+  catalogo: Equipamento[];
 }) {
-  const action = modo === "criar" ? criarSala : atualizarSala;
-  const [state, formAction, pending] = useActionState<EstadoSala, FormData>(
-    action,
-    {},
-  );
+  const router = useRouter();
   const [equip, setEquip] = useState<string[]>(sala?.equipamentos ?? []);
-  const [novo, setNovo] = useState("");
 
+  // -------- Edição (form action) --------
+  const [stateEdit, editAction, editPending] = useActionState<
+    EstadoSala,
+    FormData
+  >(atualizarSala, {});
   useEffect(() => {
-    if (state.success) toast.success(state.success);
-  }, [state.success]);
+    if (stateEdit.success) toast.success(stateEdit.success);
+  }, [stateEdit.success]);
 
-  function adicionar() {
-    const v = novo.trim();
-    if (v && !equip.includes(v)) setEquip([...equip, v]);
-    setNovo("");
+  // -------- Criação (submit manual: cria sala + envia fotos pendentes) --------
+  const [pendentes, setPendentes] = useState<FotoPendente[]>([]);
+  const [comprimindo, setComprimindo] = useState(false);
+  const [criando, setCriando] = useState(false);
+  const [erroCriar, setErroCriar] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function escolherFotos(files: FileList) {
+    if (pendentes.length + files.length > MAX_FOTOS) {
+      toast.error(`Máximo de ${MAX_FOTOS} fotos por sala.`);
+      return;
+    }
+    setComprimindo(true);
+    const novas: FotoPendente[] = [];
+    for (const file of Array.from(files)) {
+      if (!TIPOS_FOTO.includes(file.type)) {
+        toast.error(`Tipo não suportado: ${file.name}`);
+        continue;
+      }
+      try {
+        const c = await comprimirFoto(file);
+        novas.push({ file: c, preview: URL.createObjectURL(c) });
+      } catch {
+        toast.error(`Erro ao processar ${file.name}`);
+      }
+    }
+    setPendentes((prev) => [...prev, ...novas]);
+    setComprimindo(false);
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function removerPendente(i: number) {
+    setPendentes((prev) => {
+      URL.revokeObjectURL(prev[i].preview);
+      return prev.filter((_, idx) => idx !== i);
+    });
+  }
+
+  async function onSubmitCriar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErroCriar(null);
+    setCriando(true);
+    const fd = new FormData(e.currentTarget);
+    fd.set("equipamentos", JSON.stringify(equip));
+
+    const r = await criarSala({}, fd);
+    if (r.error || !r.id) {
+      setErroCriar(r.error ?? "Não foi possível criar a sala.");
+      setCriando(false);
+      return;
+    }
+
+    for (const p of pendentes) {
+      const up = await subirFotoSala(r.id, p.file);
+      if ("error" in up) toast.error(`Foto não enviada: ${up.error}`);
+    }
+    toast.success("Sala criada.");
+    router.push(`/admin/salas/${r.id}`);
+  }
+
+  if (modo === "editar" && sala) {
+    return (
+      <Card>
+        <CardContent>
+          <form action={editAction} className="flex flex-col gap-4" noValidate>
+            <input type="hidden" name="id" value={sala.id} />
+            <input
+              type="hidden"
+              name="equipamentos"
+              value={JSON.stringify(equip)}
+            />
+            <Campos
+              sala={sala}
+              equip={equip}
+              setEquip={setEquip}
+              catalogo={catalogo}
+            />
+            {stateEdit.error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {stateEdit.error}
+              </p>
+            ) : null}
+            <div>
+              <Button type="submit" disabled={editPending}>
+                {editPending ? "Salvando…" : "Salvar"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
     <Card>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-4" noValidate>
-          {modo === "editar" && sala ? (
-            <input type="hidden" name="id" value={sala.id} />
-          ) : null}
-          <input
-            type="hidden"
-            name="equipamentos"
-            value={JSON.stringify(equip)}
-          />
+        <form onSubmit={onSubmitCriar} className="flex flex-col gap-4" noValidate>
+          <Campos equip={equip} setEquip={setEquip} catalogo={catalogo} />
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="nome">Nome</Label>
-            <Input id="nome" name="nome" defaultValue={sala?.nome} required />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="descricao">Descrição</Label>
-            <textarea
-              id="descricao"
-              name="descricao"
-              defaultValue={sala?.descricao}
-              rows={3}
-              className="min-h-16 rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="capacidade">Capacidade</Label>
-            <Input
-              id="capacidade"
-              name="capacidade"
-              type="number"
-              min={1}
-              defaultValue={sala?.capacidade}
-              required
-              className="w-32"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="equip">Equipamentos</Label>
-            <div className="flex gap-2">
-              <Input
-                id="equip"
-                value={novo}
-                onChange={(e) => setNovo(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    adicionar();
-                  }
-                }}
-                placeholder="Ex.: Projetor, Ar-condicionado"
-              />
-              <Button type="button" variant="outline" onClick={adicionar}>
-                Adicionar
+            <Label>Fotos</Label>
+            <p className="text-xs text-ink-muted">
+              Envie já as fotos (até {MAX_FOTOS}). A primeira é a capa.
+            </p>
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={comprimindo || pendentes.length >= MAX_FOTOS}
+                onClick={() => inputRef.current?.click()}
+              >
+                <Upload className="size-4" />
+                {comprimindo ? "Processando…" : "Adicionar fotos"}
               </Button>
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                hidden
+                onChange={(e) => {
+                  if (e.target.files?.length) escolherFotos(e.target.files);
+                }}
+              />
             </div>
-            {equip.length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {equip.map((eq) => (
-                  <span
-                    key={eq}
-                    className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink"
+            {pendentes.length > 0 ? (
+              <div className="mt-1 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {pendentes.map((p, i) => (
+                  <div
+                    key={p.preview}
+                    className="group relative aspect-video overflow-hidden rounded-md border bg-surface-muted"
                   >
-                    {eq}
+                    {/* biome-ignore lint/a11y/useAltText: preview local */}
+                    <img
+                      src={p.preview}
+                      alt={`Prévia ${i + 1}`}
+                      className="size-full object-cover"
+                    />
                     <button
                       type="button"
-                      aria-label={`Remover ${eq}`}
-                      onClick={() => setEquip(equip.filter((x) => x !== eq))}
-                      className="text-ink-muted hover:text-ink"
+                      aria-label="Remover"
+                      onClick={() => removerPendente(i)}
+                      className="absolute top-1 right-1 rounded bg-black/50 p-0.5 text-white hover:bg-black/70"
                     >
-                      <X className="size-3" />
+                      <X className="size-3.5" />
                     </button>
-                  </span>
+                  </div>
                 ))}
               </div>
             ) : null}
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              name="ativa"
-              defaultChecked={sala?.ativa ?? true}
-              className="size-4"
-            />
-            Sala ativa (disponível para locação)
-          </label>
-
-          {state.error ? (
+          {erroCriar ? (
             <p role="alert" className="text-sm text-destructive">
-              {state.error}
+              {erroCriar}
             </p>
           ) : null}
-
           <div>
-            <Button type="submit" disabled={pending}>
-              {pending
-                ? "Salvando…"
-                : modo === "criar"
-                  ? "Criar sala"
-                  : "Salvar"}
+            <Button type="submit" disabled={criando || comprimindo}>
+              {criando ? "Criando…" : "Criar sala"}
             </Button>
           </div>
         </form>

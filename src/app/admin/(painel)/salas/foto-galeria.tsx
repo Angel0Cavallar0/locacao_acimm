@@ -1,29 +1,23 @@
 "use client";
 
-import imageCompression from "browser-image-compression";
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
-  confirmarFotoSala,
-  prepararUploadFoto,
-  removerFotoSala,
-  reordenarFotosSala,
-} from "./fotos-actions";
+  comprimirFoto,
+  MAX_FOTOS,
+  subirFotoSala,
+  TIPOS_FOTO,
+} from "./foto-upload";
+import { removerFotoSala, reordenarFotosSala } from "./fotos-actions";
 
 interface Foto {
   path: string;
   url: string;
 }
-
-const BUCKET = "salas-fotos";
-const TIPOS = ["image/jpeg", "image/png", "image/webp"];
-const MAX_FOTOS = 10;
-const MAX_BYTES = 8 * 1024 * 1024;
 
 export function FotoGaleria({
   salaId,
@@ -36,7 +30,6 @@ export function FotoGaleria({
   const [enviando, setEnviando] = useState(false);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
-  const supabase = useMemo(() => createClient(), []);
 
   async function processar(files: FileList) {
     if (fotos.length + files.length > MAX_FOTOS) {
@@ -46,42 +39,18 @@ export function FotoGaleria({
     setEnviando(true);
     let atuais = fotos;
     for (const file of Array.from(files)) {
-      if (!TIPOS.includes(file.type)) {
+      if (!TIPOS_FOTO.includes(file.type)) {
         toast.error(`Tipo não suportado: ${file.name}`);
         continue;
       }
       try {
-        const comprimida = await imageCompression(file, {
-          maxSizeMB: 2,
-          maxWidthOrHeight: 1920,
-          fileType: "image/webp",
-          initialQuality: 0.8,
-          useWebWorker: true,
-        });
-        if (comprimida.size > MAX_BYTES) {
-          toast.error(`${file.name}: muito grande mesmo após compressão.`);
+        const comprimida = await comprimirFoto(file);
+        const r = await subirFotoSala(salaId, comprimida);
+        if ("error" in r) {
+          toast.error(r.error);
           continue;
         }
-        const prep = await prepararUploadFoto(salaId);
-        if ("error" in prep) {
-          toast.error(prep.error);
-          continue;
-        }
-        const up = await supabase.storage
-          .from(BUCKET)
-          .uploadToSignedUrl(prep.path, prep.token, comprimida, {
-            contentType: "image/webp",
-          });
-        if (up.error) {
-          toast.error(`Falha no upload: ${file.name}`);
-          continue;
-        }
-        const conf = await confirmarFotoSala(salaId, prep.path);
-        if ("error" in conf) {
-          toast.error(conf.error);
-          continue;
-        }
-        atuais = [...atuais, { path: prep.path, url: conf.url }];
+        atuais = [...atuais, { path: r.path, url: r.url }];
         setFotos(atuais);
       } catch {
         toast.error(`Erro ao processar ${file.name}`);

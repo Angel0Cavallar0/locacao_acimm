@@ -2,22 +2,55 @@ import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireColaborador } from "@/lib/auth/guards";
 import { parseDaterange } from "@/lib/precos/resolver-core";
 import { urlFotoSala } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { centavosParaBRL } from "@/lib/utils/moeda";
+import { listarEquipamentos } from "../equipamentos-actions";
 import { FotoGaleria } from "../foto-galeria";
 import { PrecosGrade, type PrecoVM } from "../precos-grade";
 import { SalaForm } from "../sala-form";
 
 export const metadata: Metadata = { title: "Editar sala" };
+
+const STATUS_LABEL: Record<string, string> = {
+  rascunho: "Rascunho",
+  solicitada: "Solicitada",
+  em_analise: "Em análise",
+  aprovada: "Aprovada",
+  contrato_enviado: "Contrato enviado",
+  contrato_assinado: "Contrato assinado",
+  aguardando_pagamento: "Aguardando pagamento",
+  confirmada: "Confirmada",
+  realizada: "Realizada",
+  finalizada: "Finalizada",
+  recusada: "Recusada",
+  cancelada: "Cancelada",
+};
+
+interface HistLinha {
+  locacoes: {
+    numero: number;
+    locatario_nome: string;
+    inicio: string;
+    fim: string;
+    status: string;
+    valor_total_centavos: number;
+  } | null;
+}
 
 export default async function EditarSalaPage({
   params,
@@ -28,17 +61,27 @@ export default async function EditarSalaPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: sala } = await supabase
-    .from("salas")
-    .select("id, nome, descricao, capacidade, equipamentos, ativa, fotos")
-    .eq("id", id)
-    .maybeSingle();
-  if (!sala) notFound();
+  const [{ data: sala }, { data: precos }, { data: histRaw }, catalogo] =
+    await Promise.all([
+      supabase
+        .from("salas")
+        .select("id, nome, descricao, capacidade, equipamentos, ativa, fotos")
+        .eq("id", id)
+        .maybeSingle(),
+      supabase
+        .from("precos_sala")
+        .select("id, condicao, periodo, dias_semana, valor_centavos, vigencia")
+        .eq("sala_id", id),
+      supabase
+        .from("locacao_salas")
+        .select(
+          "locacoes!inner(numero, locatario_nome, inicio, fim, status, valor_total_centavos)",
+        )
+        .eq("sala_id", id),
+      listarEquipamentos(),
+    ]);
 
-  const { data: precos } = await supabase
-    .from("precos_sala")
-    .select("id, condicao, periodo, dias_semana, valor_centavos, vigencia")
-    .eq("sala_id", id);
+  if (!sala) notFound();
 
   const hoje = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -63,6 +106,11 @@ export default async function EditarSalaPage({
     url: urlFotoSala(path),
   }));
 
+  const historico = ((histRaw ?? []) as unknown as HistLinha[])
+    .map((h) => h.locacoes)
+    .filter((l): l is NonNullable<HistLinha["locacoes"]> => l !== null)
+    .sort((a, b) => b.inicio.localeCompare(a.inicio));
+
   return (
     <div className="mx-auto max-w-3xl">
       <Link
@@ -81,11 +129,13 @@ export default async function EditarSalaPage({
           <TabsTrigger value="dados">Dados</TabsTrigger>
           <TabsTrigger value="fotos">Fotos ({fotos.length})</TabsTrigger>
           <TabsTrigger value="precos">Preços</TabsTrigger>
+          <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados" className="mt-4">
           <SalaForm
             modo="editar"
+            catalogo={catalogo}
             sala={{
               id: sala.id,
               nome: sala.nome,
@@ -103,6 +153,55 @@ export default async function EditarSalaPage({
 
         <TabsContent value="precos" className="mt-4">
           <PrecosGrade salaId={sala.id} precos={precosVM} />
+        </TabsContent>
+
+        <TabsContent value="historico" className="mt-4">
+          <Card>
+            <CardContent>
+              {historico.length === 0 ? (
+                <p className="py-6 text-center text-sm text-ink-muted">
+                  Nenhuma locação registrada para esta sala.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nº</TableHead>
+                        <TableHead>Locatário</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {historico.map((l) => (
+                        <TableRow key={l.numero}>
+                          <TableCell className="font-medium text-ink">
+                            LOC-{String(l.numero).padStart(6, "0")}
+                          </TableCell>
+                          <TableCell className="text-ink-muted">
+                            {l.locatario_nome}
+                          </TableCell>
+                          <TableCell className="text-ink-muted">
+                            {new Date(l.inicio).toLocaleDateString("pt-BR")}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {STATUS_LABEL[l.status] ?? l.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-ink-muted">
+                            {centavosParaBRL(l.valor_total_centavos)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

@@ -66,8 +66,8 @@ function PrecoDialog({
   const [condicao, setCondicao] = useState<CondicaoLocatario>(
     inicial?.condicao ?? "associado",
   );
-  const [periodo, setPeriodo] = useState<PeriodoDia>(
-    inicial?.periodo ?? "manha",
+  const [periodos, setPeriodos] = useState<PeriodoDia[]>(
+    inicial ? [inicial.periodo] : ["manha"],
   );
   const [dias, setDias] = useState<number[]>(inicial?.diasSemana ?? [1, 2, 3, 4, 5]);
   const [valor, setValor] = useState(
@@ -82,6 +82,12 @@ function PrecoDialog({
     );
   }
 
+  function togglePeriodo(p: PeriodoDia) {
+    setPeriodos((prev) =>
+      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
+    );
+  }
+
   function salvar() {
     setErro(null);
     const valorCentavos = brlParaCentavos(valor);
@@ -89,19 +95,27 @@ function PrecoDialog({
       setErro("Selecione ao menos um dia.");
       return;
     }
+    if (periodos.length === 0) {
+      setErro("Selecione ao menos um período.");
+      return;
+    }
     startSalvar(async () => {
-      const r = await reajustarPreco({
-        salaId,
-        condicao,
-        periodo,
-        diasSemana: dias,
-        valorCentavos,
-      });
-      if (r.error) {
-        setErro(r.error);
+      const erros: string[] = [];
+      for (const per of periodos) {
+        const r = await reajustarPreco({
+          salaId,
+          condicao,
+          periodo: per,
+          diasSemana: dias,
+          valorCentavos,
+        });
+        if (r.error) erros.push(`${rotuloPeriodo(per)}: ${r.error}`);
+      }
+      if (erros.length > 0) {
+        setErro(erros.join(" | "));
         return;
       }
-      toast.success("Preço salvo.");
+      toast.success(periodos.length > 1 ? "Preços salvos." : "Preço salvo.");
       setOpen(false);
       aoSalvar();
     });
@@ -124,39 +138,43 @@ function PrecoDialog({
           <DialogTitle>{inicial ? "Reajustar preço" : "Novo preço"}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cond">Condição</Label>
-              <select
-                id="cond"
-                className={inputClasses}
-                value={condicao}
-                onChange={(e) =>
-                  setCondicao(e.target.value as CondicaoLocatario)
-                }
-              >
-                {CONDICOES.map((c) => (
-                  <option key={c.valor} value={c.valor}>
-                    {c.rotulo}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="cond">Condição</Label>
+            <select
+              id="cond"
+              className={inputClasses}
+              value={condicao}
+              onChange={(e) => setCondicao(e.target.value as CondicaoLocatario)}
+            >
+              {CONDICOES.map((c) => (
+                <option key={c.valor} value={c.valor}>
+                  {c.rotulo}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>Períodos</Label>
+            <div className="flex flex-wrap gap-1">
+              {PERIODOS.map((p) => (
+                <button
+                  key={p.valor}
+                  type="button"
+                  onClick={() => togglePeriodo(p.valor)}
+                  className={`rounded-md border px-2 py-1 text-xs ${
+                    periodos.includes(p.valor)
+                      ? "border-brand bg-brand text-brand-foreground"
+                      : "border-input text-ink-muted hover:bg-surface-muted"
+                  }`}
+                >
+                  {p.rotulo}
+                </button>
+              ))}
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="per">Período</Label>
-              <select
-                id="per"
-                className={inputClasses}
-                value={periodo}
-                onChange={(e) => setPeriodo(e.target.value as PeriodoDia)}
-              >
-                {PERIODOS.map((p) => (
-                  <option key={p.valor} value={p.valor}>
-                    {p.rotulo}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <p className="text-xs text-ink-muted">
+              Selecione um ou mais períodos para aplicar o mesmo valor.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">

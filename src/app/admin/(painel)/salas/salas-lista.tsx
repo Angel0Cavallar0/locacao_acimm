@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ChevronDown,
-  ChevronUp,
-  ImageIcon,
-  Pencil,
-  Plus,
-  Users,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, ImageIcon, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -182,48 +175,46 @@ export function SalasLista({ salas }: { salas: SalaCard[] }) {
                   </button>
                 </div>
 
-                <div className="size-16 shrink-0 overflow-hidden rounded-md bg-surface-muted">
-                  {sala.capaUrl ? (
-                    // biome-ignore lint/a11y/useAltText: alt fornecido
-                    <img
-                      src={sala.capaUrl}
-                      alt={sala.nome}
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center text-ink-muted">
-                      <ImageIcon className="size-5" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate font-medium text-ink">
-                      {sala.nome}
-                    </h3>
-                    <Badge variant={sala.ativa ? "default" : "outline"}>
-                      {sala.ativa ? "Ativa" : "Indisponível"}
-                    </Badge>
+                <Link
+                  href={`/admin/salas/${sala.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-4"
+                >
+                  <div className="size-16 shrink-0 overflow-hidden rounded-md bg-surface-muted">
+                    {sala.capaUrl ? (
+                      // biome-ignore lint/a11y/useAltText: alt fornecido
+                      <img
+                        src={sala.capaUrl}
+                        alt={sala.nome}
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-full items-center justify-center text-ink-muted">
+                        <ImageIcon className="size-5" />
+                      </div>
+                    )}
                   </div>
-                  <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
-                    <span className="inline-flex items-center gap-1">
-                      <Users className="size-3" />
-                      {sala.capacidade} lugares
-                    </span>
-                    <span>{sala.precosVigentes} preços vigentes</span>
-                    <span>{sala.totalFotos} fotos</span>
-                  </p>
-                </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate font-medium text-ink">
+                        {sala.nome}
+                      </h3>
+                      <Badge variant={sala.ativa ? "default" : "outline"}>
+                        {sala.ativa ? "Ativa" : "Indisponível"}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="size-3" />
+                        {sala.capacidade} lugares
+                      </span>
+                      <span>{sala.precosVigentes} preços vigentes</span>
+                      <span>{sala.totalFotos} fotos</span>
+                    </p>
+                  </div>
+                </Link>
 
                 <div className="flex shrink-0 items-center gap-1">
-                  <Link
-                    href={`/admin/salas/${sala.id}`}
-                    className={buttonVariants({ variant: "ghost", size: "sm" })}
-                  >
-                    <Pencil className="size-4" />
-                    Editar
-                  </Link>
                   {sala.ativa ? (
                     <DesativarDialog
                       sala={sala}
