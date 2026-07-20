@@ -1,5 +1,6 @@
 import "server-only";
 import { spWallParaUtc } from "@/lib/calendario/tempo";
+import { parsearFaixas, valorPessoaDe } from "@/lib/coffee/faixas-core";
 import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
 import { resolverPreco } from "@/lib/precos/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -67,11 +68,15 @@ export async function calcularValores(
     const admin = createAdminClient();
     const { data: nivel } = await admin
       .from("coffee_niveis")
-      .select("valor_pessoa_centavos")
+      .select("faixas_preco")
       .eq("id", input.coffee.nivelId)
       .maybeSingle();
+    const valorPessoa = valorPessoaDe(
+      parsearFaixas(nivel?.faixas_preco),
+      input.coffee.qtdPessoas,
+    );
     coffeeCentavos = totalCoffee(
-      (nivel?.valor_pessoa_centavos as number) ?? 0,
+      valorPessoa,
       input.coffee.qtdPessoas,
       input.coffee.adicionaisCentavos,
     );

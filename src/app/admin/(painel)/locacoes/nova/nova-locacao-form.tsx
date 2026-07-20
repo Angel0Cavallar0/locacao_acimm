@@ -75,7 +75,11 @@ export function NovaLocacaoForm({
   prefill,
 }: {
   salas: { id: string; nome: string; capacidade: number }[];
-  niveis: { id: string; nome: string; valor_pessoa_centavos: number }[];
+  niveis: {
+    id: string;
+    nome: string;
+    adicionais: { descricao: string; valorCentavos: number }[];
+  }[];
   campos: Campo[];
   horarios: HorariosPeriodos;
   prefill: { salaId: string | null; data: string | null; periodo: PeriodoDia | null };
@@ -172,6 +176,8 @@ export function NovaLocacaoForm({
     (s, a) => s + brlParaCentavos(a.valor),
     0,
   );
+  const catalogoCoffee =
+    niveis.find((n) => n.id === coffeeNivelId)?.adicionais ?? [];
   const adicionaisCalc = adicionais
     .map((a) => ({
       quantidade: Number(a.quantidade.replace(",", ".")) || 0,
@@ -671,7 +677,7 @@ export function NovaLocacaoForm({
                     >
                       {niveis.map((n) => (
                         <option key={n.id} value={n.id}>
-                          {n.nome} — {centavosParaBRL(n.valor_pessoa_centavos)}/pessoa
+                          {n.nome}
                         </option>
                       ))}
                     </select>
@@ -697,6 +703,36 @@ export function NovaLocacaoForm({
                     />
                   </div>
                 </div>
+                {catalogoCoffee.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-xs font-medium text-ink-muted">
+                      Adicionais do nível (clique para incluir)
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {catalogoCoffee.map((a) => (
+                        <button
+                          key={`${a.descricao}-${a.valorCentavos}`}
+                          type="button"
+                          onClick={() =>
+                            setCoffeeAdicionais((p) => [
+                              ...p,
+                              {
+                                descricao: a.descricao,
+                                valor: (a.valorCentavos / 100)
+                                  .toFixed(2)
+                                  .replace(".", ","),
+                              },
+                            ])
+                          }
+                          className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs text-ink-muted hover:border-brand hover:text-brand"
+                        >
+                          <Plus className="size-3" />
+                          {a.descricao} · {centavosParaBRL(a.valorCentavos)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <LinhasValor
                   titulo="Adicionais do coffee"
                   itens={coffeeAdicionais}

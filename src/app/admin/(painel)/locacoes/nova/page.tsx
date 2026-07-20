@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireColaborador } from "@/lib/auth/guards";
+import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
 import type { PeriodoDia } from "@/lib/dominio";
 import { createClient } from "@/lib/supabase/server";
@@ -33,7 +34,7 @@ export default async function NovaLocacaoPage({
         .order("ordem", { ascending: true }),
       supabase
         .from("coffee_niveis")
-        .select("id, nome, valor_pessoa_centavos")
+        .select("id, nome, adicionais")
         .eq("ativo", true)
         .order("ordem", { ascending: true }),
       supabase
@@ -67,7 +68,11 @@ export default async function NovaLocacaoPage({
       </h2>
       <NovaLocacaoForm
         salas={salas ?? []}
-        niveis={niveis ?? []}
+        niveis={(niveis ?? []).map((n) => ({
+          id: n.id,
+          nome: n.nome,
+          adicionais: parsearAdicionaisCoffee(n.adicionais),
+        }))}
         campos={(campos ?? []).map((c) => ({
           id: c.id,
           rotulo: c.rotulo,
