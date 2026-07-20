@@ -151,8 +151,11 @@ export async function criarPagamentosIniciais(locacaoId: string): Promise<void> 
     "pagamento_criado",
   );
 
-  // Hook de notificação das instruções ao locatário — no-op até o Spec 15.
-  console.info(`[pagamento] locacao=${locacaoId} instrucoes (no-op)`);
+  // Notifica o locatário com as instruções por forma (Spec 15).
+  const { notificarInstrucoesPagamento } = await import(
+    "@/lib/notificacoes/eventos"
+  );
+  await notificarInstrucoesPagamento(locacaoId);
 }
 
 interface PagamentoRow {

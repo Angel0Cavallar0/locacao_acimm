@@ -3,23 +3,11 @@
  * Texto sempre em pt-BR; JAMAIS mencionar FacioFlow/stack (§1).
  */
 
+import { moldura } from "./templates";
+
 export interface EmailMontado {
   assunto: string;
   html: string;
-}
-
-function moldura(conteudo: string): string {
-  return `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f4f5f7;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2430">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-      <table role="presentation" width="100%" style="max-width:480px;background:#ffffff;border-radius:12px;padding:28px" cellpadding="0" cellspacing="0">
-        <tr><td>
-          <div style="font-size:18px;font-weight:bold;color:#123B6D;margin-bottom:16px">ACIMM · Locação de Salas</div>
-          ${conteudo}
-          <div style="margin-top:24px;font-size:12px;color:#8a94a6">Se você não solicitou este e-mail, ignore-o.</div>
-        </td></tr>
-      </table>
-    </td></tr></table>
-  </body></html>`;
 }
 
 /** Contrato de locação — envio pós-aprovação com PDF anexo (Spec 13 §6). */

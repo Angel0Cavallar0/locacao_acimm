@@ -22,6 +22,7 @@ import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
 import { StatusBadge } from "../status-badge";
 import { ContratoAcoes } from "./contrato-acoes";
+import { NotificacoesLista } from "./notificacoes-lista";
 import { PagamentosGestao } from "./pagamentos-gestao";
 
 const STATUS_COM_CONTRATO = new Set([
@@ -331,6 +332,10 @@ export default async function LocacaoDetalhePage({
               valorTotalCentavos={loc.valorTotalCentavos}
               pagamentos={loc.pagamentos}
             />
+          </Secao>
+
+          <Secao titulo="Notificações">
+            <NotificacoesLista notificacoes={loc.notificacoes} />
           </Secao>
         </div>
 

@@ -116,6 +116,18 @@ export interface PagamentoLinha {
   criadoEmUtc: string;
 }
 
+export interface NotificacaoLinha {
+  id: string;
+  canal: "whatsapp" | "email";
+  template: string;
+  destinatario: string;
+  status: string;
+  tentativas: number;
+  ultimoErro: string | null;
+  enviadaEmUtc: string | null;
+  criadoEmUtc: string;
+}
+
 /** Detalhe completo da locação (`/admin/locacoes/[id]`). */
 export interface LocacaoDetalhe {
   id: string;
@@ -152,4 +164,5 @@ export interface LocacaoDetalhe {
   coffee: CoffeeLinha[];
   contrato: ContratoResumo | null;
   pagamentos: PagamentoLinha[];
+  notificacoes: NotificacaoLinha[];
 }

@@ -56,6 +56,39 @@ const criarPagamentos: EfeitoFn = async (ctx) => {
 };
 
 /**
+ * Notificações WhatsApp + e-mail (Spec 15). Import DINÂMICO: mantém `after()`
+ * (next/server) e o stack de canais fora do grafo estático da transição.
+ */
+const notif = {
+  solicitada: (async (ctx) => {
+    const { notificarSolicitada } = await import("@/lib/notificacoes/eventos");
+    await notificarSolicitada(ctx.locacaoId);
+  }) as EfeitoFn,
+  aprovada: (async (ctx) => {
+    const { notificarAprovada } = await import("@/lib/notificacoes/eventos");
+    await notificarAprovada(ctx.locacaoId);
+  }) as EfeitoFn,
+  contratoEnviado: (async (ctx) => {
+    const { notificarContratoEnviado } = await import(
+      "@/lib/notificacoes/eventos"
+    );
+    await notificarContratoEnviado(ctx.locacaoId);
+  }) as EfeitoFn,
+  recusada: (async (ctx) => {
+    const { notificarRecusada } = await import("@/lib/notificacoes/eventos");
+    await notificarRecusada(ctx.locacaoId, ctx.motivo);
+  }) as EfeitoFn,
+  confirmada: (async (ctx) => {
+    const { notificarConfirmada } = await import("@/lib/notificacoes/eventos");
+    await notificarConfirmada(ctx.locacaoId);
+  }) as EfeitoFn,
+  cancelada: (async (ctx) => {
+    const { notificarCancelada } = await import("@/lib/notificacoes/eventos");
+    await notificarCancelada(ctx.locacaoId, ctx.autorUserId, ctx.motivo);
+  }) as EfeitoFn,
+};
+
+/**
  * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
  * pelo associado), reflete no `contratos.status` para o portal mostrar
  * "Assinado" (revisão Spec 13).
@@ -69,13 +102,14 @@ const sincronizarContratoAssinado: EfeitoFn = async (ctx) => {
 };
 
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
-  solicitada: [logar("solicitada")],
-  aprovada: [logar("aprovada"), gerarEEnviarContrato],
+  solicitada: [logar("solicitada"), notif.solicitada],
+  aprovada: [logar("aprovada"), notif.aprovada, gerarEEnviarContrato],
+  contrato_enviado: [logar("contrato_enviado"), notif.contratoEnviado],
   contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   aguardando_pagamento: [logar("aguardando_pagamento"), criarPagamentos],
-  confirmada: [logar("confirmada")],
-  recusada: [logar("recusada")],
-  cancelada: [logar("cancelada")],
+  confirmada: [logar("confirmada"), notif.confirmada],
+  recusada: [logar("recusada"), notif.recusada],
+  cancelada: [logar("cancelada"), notif.cancelada],
 };
 
 /** Executa os efeitos do estado destino; isola falhas (não propaga). */
