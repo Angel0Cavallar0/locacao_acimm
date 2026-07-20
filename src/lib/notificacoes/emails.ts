@@ -22,6 +22,28 @@ function moldura(conteudo: string): string {
   </body></html>`;
 }
 
+/** Contrato de locação — envio pós-aprovação com PDF anexo (Spec 13 §6). */
+export function emailContrato(params: {
+  locatarioNome: string;
+  numero: number;
+  dataEvento: string;
+  linkPortal: string | null;
+}): EmailMontado {
+  const rot = `LOC-${String(params.numero).padStart(6, "0")}`;
+  const botao = params.linkPortal
+    ? `<div style="text-align:center;margin:20px 0"><a href="${params.linkPortal}" style="background:#123B6D;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:14px;display:inline-block">Acompanhar no portal</a></div>`
+    : "";
+  return {
+    assunto: `Contrato de locação — ${rot}`,
+    html: moldura(
+      `<p style="font-size:14px;line-height:1.5">Olá, ${params.locatarioNome}!</p>
+       <p style="font-size:14px;line-height:1.5">Sua locação <strong>${rot}</strong> (${params.dataEvento}) foi aprovada. O contrato segue <strong>anexado em PDF</strong> a este e-mail.</p>
+       <p style="font-size:13px;color:#5a6473">Confira as informações, assine e devolva o documento à ACIMM. Em seguida você receberá as instruções de pagamento.</p>
+       ${botao}`,
+    ),
+  };
+}
+
 /** Código de verificação do primeiro acesso do associado (Spec 09). */
 export function emailCodigoVerificacao(codigo: string): EmailMontado {
   return {

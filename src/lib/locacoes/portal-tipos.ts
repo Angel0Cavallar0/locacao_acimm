@@ -75,7 +75,7 @@ export interface LocacaoPortalDetalhe {
   tipoEvento: string | null;
   observacoes: string | null;
   respostasFormulario: Record<string, unknown>;
-  formaPagamento: FormaPagamento | null;
+  formaPagamento: FormaPagamento | null; // inclui "transferencia" (Spec 13)
   motivoEncerramento: string | null;
   valorSalasCentavos: number;
   valorCoffeeCentavos: number;

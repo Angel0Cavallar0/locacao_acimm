@@ -23,7 +23,8 @@ export type ResultadoTransicao = { ok: true } | { erro: string };
 export async function aplicarTransicao(input: {
   locacaoId: string;
   para: StatusLocacao;
-  autorUserId: string;
+  /** `null` = Sistema (ex.: transições automáticas de contrato — Spec 13). */
+  autorUserId: string | null;
   motivo?: string;
   observacao?: string;
 }): Promise<ResultadoTransicao> {

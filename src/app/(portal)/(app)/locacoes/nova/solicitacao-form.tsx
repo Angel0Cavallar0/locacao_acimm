@@ -305,15 +305,17 @@ export function SolicitacaoForm({
   function podeAvancar(): boolean {
     if (etapa === 0) return todasLivres;
     if (etapa === 1) {
+      const respOk = responsavelNome.trim().length > 0;
       if (terceiro) {
         return (
+          respOk &&
           terceiroNome.trim().length > 0 &&
           documentoValido(apenasDigitos(terceiroDocumento)) &&
           emailValido(terceiroEmail) &&
           digitos(terceiroTelefone) >= 8
         );
       }
-      return emailValido(emailContato) && digitos(telefoneContato) >= 8;
+      return respOk && emailValido(emailContato) && digitos(telefoneContato) >= 8;
     }
     if (etapa === 2) {
       return Number(qtdPessoas) > 0 && !camposObrigatoriosPendentes;
@@ -364,8 +366,11 @@ export function SolicitacaoForm({
             }
           : null,
       formaPagamento:
-        (formaPagamento as "pix" | "boleto_avulso" | "boleto_mensalidade") ||
-        null,
+        (formaPagamento as
+          | "pix"
+          | "transferencia"
+          | "boleto_avulso"
+          | "boleto_mensalidade") || null,
     });
     setEnviando(false);
     if (r.error) {
@@ -655,12 +660,12 @@ export function SolicitacaoForm({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="responsavel">Responsável pela locação</Label>
+              <Label htmlFor="responsavel">Responsável pela locação *</Label>
               <Input
                 id="responsavel"
                 value={responsavelNome}
                 onChange={(e) => setResponsavelNome(e.target.value)}
-                placeholder="Quem responde pela reserva"
+                placeholder="Quem assina e responde pela reserva"
               />
             </div>
 

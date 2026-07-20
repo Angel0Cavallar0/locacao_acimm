@@ -284,6 +284,10 @@ export function NovaLocacaoForm({
       setErro("Preencha nome, documento e e-mail do locatário.");
       return;
     }
+    if (!responsavelNome.trim()) {
+      setErro("Informe o responsável pela locação (vai ao contrato).");
+      return;
+    }
     if (salaIds.length === 0 || !data) {
       setErro("Selecione sala(s) e data.");
       return;
@@ -450,12 +454,12 @@ export function NovaLocacaoForm({
               />
             </div>
             <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label htmlFor="responsavel">Responsável pela locação</Label>
+              <Label htmlFor="responsavel">Responsável pela locação *</Label>
               <Input
                 id="responsavel"
                 value={responsavelNome}
                 onChange={(e) => setResponsavelNome(e.target.value)}
-                placeholder="Pessoa que responde pela reserva"
+                placeholder="Quem assina e responde pela reserva (vai ao contrato)"
               />
             </div>
           </div>

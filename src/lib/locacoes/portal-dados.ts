@@ -101,6 +101,9 @@ function rotuloEvento(
     depois?: unknown;
   } | null;
   if (d?.tipo === "comprovante_enviado") return "Comprovante enviado";
+  if (d?.tipo === "contrato_gerado") return "Contrato gerado";
+  if (d?.tipo === "contrato_regerado") return "Contrato atualizado";
+  if (d?.tipo === "contrato_reenviado") return "Contrato reenviado";
   if (d && ("antes" in d || "depois" in d)) {
     return "Horário ajustado pela ACIMM";
   }

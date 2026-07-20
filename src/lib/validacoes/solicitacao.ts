@@ -41,8 +41,8 @@ export const criarSolicitacaoSchema = z
     // Contato do associado (usado quando NÃO é terceiro).
     emailContato: z.email("E-mail inválido"),
     telefoneContato: z.string().trim().min(8, "Telefone inválido").max(20),
-    // Pessoa responsável pela reserva (contato humano; distinta da razão social).
-    responsavelNome: z.string().trim().max(200).optional().default(""),
+    // Responsável/signatário da locação (Spec 13 §0.3) — obrigatório.
+    responsavelNome: z.string().trim().min(1, "Informe o responsável").max(200),
     // Dados do locatário terceiro (validados só quando `terceiro`).
     terceiroNome: z.string().trim().max(200).optional().default(""),
     terceiroDocumento: z.string().optional().default(""),
@@ -55,7 +55,7 @@ export const criarSolicitacaoSchema = z
     coffee: coffeeSolicitacaoSchema.nullable().default(null),
     // "isento" fica FORA do enum de propósito — isenção é decisão da ACIMM.
     formaPagamento: z
-      .enum(["pix", "boleto_avulso", "boleto_mensalidade"])
+      .enum(["pix", "transferencia", "boleto_avulso", "boleto_mensalidade"])
       .nullable()
       .default(null),
   })

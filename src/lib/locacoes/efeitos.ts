@@ -34,9 +34,18 @@ function logar(nome: string): EfeitoFn {
   };
 }
 
+/**
+ * Contrato (Spec 13). Import DINÂMICO para quebrar o ciclo estático
+ * efeitos → contratos/efeito → contratos/enviar → maquina-estados → efeitos.
+ */
+const gerarEEnviarContrato: EfeitoFn = async (ctx) => {
+  const { processarContratoAprovada } = await import("@/lib/contratos/efeito");
+  await processarContratoAprovada(ctx);
+};
+
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   solicitada: [logar("solicitada")],
-  aprovada: [logar("aprovada")],
+  aprovada: [logar("aprovada"), gerarEEnviarContrato],
   confirmada: [logar("confirmada")],
   recusada: [logar("recusada")],
   cancelada: [logar("cancelada")],

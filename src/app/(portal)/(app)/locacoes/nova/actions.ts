@@ -69,7 +69,12 @@ export interface SolicitacaoPayload {
     adicionais: { descricao: string; valorCentavos: number }[];
     observacoes: string;
   } | null;
-  formaPagamento: "pix" | "boleto_avulso" | "boleto_mensalidade" | null;
+  formaPagamento:
+    | "pix"
+    | "transferencia"
+    | "boleto_avulso"
+    | "boleto_mensalidade"
+    | null;
 }
 
 interface AgendaItem {

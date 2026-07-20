@@ -6,10 +6,18 @@ import { getEnvResend } from "@/lib/env";
  * Canal paralelo/fallback do WhatsApp. Chamada direta à API REST (sem SDK).
  */
 
+export interface AnexoEmail {
+  /** Nome do arquivo exibido no e-mail (ex.: "contrato.pdf"). */
+  filename: string;
+  /** Conteúdo em base64. */
+  content: string;
+}
+
 export interface Email {
   para: string | string[];
   assunto: string;
   html: string;
+  anexos?: AnexoEmail[];
 }
 
 /**
@@ -37,6 +45,9 @@ export async function enviarEmail(email: Email): Promise<void> {
       to: Array.isArray(email.para) ? email.para : [email.para],
       subject: email.assunto,
       html: email.html,
+      ...(email.anexos && email.anexos.length > 0
+        ? { attachments: email.anexos }
+        : {}),
     }),
   });
 
