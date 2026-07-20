@@ -1,13 +1,54 @@
 import type { Metadata } from "next";
-import { PaginaEmConstrucao } from "@/components/admin/pagina-em-construcao";
+import { requireAssociado } from "@/lib/auth/guards";
+import { listarDisponibilidade, listarSalasAtivas } from "@/lib/disponibilidade/dados";
+import { dataMaximaSP, dentroDaJanela, hojeSP } from "@/lib/disponibilidade/janela";
+import { DisponibilidadeClient } from "./disponibilidade-client";
 
 export const metadata: Metadata = { title: "Disponibilidade" };
 
-export default function DisponibilidadePage() {
+function texto(v: string | string[] | undefined): string {
+  return typeof v === "string" ? v : "";
+}
+
+export default async function DisponibilidadePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { associado } = await requireAssociado();
+  const sp = await searchParams;
+
+  const hoje = hojeSP();
+  const bruta = texto(sp.data);
+  const data =
+    /^\d{4}-\d{2}-\d{2}$/.test(bruta) && dentroDaJanela(bruta) ? bruta : hoje;
+  const salaIds = texto(sp.salas)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const cap = Number(texto(sp.cap)) || 0;
+
+  const [todasSalas, inicial] = await Promise.all([
+    listarSalasAtivas(),
+    listarDisponibilidade({
+      data,
+      salaIds: salaIds.length > 0 ? salaIds : null,
+      capacidadeMin: cap || null,
+      situacao: associado.situacao,
+    }),
+  ]);
+
   return (
-    <PaginaEmConstrucao
-      titulo="Disponibilidade"
-      descricao="A consulta de horários livres por sala entra em breve."
+    <DisponibilidadeClient
+      inicial={inicial}
+      todasSalas={todasSalas}
+      hoje={hoje}
+      dataMax={dataMaximaSP()}
+      filtroInicial={{ salaIds, cap }}
+      prefill={{
+        nome: associado.razao_social ?? associado.nome,
+        contato: associado.telefone ?? "",
+      }}
     />
   );
 }
