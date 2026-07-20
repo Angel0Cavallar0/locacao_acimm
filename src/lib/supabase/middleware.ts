@@ -2,16 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Refresh da sessão Supabase a cada request e proteção de UX do segmento
- * `/admin/*` (Spec 03 §2). O middleware NÃO é autoridade — a checagem real
- * é feita pelos guards em cada layout/página/server action.
+ * Refresh da sessão Supabase a cada request e proteção de UX dos segmentos
+ * `/admin/*` (colaborador) e do portal do associado (Spec 03 §2 / Spec 09 §6).
+ * O middleware NÃO é autoridade — a checagem real é feita pelos guards em cada
+ * layout/página/server action.
  */
 
-// Rotas de auth públicas dentro de /admin (não exigem sessão).
+// Rotas de auth públicas (não exigem sessão) — painel e portal.
 const ROTAS_AUTH_PUBLICAS = [
   "/admin/login",
   "/admin/recuperar-senha",
   "/admin/definir-senha",
+  "/login",
+  "/cadastro",
+  "/recuperar-senha",
+  "/definir-senha",
 ];
 
 export async function updateSession(request: NextRequest) {
@@ -50,7 +55,8 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && !ehRotaPublica) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/login";
+    // Redireciona ao login do segmento certo: painel → /admin/login, portal → /login.
+    url.pathname = pathname.startsWith("/admin") ? "/admin/login" : "/login";
     url.search = "";
     // preserva o destino original (path + query) para redirecionar após o login
     url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);

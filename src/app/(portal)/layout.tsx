@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 
 /**
- * Layout do route group `(portal)` — área do associado (autenticada).
- * A proteção de sessão e o chrome do portal entram no módulo de auth.
+ * Route group `(portal)` — portal do associado. É apenas um agrupamento: o
+ * chrome fica nos layouts aninhados `(auth)` (telas de acesso) e `(app)`
+ * (área autenticada, com guard e shell). Passthrough para não aninhar `<main>`.
  */
 export default function PortalLayout({ children }: { children: ReactNode }) {
-  return <main className="flex flex-1 flex-col">{children}</main>;
+  return children;
 }
