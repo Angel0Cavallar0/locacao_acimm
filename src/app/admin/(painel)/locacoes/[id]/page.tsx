@@ -22,6 +22,7 @@ import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
 import { StatusBadge } from "../status-badge";
 import { ContratoAcoes } from "./contrato-acoes";
+import { PagamentosGestao } from "./pagamentos-gestao";
 
 const STATUS_COM_CONTRATO = new Set([
   "aprovada",
@@ -324,21 +325,12 @@ export default async function LocacaoDetalhePage({
           </Secao>
 
           <Secao titulo="Pagamentos">
-            {loc.pagamentos.length === 0 ? (
-              <p className="text-sm text-ink-muted">
-                Registro de pagamentos disponível em breve.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {loc.pagamentos.map((p) => (
-                  <Linha
-                    key={p.id}
-                    rotulo={`${p.descricao} · ${p.status}`}
-                    valor={centavosParaBRL(p.valorCentavos)}
-                  />
-                ))}
-              </div>
-            )}
+            <PagamentosGestao
+              locacaoId={loc.id}
+              status={loc.status}
+              valorTotalCentavos={loc.valorTotalCentavos}
+              pagamentos={loc.pagamentos}
+            />
           </Secao>
         </div>
 

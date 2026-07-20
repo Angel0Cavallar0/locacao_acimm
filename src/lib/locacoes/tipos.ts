@@ -109,7 +109,11 @@ export interface PagamentoLinha {
   forma: FormaPagamento;
   valorCentavos: number;
   status: string;
-  comprovanteUrl: string | null;
+  temComprovante: boolean;
+  observacao: string | null;
+  baixaPorNome: string | null;
+  baixaEmUtc: string | null;
+  criadoEmUtc: string;
 }
 
 /** Detalhe completo da locação (`/admin/locacoes/[id]`). */

@@ -105,6 +105,11 @@ function rotuloEvento(
   if (d?.tipo === "contrato_regerado") return "Contrato atualizado";
   if (d?.tipo === "contrato_reenviado") return "Contrato reenviado";
   if (d?.tipo === "contrato_assinado_enviado") return "Contrato assinado enviado";
+  if (d?.tipo === "pagamento_criado") return "Instruções de pagamento disponíveis";
+  if (d?.tipo === "pagamento_isento") return "Locação isenta de pagamento";
+  if (d?.tipo === "pagamento_baixado") return "Pagamento confirmado";
+  if (d?.tipo === "pagamento_estornado") return "Pagamento estornado";
+  if (d?.tipo === "pagamentos_recompostos") return "Pagamento atualizado";
   if (d && ("antes" in d || "depois" in d)) {
     return "Horário ajustado pela ACIMM";
   }
@@ -158,7 +163,9 @@ export async function carregarLocacaoAssociado(
         .maybeSingle(),
       admin
         .from("pagamentos")
-        .select("id, descricao, forma, valor_centavos, status, comprovante_url")
+        .select(
+          "id, descricao, forma, valor_centavos, status, comprovante_url, baixa_em",
+        )
         .eq("locacao_id", id)
         .order("criado_em", { ascending: true }),
       admin
@@ -274,6 +281,7 @@ export async function carregarLocacaoAssociado(
       valor_centavos: number;
       status: string;
       comprovante_url: string | null;
+      baixa_em: string | null;
     }>).map((p) => ({
       id: p.id,
       descricao: p.descricao,
@@ -281,6 +289,7 @@ export async function carregarLocacaoAssociado(
       valorCentavos: p.valor_centavos,
       status: p.status,
       temComprovante: Boolean(p.comprovante_url),
+      baixaEmUtc: p.baixa_em,
     })),
     eventos,
   };
