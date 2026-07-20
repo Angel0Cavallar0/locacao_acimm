@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ImageIcon,
@@ -236,7 +237,74 @@ function ChipDialog({
   );
 }
 
-/** Dialog com as informações completas da sala (fotos, capacidade, itens). */
+/** Carrossel de fotos da sala. */
+function CarrosselFotos({ fotos, nome }: { fotos: string[]; nome: string }) {
+  const [idx, setIdx] = useState(0);
+  const n = fotos.length;
+  const irPara = (i: number) => setIdx(((i % n) + n) % n);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-surface-muted">
+        {n > 0 ? (
+          // biome-ignore lint/a11y/useAltText: alt fornecido
+          <img
+            key={fotos[idx]}
+            src={fotos[idx]}
+            alt={`Foto ${idx + 1} de ${nome}`}
+            className="size-full object-cover"
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center text-ink-muted">
+            <ImageIcon className="size-8" />
+          </div>
+        )}
+
+        {n > 1 ? (
+          <>
+            <button
+              type="button"
+              aria-label="Foto anterior"
+              onClick={() => irPara(idx - 1)}
+              className="absolute top-1/2 left-2 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60"
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Próxima foto"
+              onClick={() => irPara(idx + 1)}
+              className="absolute top-1/2 right-2 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60"
+            >
+              <ChevronRight className="size-5" />
+            </button>
+            <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5">
+              {fotos.map((f, i) => (
+                <button
+                  key={f}
+                  type="button"
+                  aria-label={`Ir para a foto ${i + 1}`}
+                  onClick={() => setIdx(i)}
+                  className={cn(
+                    "h-1.5 rounded-full bg-white/60 transition-all",
+                    i === idx ? "w-4 bg-white" : "w-1.5",
+                  )}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
+      {n > 1 ? (
+        <p className="text-center text-xs text-ink-muted">
+          {idx + 1} / {n}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Dialog com as informações completas da sala (layout duas colunas + carrossel). */
 function SalaDetalheDialog({
   sala,
   aoFechar,
@@ -244,75 +312,40 @@ function SalaDetalheDialog({
   sala: SalaDisponibilidade;
   aoFechar: () => void;
 }) {
-  const [fotoIdx, setFotoIdx] = useState(0);
+  const itens = [`${sala.capacidade} lugares`, ...sala.equipamentos];
 
   return (
     <Dialog open onOpenChange={(o) => !o && aoFechar()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{sala.nome}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-h-[88vh] w-full overflow-y-auto sm:max-w-3xl">
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Carrossel (à direita no desktop, no topo no mobile) */}
+          <div className="md:order-2">
+            <CarrosselFotos fotos={sala.fotos} nome={sala.nome} />
+          </div>
 
-        {sala.fotos.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-muted">
-              {/* biome-ignore lint/a11y/useAltText: alt fornecido */}
-              <img
-                src={sala.fotos[fotoIdx]}
-                alt={`Foto de ${sala.nome}`}
-                className="size-full object-cover"
-              />
-            </div>
-            {sala.fotos.length > 1 ? (
-              <div className="flex gap-1.5 overflow-x-auto">
-                {sala.fotos.map((f, i) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => setFotoIdx(i)}
-                    className={cn(
-                      "size-12 shrink-0 overflow-hidden rounded border-2",
-                      i === fotoIdx ? "border-brand" : "border-transparent",
-                    )}
-                  >
-                    {/* biome-ignore lint/a11y/useAltText: decorativa */}
-                    <img
-                      src={f}
-                      alt={`Foto ${i + 1} de ${sala.nome}`}
-                      className="size-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
+          {/* Informações */}
+          <div className="flex flex-col gap-3 md:order-1 md:justify-center">
+            <span className="text-xs font-semibold tracking-wide text-brand uppercase">
+              Ambiente ACIMM
+            </span>
+            <DialogTitle className="font-display text-2xl font-semibold text-ink">
+              {sala.nome}
+            </DialogTitle>
+            {sala.descricao ? (
+              <p className="whitespace-pre-line text-sm text-ink-muted">
+                {sala.descricao}
+              </p>
             ) : null}
+            <ul className="flex flex-col gap-2">
+              {itens.map((it) => (
+                <li key={it} className="flex items-center gap-2 text-sm text-ink">
+                  <CheckCircle2 className="size-4 shrink-0 text-brand" />
+                  {it}
+                </li>
+              ))}
+            </ul>
           </div>
-        ) : null}
-
-        <div className="flex items-center gap-1.5 text-sm text-ink">
-          <Users className="size-4 text-ink-muted" />
-          {sala.capacidade} lugares
         </div>
-
-        {sala.equipamentos.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {sala.equipamentos.map((e) => (
-              <span
-                key={e}
-                className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink-muted"
-              >
-                {e}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {sala.descricao ? (
-          <p className="whitespace-pre-line text-sm text-ink-muted">
-            {sala.descricao}
-          </p>
-        ) : (
-          <p className="text-sm text-ink-muted">Sem descrição cadastrada.</p>
-        )}
       </DialogContent>
     </Dialog>
   );
