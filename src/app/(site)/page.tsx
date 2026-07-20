@@ -30,7 +30,7 @@ export default async function HomePage() {
   const primario =
     sessao === "associado"
       ? { href: "/disponibilidade", label: "Ver disponibilidade" }
-      : { href: "/login", label: "Locar sala" };
+      : { href: "/login", label: "Locar Sala/Acesso Associados" };
 
   const secundario =
     sessao === "colaborador"

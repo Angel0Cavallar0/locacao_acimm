@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { type EstadoLogin, loginColaborador } from "../actions";
 
 export function LoginForm({ next }: { next: string }) {
@@ -42,10 +43,9 @@ export function LoginForm({ next }: { next: string }) {
                 Esqueci minha senha
               </Link>
             </div>
-            <Input
+            <PasswordInput
               id="senha"
               name="senha"
-              type="password"
               autoComplete="current-password"
               required
             />

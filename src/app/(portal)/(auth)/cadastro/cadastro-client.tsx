@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { mascararDocumento } from "@/lib/utils/mascaras";
 import {
   criarConta,
@@ -284,9 +285,8 @@ export function CadastroClient() {
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="senha">Senha</Label>
-              <Input
+              <PasswordInput
                 id="senha"
-                type="password"
                 autoComplete="new-password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
@@ -309,9 +309,8 @@ export function CadastroClient() {
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="conf">Confirmar senha</Label>
-              <Input
+              <PasswordInput
                 id="conf"
-                type="password"
                 autoComplete="new-password"
                 value={confirmacao}
                 onChange={(e) => setConfirmacao(e.target.value)}

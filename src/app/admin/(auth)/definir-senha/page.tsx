@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { createClient } from "@/lib/supabase/client";
 import { definirSenhaSchema } from "@/lib/validacoes/auth";
 
@@ -107,9 +107,8 @@ export default function DefinirSenhaPage() {
           <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="senha">Nova senha</Label>
-              <Input
+              <PasswordInput
                 id="senha"
-                type="password"
                 autoComplete="new-password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
@@ -133,9 +132,8 @@ export default function DefinirSenhaPage() {
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="confirmacao">Confirmar senha</Label>
-              <Input
+              <PasswordInput
                 id="confirmacao"
-                type="password"
                 autoComplete="new-password"
                 value={confirmacao}
                 onChange={(e) => setConfirmacao(e.target.value)}

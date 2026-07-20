@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { mascararDocumento } from "@/lib/utils/mascaras";
 import { type EstadoLoginAssociado, loginAssociado } from "../actions";
 
@@ -58,10 +59,9 @@ export function LoginAssociadoForm({ next }: { next: string }) {
                 Esqueci minha senha
               </Link>
             </div>
-            <Input
+            <PasswordInput
               id="senha"
               name="senha"
-              type="password"
               autoComplete="current-password"
               required
             />
