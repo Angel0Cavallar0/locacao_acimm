@@ -54,6 +54,8 @@ export interface ContratoPortal {
   linkAssinatura: string | null;
   temPdf: boolean;
   assinadoEmUtc: string | null;
+  /** O associado já enviou o contrato assinado (aguardando conferência). */
+  assinadoEnviado: boolean;
 }
 
 export interface PagamentoPortal {
@@ -75,7 +77,7 @@ export interface LocacaoPortalDetalhe {
   tipoEvento: string | null;
   observacoes: string | null;
   respostasFormulario: Record<string, unknown>;
-  formaPagamento: FormaPagamento | null;
+  formaPagamento: FormaPagamento | null; // inclui "transferencia" (Spec 13)
   motivoEncerramento: string | null;
   valorSalasCentavos: number;
   valorCoffeeCentavos: number;

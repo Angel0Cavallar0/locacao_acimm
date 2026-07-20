@@ -6,12 +6,14 @@ import type { StatusLocacao } from "./maquina-estados-core";
 
 export type FormaPagamento =
   | "pix"
+  | "transferencia"
   | "boleto_avulso"
   | "boleto_mensalidade"
   | "isento";
 
 export const FORMAS_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
   { valor: "pix", rotulo: "Pix" },
+  { valor: "transferencia", rotulo: "Transferência bancária" },
   { valor: "boleto_avulso", rotulo: "Boleto avulso" },
   { valor: "boleto_mensalidade", rotulo: "Boleto - Mensalidade" },
   { valor: "isento", rotulo: "Isento" },
@@ -19,6 +21,7 @@ export const FORMAS_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
 
 export const FORMA_PAGAMENTO_ROTULO: Record<FormaPagamento, string> = {
   pix: "Pix",
+  transferencia: "Transferência bancária",
   boleto_avulso: "Boleto avulso",
   boleto_mensalidade: "Boleto - Mensalidade",
   isento: "Isento",
@@ -94,6 +97,8 @@ export interface ContratoResumo {
   status: string;
   linkAssinatura: string | null;
   pdfUrl: string | null;
+  /** O associado enviou o contrato assinado (aguardando conferência). */
+  temAssinado: boolean;
   enviadoEmUtc: string | null;
   assinadoEmUtc: string | null;
 }

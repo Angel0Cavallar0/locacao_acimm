@@ -42,7 +42,7 @@ export const criarLocacaoSchema = z
       .refine(documentoValido, "CPF/CNPJ inválido"),
     locatarioEmail: z.email("E-mail inválido"),
     locatarioTelefone: z.string().trim().min(8, "Telefone inválido").max(20),
-    responsavelNome: z.string().trim().max(200).optional().default(""),
+    responsavelNome: z.string().trim().min(1, "Informe o responsável").max(200),
     salaIds: z.array(z.uuid()).min(1, "Selecione ao menos uma sala"),
     data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
     periodo: periodoSchema,
@@ -55,7 +55,13 @@ export const criarLocacaoSchema = z
     coffee: coffeeSchema.nullable().default(null),
     adicionais: z.array(adicionalSchema).default([]),
     formaPagamento: z
-      .enum(["pix", "boleto_avulso", "boleto_mensalidade", "isento"])
+      .enum([
+        "pix",
+        "transferencia",
+        "boleto_avulso",
+        "boleto_mensalidade",
+        "isento",
+      ])
       .nullable()
       .default(null),
     aprovar: z.boolean().default(false),

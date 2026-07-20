@@ -1,4 +1,5 @@
 import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { StatusLocacao } from "./maquina-estados-core";
 
 /**
@@ -34,9 +35,32 @@ function logar(nome: string): EfeitoFn {
   };
 }
 
+/**
+ * Contrato (Spec 13). Import DINÂMICO para quebrar o ciclo estático
+ * efeitos → contratos/efeito → contratos/enviar → maquina-estados → efeitos.
+ */
+const gerarEEnviarContrato: EfeitoFn = async (ctx) => {
+  const { processarContratoAprovada } = await import("@/lib/contratos/efeito");
+  await processarContratoAprovada(ctx);
+};
+
+/**
+ * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
+ * pelo associado), reflete no `contratos.status` para o portal mostrar
+ * "Assinado" (revisão Spec 13).
+ */
+const sincronizarContratoAssinado: EfeitoFn = async (ctx) => {
+  const admin = createAdminClient();
+  await admin
+    .from("contratos")
+    .update({ status: "assinado", assinado_em: new Date().toISOString() })
+    .eq("locacao_id", ctx.locacaoId);
+};
+
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   solicitada: [logar("solicitada")],
-  aprovada: [logar("aprovada")],
+  aprovada: [logar("aprovada"), gerarEEnviarContrato],
+  contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   confirmada: [logar("confirmada")],
   recusada: [logar("recusada")],
   cancelada: [logar("cancelada")],

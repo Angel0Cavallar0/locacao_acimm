@@ -19,6 +19,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import { BaixarContrato } from "./baixar-contrato";
 import { CancelarDialog } from "./cancelar-dialog";
+import { ContratoAssinado } from "./contrato-assinado";
 import { PagamentoComprovante } from "./pagamento-comprovante";
 import { StepperStatus } from "./stepper-status";
 import { TimelinePortal } from "./timeline-portal";
@@ -252,8 +253,23 @@ export default async function LocacaoAssociadoPage({
                   Assinar contrato
                 </a>
               ) : null}
-              {loc.contrato.temPdf ? <BaixarContrato locacaoId={loc.id} /> : null}
+              {loc.contrato.temPdf ? (
+                <BaixarContrato
+                  locacaoId={loc.id}
+                  rotulo={
+                    loc.contrato.status === "assinado"
+                      ? "Baixar contrato assinado"
+                      : "Baixar o contrato"
+                  }
+                />
+              ) : null}
             </div>
+            {loc.contrato.status === "enviado" ? (
+              <ContratoAssinado
+                locacaoId={loc.id}
+                assinadoEnviado={loc.contrato.assinadoEnviado}
+              />
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

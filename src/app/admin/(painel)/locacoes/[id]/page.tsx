@@ -21,6 +21,16 @@ import { AdicionaisEditor } from "../adicionais-editor";
 import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
 import { StatusBadge } from "../status-badge";
+import { ContratoAcoes } from "./contrato-acoes";
+
+const STATUS_COM_CONTRATO = new Set([
+  "aprovada",
+  "contrato_enviado",
+  "contrato_assinado",
+  "aguardando_pagamento",
+  "confirmada",
+  "realizada",
+]);
 
 export const metadata: Metadata = { title: "Locação" };
 
@@ -273,7 +283,7 @@ export default async function LocacaoDetalhePage({
 
           <Secao titulo="Contrato">
             {loc.contrato ? (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Linha rotulo="Status" valor={loc.contrato.status} />
                 {loc.contrato.linkAssinatura ? (
                   <a
@@ -285,10 +295,30 @@ export default async function LocacaoDetalhePage({
                     Link de assinatura
                   </a>
                 ) : null}
+                <ContratoAcoes
+                  locacaoId={loc.id}
+                  temContrato
+                  temPdf={Boolean(loc.contrato.pdfUrl)}
+                  temAssinado={loc.contrato.temAssinado}
+                  assinado={loc.contrato.status === "assinado"}
+                />
+              </div>
+            ) : STATUS_COM_CONTRATO.has(loc.status) ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-ink-muted">
+                  Contrato ainda não gerado.
+                </p>
+                <ContratoAcoes
+                  locacaoId={loc.id}
+                  temContrato={false}
+                  temPdf={false}
+                  temAssinado={false}
+                  assinado={false}
+                />
               </div>
             ) : (
               <p className="text-sm text-ink-muted">
-                Contrato disponível em breve.
+                O contrato é gerado ao aprovar a locação.
               </p>
             )}
           </Secao>
