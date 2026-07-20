@@ -65,6 +65,8 @@ export interface PagamentoPortal {
   valorCentavos: number;
   status: string;
   temComprovante: boolean;
+  /** Quando pago, o instante da baixa (para exibir "Pago em …"). */
+  baixaEmUtc: string | null;
 }
 
 export interface LocacaoPortalDetalhe {

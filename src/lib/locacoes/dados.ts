@@ -213,7 +213,9 @@ export async function carregarLocacao(
       .maybeSingle(),
     admin
       .from("pagamentos")
-      .select("id, descricao, forma, valor_centavos, status, comprovante_url")
+      .select(
+        "id, descricao, forma, valor_centavos, status, comprovante_url, observacao, baixa_por, baixa_em, criado_em",
+      )
       .eq("locacao_id", id)
       .order("criado_em", { ascending: true }),
     loc.associado_id
@@ -227,6 +229,7 @@ export async function carregarLocacao(
 
   const autores = [
     ...(eventosRows ?? []).map((e) => e.autor_user_id as string | null),
+    ...(pagamentosRows ?? []).map((p) => p.baixa_por as string | null),
     loc.criado_por as string | null,
   ].filter((x): x is string => x !== null);
   const nomes = await nomesDeColaboradores(autores);
@@ -290,14 +293,21 @@ export async function carregarLocacao(
       }
     : null;
 
-  const pagamentos: PagamentoLinha[] = (pagamentosRows ?? []).map((r) => ({
-    id: r.id as string,
-    descricao: r.descricao as string,
-    forma: r.forma as FormaPagamento,
-    valorCentavos: r.valor_centavos as number,
-    status: r.status as string,
-    comprovanteUrl: (r.comprovante_url as string) ?? null,
-  }));
+  const pagamentos: PagamentoLinha[] = (pagamentosRows ?? []).map((r) => {
+    const baixaPor = r.baixa_por as string | null;
+    return {
+      id: r.id as string,
+      descricao: r.descricao as string,
+      forma: r.forma as FormaPagamento,
+      valorCentavos: r.valor_centavos as number,
+      status: r.status as string,
+      temComprovante: Boolean(r.comprovante_url),
+      observacao: (r.observacao as string) ?? null,
+      baixaPorNome: baixaPor ? (nomes.get(baixaPor) ?? "ACIMM") : null,
+      baixaEmUtc: (r.baixa_em as string) ?? null,
+      criadoEmUtc: r.criado_em as string,
+    };
+  });
 
   const associadoNome =
     (associadoRow as { nome?: string } | null)?.nome ?? null;

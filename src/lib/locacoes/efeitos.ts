@@ -45,6 +45,17 @@ const gerarEEnviarContrato: EfeitoFn = async (ctx) => {
 };
 
 /**
+ * Pagamentos (Spec 14). Import DINÂMICO pelo mesmo motivo do contrato:
+ * efeitos → pagamentos/efeito → pagamentos/gestao → maquina-estados → efeitos.
+ */
+const criarPagamentos: EfeitoFn = async (ctx) => {
+  const { processarAguardandoPagamento } = await import(
+    "@/lib/pagamentos/efeito"
+  );
+  await processarAguardandoPagamento(ctx);
+};
+
+/**
  * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
  * pelo associado), reflete no `contratos.status` para o portal mostrar
  * "Assinado" (revisão Spec 13).
@@ -61,6 +72,7 @@ export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   solicitada: [logar("solicitada")],
   aprovada: [logar("aprovada"), gerarEEnviarContrato],
   contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
+  aguardando_pagamento: [logar("aguardando_pagamento"), criarPagamentos],
   confirmada: [logar("confirmada")],
   recusada: [logar("recusada")],
   cancelada: [logar("cancelada")],

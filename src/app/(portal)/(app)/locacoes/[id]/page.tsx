@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireAssociado } from "@/lib/auth/guards";
 import { dataSP, horaSP } from "@/lib/calendario/tempo";
+import { parsearDadosPagamento } from "@/lib/contratos/tipos";
 import {
   grupoStatus,
   STATUS_ROTULO,
@@ -53,14 +54,15 @@ export default async function LocacaoAssociadoPage({
   const emAnalise = loc.status === "solicitada" || loc.status === "em_analise";
 
   const admin = createAdminClient();
-  const { data: cfg } = await admin
+  const { data: cfgRows } = await admin
     .from("configuracoes")
-    .select("valor")
-    .eq("chave", "contato_acimm")
-    .maybeSingle();
-  const cv = (cfg?.valor ?? {}) as Partial<ContatoAcimm>;
+    .select("chave, valor")
+    .in("chave", ["contato_acimm", "dados_pagamento"]);
+  const cfgMap = new Map((cfgRows ?? []).map((r) => [r.chave as string, r.valor]));
+  const cv = (cfgMap.get("contato_acimm") ?? {}) as Partial<ContatoAcimm>;
   const contatos = [cv.telefone, cv.whatsapp, cv.email].filter(Boolean);
   const contatoTexto = contatos.length > 0 ? contatos.join(" · ") : null;
+  const dadosPagamento = parsearDadosPagamento(cfgMap.get("dados_pagamento"));
 
   const respostas = Object.entries(loc.respostasFormulario).filter(
     ([, v]) => typeof v === "string" && v.trim().length > 0,
@@ -280,7 +282,12 @@ export default async function LocacaoAssociadoPage({
           <CardContent className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold text-ink">Pagamento</h3>
             {loc.pagamentos.map((p) => (
-              <PagamentoComprovante key={p.id} pagamento={p} />
+              <PagamentoComprovante
+                key={p.id}
+                pagamento={p}
+                dadosPagamento={dadosPagamento}
+                contato={contatoTexto}
+              />
             ))}
             <p className="text-xs text-ink-muted">
               Envie o comprovante após o pagamento. A confirmação é feita pela
