@@ -1,0 +1,916 @@
+"use client";
+
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  CalendarSearch,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { ChipAcaoDialog } from "@/components/disponibilidade/chip-acao-dialog";
+import { ChipPeriodoButton } from "@/components/disponibilidade/chip-periodo";
+import {
+  CamposDinamicos,
+  type CampoDinamico,
+} from "@/components/locacoes/campos-dinamicos";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { listarDisponibilidadeAction } from "@/app/(portal)/(app)/disponibilidade/actions";
+import { agregarChips } from "@/lib/disponibilidade/agregado-core";
+import { PERIODOS, type PeriodoDia } from "@/lib/dominio";
+import type {
+  ChipPeriodo,
+  ContatoAcimm,
+  DisponibilidadeDia,
+  SalaDisponibilidade,
+} from "@/lib/disponibilidade/tipos";
+import { somarDias } from "@/lib/disponibilidade/janela";
+import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
+import { cn } from "@/lib/utils";
+import { apenasDigitos, documentoValido } from "@/lib/utils/documento";
+import { mascararDocumento, mascararTelefone } from "@/lib/utils/mascaras";
+import { centavosParaBRL } from "@/lib/utils/moeda";
+import {
+  criarSolicitacao,
+  previewValores,
+  type ResumoSolicitacao,
+  sugerirDatas,
+} from "./actions";
+
+interface SalaOpcao {
+  id: string;
+  nome: string;
+  capacidade: number;
+}
+
+interface AssociadoView {
+  nome: string;
+  documento: string;
+  emails: string[];
+  telefone: string;
+}
+
+const inputClasses =
+  "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+// Formas aceitas no portal — "isento" é decisão da ACIMM, não aparece aqui.
+const FORMAS_PORTAL = FORMAS_PAGAMENTO.filter((f) => f.valor !== "isento");
+
+const ETAPAS = [
+  "Sala e data",
+  "Seus dados",
+  "Sobre o evento",
+  "Coffee break",
+  "Pagamento",
+] as const;
+
+function digitos(v: string): number {
+  return v.replace(/\D/g, "").length;
+}
+
+function emailValido(v: string): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
+}
+
+export function SolicitacaoForm({
+  todasSalas,
+  niveis,
+  campos,
+  associado,
+  contato,
+  prefill,
+  hoje,
+  dataMax,
+}: {
+  todasSalas: SalaOpcao[];
+  niveis: { id: string; nome: string }[];
+  campos: CampoDinamico[];
+  associado: AssociadoView;
+  contato: ContatoAcimm;
+  prefill: { salaId: string | null; data: string | null; periodo: PeriodoDia | null };
+  hoje: string;
+  dataMax: string;
+}) {
+  const router = useRouter();
+  const [etapa, setEtapa] = useState(0);
+
+  // Etapa 1 — sala e data
+  const [salaIds, setSalaIds] = useState<string[]>(
+    prefill.salaId ? [prefill.salaId] : [],
+  );
+  const [data, setData] = useState(prefill.data ?? hoje);
+  const [periodo, setPeriodo] = useState<PeriodoDia>(prefill.periodo ?? "manha");
+  const [disp, setDisp] = useState<DisponibilidadeDia | null>(null);
+  const [carregandoDisp, setCarregandoDisp] = useState(false);
+  const [sel, setSel] = useState<{ sala: SalaDisponibilidade; chip: ChipPeriodo } | null>(
+    null,
+  );
+  const [sugestoes, setSugestoes] = useState<string[] | null>(null);
+  const [buscandoSugestoes, setBuscandoSugestoes] = useState(false);
+
+  // Etapa 2 — dados
+  const [emailContato, setEmailContato] = useState(associado.emails[0] ?? "");
+  const [telefoneContato, setTelefoneContato] = useState(
+    mascararTelefone(associado.telefone),
+  );
+  const [terceiro, setTerceiro] = useState(false);
+  const [terceiroNome, setTerceiroNome] = useState("");
+  const [terceiroDocumento, setTerceiroDocumento] = useState("");
+  const [terceiroEmail, setTerceiroEmail] = useState("");
+  const [terceiroTelefone, setTerceiroTelefone] = useState("");
+
+  // Etapa 3 — evento
+  const [qtdPessoas, setQtdPessoas] = useState("");
+  const [tipoEvento, setTipoEvento] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+  const [respostas, setRespostas] = useState<Record<string, string>>({});
+
+  // Etapa 4 — coffee
+  const [coffeeIncluir, setCoffeeIncluir] = useState(false);
+  const [coffeeNivelId, setCoffeeNivelId] = useState(niveis[0]?.id ?? "");
+  const [coffeeQtd, setCoffeeQtd] = useState("");
+  const [coffeeHorario, setCoffeeHorario] = useState("");
+  const [coffeeObs, setCoffeeObs] = useState("");
+
+  // Etapa 5 — pagamento
+  const [formaPagamento, setFormaPagamento] = useState("");
+  const [resumo, setResumo] = useState<ResumoSolicitacao | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const nomeSala = useMemo(
+    () => new Map(todasSalas.map((s) => [s.id, s.nome])),
+    [todasSalas],
+  );
+
+  // Disponibilidade da etapa 1 (view compartilhada — nunca agenda direto).
+  const chaveDisp = `${salaIds.join(",")}|${data}`;
+  useEffect(() => {
+    if (salaIds.length === 0 || !data) {
+      setDisp(null);
+      return;
+    }
+    let ativo = true;
+    setCarregandoDisp(true);
+    const t = setTimeout(() => {
+      listarDisponibilidadeAction({ data, salaIds }).then((r) => {
+        if (!ativo) return;
+        setCarregandoDisp(false);
+        if ("error" in r) {
+          toast.error(r.error);
+          setDisp(null);
+          return;
+        }
+        setDisp(r);
+      });
+    }, 250);
+    return () => {
+      ativo = false;
+      clearTimeout(t);
+    };
+  }, [chaveDisp]);
+
+  // Trocar salas/data invalida sugestões de datas antigas.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset por chave
+  useEffect(() => {
+    setSugestoes(null);
+  }, [chaveDisp, periodo]);
+
+  const salaChipsSel = useMemo(() => {
+    if (!disp) return [];
+    return disp.salas.map((s) => ({
+      sala: s,
+      chip: s.chips.find((c) => c.periodo === periodo),
+    }));
+  }, [disp, periodo]);
+
+  const agg = useMemo(
+    () => agregarChips(salaChipsSel.map((x) => x.chip)),
+    [salaChipsSel],
+  );
+  const todasLivres =
+    agg.estado === "livre" && salaChipsSel.length === salaIds.length;
+  const bloqueadas = salaChipsSel.filter(
+    (x): x is { sala: SalaDisponibilidade; chip: ChipPeriodo } =>
+      Boolean(x.chip) && x.chip?.estado !== "livre",
+  );
+
+  const capacidadeMenor = useMemo(() => {
+    const caps = todasSalas
+      .filter((s) => salaIds.includes(s.id))
+      .map((s) => s.capacidade);
+    return caps.length > 0 ? Math.min(...caps) : 0;
+  }, [todasSalas, salaIds]);
+  const excedeCapacidade =
+    qtdPessoas !== "" &&
+    capacidadeMenor > 0 &&
+    Number(qtdPessoas) > capacidadeMenor;
+
+  // Resumo (etapa 5) — server recalcula, client só exibe.
+  const chaveResumo = JSON.stringify({
+    salaIds,
+    data,
+    periodo,
+    coffee: coffeeIncluir && coffeeNivelId ? { coffeeNivelId, coffeeQtd } : null,
+  });
+  useEffect(() => {
+    if (etapa !== 4 || salaIds.length === 0) return;
+    let ativo = true;
+    previewValores({
+      salaIds,
+      data,
+      periodo,
+      coffee:
+        coffeeIncluir && coffeeNivelId
+          ? {
+              nivelId: coffeeNivelId,
+              qtdPessoas: Number(coffeeQtd) || Number(qtdPessoas) || 0,
+            }
+          : null,
+    }).then((r) => {
+      if (ativo) setResumo(r);
+    });
+    return () => {
+      ativo = false;
+    };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: chaveResumo cobre as deps
+  }, [etapa, chaveResumo]);
+
+  function toggleSala(id: string) {
+    setSalaIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  }
+
+  async function verProximasDatas() {
+    setBuscandoSugestoes(true);
+    const datas = await sugerirDatas({ salaIds, periodo, aPartirDe: data });
+    setBuscandoSugestoes(false);
+    setSugestoes(datas);
+    if (datas.length === 0) {
+      toast.info("Sem datas livres próximas para todas as salas escolhidas.");
+    }
+  }
+
+  const camposObrigatoriosPendentes = campos.some(
+    (c) => c.obrigatorio && !(respostas[c.rotulo] ?? "").trim(),
+  );
+
+  function podeAvancar(): boolean {
+    if (etapa === 0) return todasLivres;
+    if (etapa === 1) {
+      if (terceiro) {
+        return (
+          terceiroNome.trim().length > 0 &&
+          documentoValido(apenasDigitos(terceiroDocumento)) &&
+          emailValido(terceiroEmail) &&
+          digitos(terceiroTelefone) >= 8
+        );
+      }
+      return emailValido(emailContato) && digitos(telefoneContato) >= 8;
+    }
+    if (etapa === 2) {
+      return Number(qtdPessoas) > 0 && !camposObrigatoriosPendentes;
+    }
+    return true;
+  }
+
+  // Coffee não existe → pula a etapa 4.
+  const temCoffee = niveis.length > 0;
+  function proximaEtapa(atual: number): number {
+    const n = atual + 1;
+    if (n === 3 && !temCoffee) return 4;
+    return n;
+  }
+  function etapaAnterior(atual: number): number {
+    const p = atual - 1;
+    if (p === 3 && !temCoffee) return 2;
+    return p;
+  }
+
+  async function enviar() {
+    setErro(null);
+    setEnviando(true);
+    const r = await criarSolicitacao({
+      salaIds,
+      data,
+      periodo,
+      terceiro,
+      emailContato: emailContato.trim(),
+      telefoneContato: telefoneContato.trim(),
+      terceiroNome: terceiroNome.trim(),
+      terceiroDocumento,
+      terceiroEmail: terceiroEmail.trim(),
+      terceiroTelefone: terceiroTelefone.trim(),
+      qtdPessoas: Number(qtdPessoas) || 0,
+      tipoEvento: tipoEvento.trim(),
+      observacoes: observacoes.trim(),
+      respostasFormulario: respostas,
+      coffee:
+        coffeeIncluir && coffeeNivelId
+          ? {
+              nivelId: coffeeNivelId,
+              qtdPessoas: Number(coffeeQtd) || Number(qtdPessoas) || 0,
+              horarioServir: coffeeHorario || null,
+              observacoes: coffeeObs.trim(),
+            }
+          : null,
+      formaPagamento:
+        (formaPagamento as "pix" | "boleto_avulso" | "boleto_mensalidade") ||
+        null,
+    });
+    setEnviando(false);
+    if (r.error) {
+      setErro(r.error);
+      return;
+    }
+    toast.success("Solicitação enviada.");
+    router.push(`/locacoes/${r.id}`);
+  }
+
+  const noPassado = data <= hoje;
+  const noFuturo = data >= dataMax;
+
+  return (
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <div>
+        <h2 className="font-display text-lg font-semibold text-ink">
+          Solicitar locação
+        </h2>
+        <p className="text-sm text-ink-muted">
+          Etapa {etapa + 1} de {ETAPAS.length} · {ETAPAS[etapa]}
+        </p>
+        <div className="mt-2 flex gap-1">
+          {ETAPAS.map((rot, i) => (
+            <span
+              key={rot}
+              className={cn(
+                "h-1 flex-1 rounded-full",
+                i <= etapa ? "bg-brand" : "bg-surface-muted",
+              )}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* ---------- Etapa 1 — Sala e data ---------- */}
+      {etapa === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label>Salas</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {todasSalas.map((s) => {
+                  const ativoSel = salaIds.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => toggleSala(s.id)}
+                      className={cn(
+                        "flex flex-col items-start rounded-lg border px-3 py-2 text-left transition-colors",
+                        ativoSel
+                          ? "border-brand bg-brand/5"
+                          : "hover:bg-surface-muted",
+                      )}
+                    >
+                      <span className="text-sm font-medium text-ink">
+                        {s.nome}
+                      </span>
+                      <span className="text-xs text-ink-muted">
+                        {s.capacidade} lugares
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Data</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Dia anterior"
+                  disabled={noPassado}
+                  onClick={() => setData((d) => somarDias(d, -1))}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <div className="flex-1">
+                  <DatePicker
+                    value={data}
+                    onChange={setData}
+                    dataMin={hoje}
+                    dataMax={dataMax}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="Próximo dia"
+                  disabled={noFuturo}
+                  onClick={() => setData((d) => somarDias(d, 1))}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            {salaIds.length === 0 ? (
+              <p className="text-sm text-ink-muted">
+                Selecione ao menos uma sala para ver os horários.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Label>Período</Label>
+                <div
+                  className={cn(
+                    "grid grid-cols-2 gap-1.5 sm:grid-cols-4",
+                    carregandoDisp && "opacity-60",
+                  )}
+                >
+                  {PERIODOS.map((p) => {
+                    const chips = disp
+                      ? disp.salas.map((s) =>
+                          s.chips.find((c) => c.periodo === p.valor),
+                        )
+                      : [];
+                    const a = disp ? agregarChips(chips) : null;
+                    const faixa =
+                      chips.find(Boolean)?.faixa ?? { inicio: "", fim: "" };
+                    const eventoTitulo =
+                      chips.find((c) => c?.eventoTitulo)?.eventoTitulo ?? null;
+                    const chipView: ChipPeriodo = {
+                      periodo: p.valor,
+                      rotulo: p.rotulo,
+                      faixa,
+                      estado: a?.estado ?? "sem_preco",
+                      precoCentavos: a?.precoTotal ?? null,
+                      eventoTitulo,
+                      eventoSymplaId: null,
+                    };
+                    return (
+                      <ChipPeriodoButton
+                        key={p.valor}
+                        chip={chipView}
+                        podeSolicitar={disp?.podeSolicitar ?? false}
+                        selecionado={periodo === p.valor}
+                        onClick={() => setPeriodo(p.valor)}
+                      />
+                    );
+                  })}
+                </div>
+
+                {disp && !carregandoDisp ? (
+                  todasLivres ? (
+                    <div className="flex items-center justify-between rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm">
+                      <span className="flex items-center gap-1.5 text-ink">
+                        <CheckCircle2 className="size-4 text-emerald-600" />
+                        Disponível neste período
+                      </span>
+                      {agg.precoTotal !== null ? (
+                        <span className="font-medium text-ink">
+                          {centavosParaBRL(agg.precoTotal)}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm">
+                      <p className="text-ink">
+                        {agg.estado === "evento_acimm"
+                          ? "Uma das salas tem um evento da ACIMM neste período."
+                          : agg.estado === "solicitado"
+                            ? "Este período já foi solicitado por outro associado e aguarda aprovação."
+                            : "Este período está indisponível para uma das salas."}
+                      </p>
+                      <div className="flex flex-col gap-1.5">
+                        {bloqueadas.map(({ sala, chip }) => (
+                          <button
+                            key={sala.id}
+                            type="button"
+                            onClick={() => setSel({ sala, chip })}
+                            className="flex items-center justify-between rounded-md border bg-surface px-2.5 py-1.5 text-left text-xs hover:bg-surface-muted"
+                          >
+                            <span className="text-ink">{sala.nome}</span>
+                            <span className="font-medium text-brand">
+                              {chip.estado === "evento_acimm"
+                                ? "Ver convite"
+                                : "Fila de espera"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      {agg.estado === "ocupado" || agg.estado === "solicitado" ? (
+                        <div className="flex flex-col gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            loading={buscandoSugestoes}
+                            onClick={verProximasDatas}
+                          >
+                            <CalendarSearch className="size-4" />
+                            Ver próximas datas livres
+                          </Button>
+                          {sugestoes && sugestoes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {sugestoes.map((d) => (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  onClick={() => {
+                                    setData(d);
+                                    setSugestoes(null);
+                                  }}
+                                  className="rounded-full border border-brand/40 bg-brand/5 px-2.5 py-1 text-xs text-brand hover:bg-brand/10"
+                                >
+                                  {new Date(`${d}T12:00:00`).toLocaleDateString(
+                                    "pt-BR",
+                                    { day: "2-digit", month: "short" },
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                ) : null}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ---------- Etapa 2 — Seus dados ---------- */}
+      {etapa === 1 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label>Nome / Razão social</Label>
+                <Input value={associado.nome} readOnly disabled />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>CNPJ / CPF</Label>
+                <Input
+                  value={mascararDocumento(associado.documento)}
+                  readOnly
+                  disabled
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email-contato">E-mail</Label>
+                {associado.emails.length > 1 ? (
+                  <select
+                    id="email-contato"
+                    className={inputClasses}
+                    value={emailContato}
+                    onChange={(e) => setEmailContato(e.target.value)}
+                  >
+                    {associado.emails.map((em) => (
+                      <option key={em} value={em}>
+                        {em}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    id="email-contato"
+                    value={emailContato}
+                    onChange={(e) => setEmailContato(e.target.value)}
+                  />
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="tel-contato">Telefone</Label>
+                <Input
+                  id="tel-contato"
+                  value={telefoneContato}
+                  onChange={(e) =>
+                    setTelefoneContato(mascararTelefone(e.target.value))
+                  }
+                  inputMode="tel"
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-ink-muted">
+              Dados cadastrais desatualizados? Fale com a ACIMM.
+            </p>
+
+            <label className="flex cursor-pointer items-center gap-2 border-t pt-3">
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={terceiro}
+                onChange={(e) => setTerceiro(e.target.checked)}
+              />
+              <span className="text-sm font-medium text-ink">
+                Locação em nome de terceiro
+              </span>
+            </label>
+
+            {terceiro ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="t-nome">Nome do locatário</Label>
+                  <Input
+                    id="t-nome"
+                    value={terceiroNome}
+                    onChange={(e) => setTerceiroNome(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="t-doc">CNPJ / CPF</Label>
+                  <Input
+                    id="t-doc"
+                    value={terceiroDocumento}
+                    onChange={(e) =>
+                      setTerceiroDocumento(mascararDocumento(e.target.value))
+                    }
+                    inputMode="numeric"
+                    placeholder="00.000.000/0000-00"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="t-email">E-mail</Label>
+                  <Input
+                    id="t-email"
+                    type="email"
+                    value={terceiroEmail}
+                    onChange={(e) => setTerceiroEmail(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="t-tel">Telefone</Label>
+                  <Input
+                    id="t-tel"
+                    value={terceiroTelefone}
+                    onChange={(e) =>
+                      setTerceiroTelefone(mascararTelefone(e.target.value))
+                    }
+                    inputMode="tel"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ---------- Etapa 3 — Sobre o evento ---------- */}
+      {etapa === 2 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="qtd">Nº de pessoas</Label>
+                <Input
+                  id="qtd"
+                  type="number"
+                  min={1}
+                  value={qtdPessoas}
+                  onChange={(e) => setQtdPessoas(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="tipo">Tipo de evento</Label>
+                <Input
+                  id="tipo"
+                  value={tipoEvento}
+                  onChange={(e) => setTipoEvento(e.target.value)}
+                  placeholder="Reunião, curso, palestra…"
+                />
+              </div>
+            </div>
+            {excedeCapacidade ? (
+              <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                {qtdPessoas} pessoas excede a capacidade da menor sala escolhida (
+                {capacidadeMenor}). Você pode seguir; a ACIMM avalia.
+              </p>
+            ) : null}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="obs">Observações</Label>
+              <textarea
+                id="obs"
+                rows={3}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                className="min-h-20 rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                placeholder="Necessidades especiais de horário ou de sala? Descreva aqui — a ACIMM ajusta."
+              />
+            </div>
+            <CamposDinamicos
+              campos={campos}
+              valores={respostas}
+              onChange={(rotulo, valor) =>
+                setRespostas((r) => ({ ...r, [rotulo]: valor }))
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ---------- Etapa 4 — Coffee break ---------- */}
+      {etapa === 3 && temCoffee ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={coffeeIncluir}
+                onChange={(e) => setCoffeeIncluir(e.target.checked)}
+              />
+              <span className="text-sm font-semibold text-ink">
+                Incluir coffee break
+              </span>
+            </label>
+            {coffeeIncluir ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="cn">Nível</Label>
+                    <select
+                      id="cn"
+                      className={inputClasses}
+                      value={coffeeNivelId}
+                      onChange={(e) => setCoffeeNivelId(e.target.value)}
+                    >
+                      {niveis.map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {n.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="cq">Pessoas</Label>
+                    <Input
+                      id="cq"
+                      type="number"
+                      min={1}
+                      value={coffeeQtd}
+                      onChange={(e) => setCoffeeQtd(e.target.value)}
+                      placeholder={qtdPessoas || "—"}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="ch">Servir às</Label>
+                    <Input
+                      id="ch"
+                      type="time"
+                      value={coffeeHorario}
+                      onChange={(e) => setCoffeeHorario(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="co">Observações do coffee</Label>
+                  <Input
+                    id="co"
+                    value={coffeeObs}
+                    onChange={(e) => setCoffeeObs(e.target.value)}
+                    placeholder="Restrições alimentares, preferências…"
+                  />
+                </div>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ---------- Etapa 5 — Pagamento e revisão ---------- */}
+      {etapa === 4 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5 sm:max-w-xs">
+              <Label htmlFor="forma">Forma de pagamento preferida</Label>
+              <select
+                id="forma"
+                className={inputClasses}
+                value={formaPagamento}
+                onChange={(e) => setFormaPagamento(e.target.value)}
+              >
+                <option value="">Selecione…</option>
+                {FORMAS_PORTAL.map((f) => (
+                  <option key={f.valor} value={f.valor}>
+                    {f.rotulo}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="rounded-md border bg-surface-muted p-3 text-sm">
+              {!resumo || resumo.salas.length === 0 ? (
+                <p className="text-ink-muted">Calculando o resumo…</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {resumo.salas.map((s) => (
+                    <div key={s.salaId} className="flex justify-between">
+                      <span className="text-ink-muted">
+                        {nomeSala.get(s.salaId) ?? s.nome}
+                      </span>
+                      <span
+                        className={s.semPreco ? "text-destructive" : "text-ink"}
+                      >
+                        {s.semPreco
+                          ? "sem preço"
+                          : centavosParaBRL(s.valorCentavos)}
+                      </span>
+                    </div>
+                  ))}
+                  {resumo.coffeeCentavos > 0 ? (
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">Coffee break</span>
+                      <span className="text-ink">
+                        {centavosParaBRL(resumo.coffeeCentavos)}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between">
+                    <span className="text-ink-muted">
+                      Descontos{" "}
+                      <span className="text-xs">(avaliados pela ACIMM)</span>
+                    </span>
+                    <span className="text-ink">R$ 0,00</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1 font-semibold">
+                    <span className="text-ink">Total</span>
+                    <span className="text-ink">
+                      {centavosParaBRL(resumo.totalCentavos)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2 text-xs text-ink-muted">
+              Sua solicitação será analisada pela ACIMM. Você receberá a
+              confirmação e o contrato por e-mail e WhatsApp.
+            </div>
+
+            {erro ? (
+              <p role="alert" className="text-sm text-destructive">
+                {erro}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* ---------- Navegação ---------- */}
+      <div className="flex items-center justify-between">
+        <Button
+          variant="ghost"
+          disabled={etapa === 0 || enviando}
+          onClick={() => setEtapa((e) => etapaAnterior(e))}
+        >
+          <ArrowLeft className="size-4" />
+          Voltar
+        </Button>
+        {etapa < ETAPAS.length - 1 ? (
+          <Button
+            disabled={!podeAvancar()}
+            onClick={() => setEtapa((e) => proximaEtapa(e))}
+          >
+            Avançar
+            <ArrowRight className="size-4" />
+          </Button>
+        ) : (
+          <Button
+            loading={enviando}
+            disabled={!!resumo?.salasSemPreco.length}
+            onClick={enviar}
+          >
+            Enviar solicitação
+          </Button>
+        )}
+      </div>
+
+      {sel ? (
+        <ChipAcaoDialog
+          sala={sel.sala}
+          chip={sel.chip}
+          data={data}
+          prefill={{ nome: associado.nome, contato: associado.telefone }}
+          contato={contato}
+          podeSolicitar={disp?.podeSolicitar ?? false}
+          aoFechar={() => setSel(null)}
+        />
+      ) : null}
+    </div>
+  );
+}

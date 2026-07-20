@@ -8,6 +8,7 @@ import type { StatusLocacao } from "./maquina-estados-core";
  *
  * Neste spec todos são no-op com log. Specs futuros apenas registram funções
  * neste mapa, sem tocar na máquina de estados:
+ *  - `solicitada`→ confirmação de recebimento ao associado (15) — Spec 11
  *  - `aprovada`  → contrato/Autentique (13), notificação (15), Google Calendar (18)
  *  - `confirmada`→ notificação final + convite de agenda (15/18)
  *  - `recusada`/`cancelada` → notificar com motivo (15) + atualizar Calendar (18)
@@ -15,7 +16,8 @@ import type { StatusLocacao } from "./maquina-estados-core";
 
 export interface ContextoEfeito {
   locacaoId: string;
-  de: StatusLocacao;
+  /** `null` quando a locação nasce (criação direta em `solicitada`). */
+  de: StatusLocacao | null;
   para: StatusLocacao;
   autorUserId: string | null;
   motivo?: string;
@@ -26,13 +28,14 @@ export type EfeitoFn = (ctx: ContextoEfeito) => Promise<void>;
 function logar(nome: string): EfeitoFn {
   return (ctx) => {
     console.info(
-      `[efeito:${nome}] locacao=${ctx.locacaoId} ${ctx.de}→${ctx.para}`,
+      `[efeito:${nome}] locacao=${ctx.locacaoId} ${ctx.de ?? "novo"}→${ctx.para}`,
     );
     return Promise.resolve();
   };
 }
 
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
+  solicitada: [logar("solicitada")],
   aprovada: [logar("aprovada")],
   confirmada: [logar("confirmada")],
   recusada: [logar("recusada")],
