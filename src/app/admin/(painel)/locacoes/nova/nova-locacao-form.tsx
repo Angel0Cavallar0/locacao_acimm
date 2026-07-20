@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CamposDinamicos } from "@/components/locacoes/campos-dinamicos";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -587,65 +588,13 @@ export function NovaLocacaoForm({
             />
           </div>
 
-          {campos.length > 0 ? (
-            <div className="flex flex-col gap-3 border-t pt-3">
-              <p className="text-xs font-medium text-ink-muted">
-                Informações adicionais
-              </p>
-              {campos.map((c) => (
-                <div key={c.id} className="flex flex-col gap-1.5">
-                  <Label htmlFor={`campo-${c.id}`}>
-                    {c.rotulo}
-                    {c.obrigatorio ? " *" : ""}
-                  </Label>
-                  {c.tipo === "texto_longo" ? (
-                    <textarea
-                      id={`campo-${c.id}`}
-                      rows={2}
-                      value={respostas[c.rotulo] ?? ""}
-                      onChange={(e) =>
-                        setRespostas((r) => ({ ...r, [c.rotulo]: e.target.value }))
-                      }
-                      className="min-h-16 rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                    />
-                  ) : c.tipo === "selecao" ? (
-                    <select
-                      id={`campo-${c.id}`}
-                      className={inputClasses}
-                      value={respostas[c.rotulo] ?? ""}
-                      onChange={(e) =>
-                        setRespostas((r) => ({ ...r, [c.rotulo]: e.target.value }))
-                      }
-                    >
-                      <option value="">Selecione…</option>
-                      {c.opcoes.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
-                  ) : c.tipo === "data" ? (
-                    <DatePicker
-                      id={`campo-${c.id}`}
-                      value={respostas[c.rotulo] ?? ""}
-                      onChange={(v) =>
-                        setRespostas((r) => ({ ...r, [c.rotulo]: v }))
-                      }
-                    />
-                  ) : (
-                    <Input
-                      id={`campo-${c.id}`}
-                      type={c.tipo === "numero" ? "number" : "text"}
-                      value={respostas[c.rotulo] ?? ""}
-                      onChange={(e) =>
-                        setRespostas((r) => ({ ...r, [c.rotulo]: e.target.value }))
-                      }
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <CamposDinamicos
+            campos={campos}
+            valores={respostas}
+            onChange={(rotulo, valor) =>
+              setRespostas((r) => ({ ...r, [rotulo]: valor }))
+            }
+          />
         </CardContent>
       </Card>
 
