@@ -316,15 +316,15 @@ function SalaDetalheDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && aoFechar()}>
-      <DialogContent className="max-h-[88vh] w-full overflow-y-auto sm:max-w-3xl">
-        <div className="grid gap-6 md:grid-cols-2">
+      <DialogContent className="max-h-[88vh] w-full overflow-y-auto pt-10 sm:max-w-3xl">
+        <div className="grid gap-6 md:grid-cols-2 md:items-center">
           {/* Carrossel (à direita no desktop, no topo no mobile) */}
           <div className="md:order-2">
             <CarrosselFotos fotos={sala.fotos} nome={sala.nome} />
           </div>
 
           {/* Informações */}
-          <div className="flex flex-col gap-3 md:order-1 md:justify-center">
+          <div className="flex flex-col gap-3 md:order-1">
             <span className="text-xs font-semibold tracking-wide text-brand uppercase">
               Ambiente ACIMM
             </span>
