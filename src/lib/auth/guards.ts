@@ -61,3 +61,57 @@ export async function requireAdmin(): Promise<CtxColaborador> {
   }
   return ctx;
 }
+
+export type SituacaoAssociado = "ativo" | "suspenso" | "excluido";
+
+export interface Associado {
+  id: string;
+  user_id: string;
+  nome: string;
+  razao_social: string | null;
+  documento: string | null;
+  tipo_documento: "CPF" | "CNPJ" | null;
+  emails: string[];
+  telefone: string | null;
+  situacao: SituacaoAssociado;
+}
+
+export interface CtxAssociado {
+  user: User;
+  associado: Associado;
+}
+
+/**
+ * Guard do portal do associado (Spec 09 §6). Exige sessão + vínculo em
+ * `associados` por `user_id` (a policy `associados_self_select` deixa o próprio
+ * associado ler sua linha via RLS). Diferente do colaborador, a SITUAÇÃO não
+ * barra o acesso: `suspenso`/`excluido` ainda logam e veem seus dados (LGPD) —
+ * o bloqueio de novas locações é server-side no fluxo de solicitação (Spec 11).
+ * Sem vínculo (ex.: colaborador tentando entrar no portal) → volta ao login.
+ */
+export async function requireAssociado(): Promise<CtxAssociado> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: associado } = await supabase
+    .from("associados")
+    .select(
+      "id, user_id, nome, razao_social, documento, tipo_documento, emails, telefone, situacao",
+    )
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!associado) {
+    await supabase.auth.signOut();
+    redirect("/login");
+  }
+
+  return { user, associado: associado as Associado };
+}

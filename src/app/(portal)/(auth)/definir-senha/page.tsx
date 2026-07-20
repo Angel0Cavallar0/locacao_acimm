@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { createClient } from "@/lib/supabase/client";
-import { definirSenhaSchema } from "@/lib/validacoes/auth";
+import { senhaAssociadoSchema } from "@/lib/validacoes/associado";
 
 type Estado = "verificando" | "pronto" | "invalido";
 
@@ -24,12 +24,11 @@ function forcaSenha(senha: string): { pct: number; rotulo: string } {
 }
 
 /**
- * Destino comum do convite e do reset (Spec 03 §3.3). A sessão temporária vem
- * do link (o client Supabase troca o code da URL por sessão em cookies —
- * nenhum token em localStorage). Também serve para o colaborador logado trocar
- * a própria senha.
+ * Destino do link de recuperação e do convite manual do associado (Spec 09
+ * §5/§7). A sessão temporária vem do link (o client Supabase troca o code por
+ * cookies). Também serve para o associado logado trocar a própria senha.
  */
-export default function DefinirSenhaPage() {
+export default function DefinirSenhaAssociadoPage() {
   const supabase = useMemo(() => createClient(), []);
   const [estado, setEstado] = useState<Estado>("verificando");
   const [senha, setSenha] = useState("");
@@ -49,7 +48,6 @@ export default function DefinirSenhaPage() {
         setEstado("pronto");
         return;
       }
-      // Aguarda a troca do code presente na URL antes de desistir.
       setTimeout(async () => {
         if (!ativo) return;
         const { data: d2 } = await supabase.auth.getSession();
@@ -66,7 +64,7 @@ export default function DefinirSenhaPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
-    const parsed = definirSenhaSchema.safeParse({ senha, confirmacao });
+    const parsed = senhaAssociadoSchema.safeParse({ senha, confirmacao });
     if (!parsed.success) {
       setErro(parsed.error.issues[0]?.message ?? "Senha inválida.");
       return;
@@ -78,8 +76,7 @@ export default function DefinirSenhaPage() {
       setErro("Não foi possível salvar a senha. O link pode ter expirado.");
       return;
     }
-    // Força navegação completa para o middleware reconhecer a nova sessão.
-    window.location.assign("/admin");
+    window.location.assign("/disponibilidade");
   }
 
   const forca = forcaSenha(senha);
@@ -93,11 +90,9 @@ export default function DefinirSenhaPage() {
           </p>
         ) : estado === "invalido" ? (
           <div className="flex flex-col gap-4 text-center">
-            <p className="text-sm text-ink">
-              Este link é inválido ou expirou.
-            </p>
+            <p className="text-sm text-ink">Este link é inválido ou expirou.</p>
             <Link
-              href="/admin/recuperar-senha"
+              href="/recuperar-senha"
               className="text-sm text-brand underline-offset-4 hover:underline"
             >
               Solicitar um novo link
