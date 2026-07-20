@@ -97,6 +97,8 @@ export interface ContratoResumo {
   status: string;
   linkAssinatura: string | null;
   pdfUrl: string | null;
+  /** O associado enviou o contrato assinado (aguardando conferência). */
+  temAssinado: boolean;
   enviadoEmUtc: string | null;
   assinadoEmUtc: string | null;
 }

@@ -299,6 +299,7 @@ export default async function LocacaoDetalhePage({
                   locacaoId={loc.id}
                   temContrato
                   temPdf={Boolean(loc.contrato.pdfUrl)}
+                  temAssinado={loc.contrato.temAssinado}
                   assinado={loc.contrato.status === "assinado"}
                 />
               </div>
@@ -311,6 +312,7 @@ export default async function LocacaoDetalhePage({
                   locacaoId={loc.id}
                   temContrato={false}
                   temPdf={false}
+                  temAssinado={false}
                   assinado={false}
                 />
               </div>

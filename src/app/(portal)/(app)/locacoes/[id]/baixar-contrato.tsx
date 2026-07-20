@@ -6,7 +6,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { urlContrato } from "./actions";
 
-export function BaixarContrato({ locacaoId }: { locacaoId: string }) {
+export function BaixarContrato({
+  locacaoId,
+  rotulo = "Baixar contrato",
+}: {
+  locacaoId: string;
+  rotulo?: string;
+}) {
   const [abrindo, setAbrindo] = useState(false);
 
   async function baixar() {
@@ -23,7 +29,7 @@ export function BaixarContrato({ locacaoId }: { locacaoId: string }) {
   return (
     <Button variant="outline" size="sm" loading={abrindo} onClick={baixar}>
       <Download className="size-4" />
-      Baixar contrato assinado
+      {rotulo}
     </Button>
   );
 }

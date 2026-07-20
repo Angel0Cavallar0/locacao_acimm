@@ -1,4 +1,5 @@
 import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { StatusLocacao } from "./maquina-estados-core";
 
 /**
@@ -43,9 +44,23 @@ const gerarEEnviarContrato: EfeitoFn = async (ctx) => {
   await processarContratoAprovada(ctx);
 };
 
+/**
+ * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
+ * pelo associado), reflete no `contratos.status` para o portal mostrar
+ * "Assinado" (revisão Spec 13).
+ */
+const sincronizarContratoAssinado: EfeitoFn = async (ctx) => {
+  const admin = createAdminClient();
+  await admin
+    .from("contratos")
+    .update({ status: "assinado", assinado_em: new Date().toISOString() })
+    .eq("locacao_id", ctx.locacaoId);
+};
+
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   solicitada: [logar("solicitada")],
   aprovada: [logar("aprovada"), gerarEEnviarContrato],
+  contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   confirmada: [logar("confirmada")],
   recusada: [logar("recusada")],
   cancelada: [logar("cancelada")],

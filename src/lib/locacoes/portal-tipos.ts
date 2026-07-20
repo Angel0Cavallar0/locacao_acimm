@@ -54,6 +54,8 @@ export interface ContratoPortal {
   linkAssinatura: string | null;
   temPdf: boolean;
   assinadoEmUtc: string | null;
+  /** O associado já enviou o contrato assinado (aguardando conferência). */
+  assinadoEnviado: boolean;
 }
 
 export interface PagamentoPortal {

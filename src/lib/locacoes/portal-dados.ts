@@ -104,6 +104,7 @@ function rotuloEvento(
   if (d?.tipo === "contrato_gerado") return "Contrato gerado";
   if (d?.tipo === "contrato_regerado") return "Contrato atualizado";
   if (d?.tipo === "contrato_reenviado") return "Contrato reenviado";
+  if (d?.tipo === "contrato_assinado_enviado") return "Contrato assinado enviado";
   if (d && ("antes" in d || "depois" in d)) {
     return "Horário ajustado pela ACIMM";
   }
@@ -152,7 +153,7 @@ export async function carregarLocacaoAssociado(
         .maybeSingle(),
       admin
         .from("contratos")
-        .select("status, link_assinatura, pdf_url, assinado_em")
+        .select("status, link_assinatura, pdf_url, pdf_assinado_url, assinado_em")
         .eq("locacao_id", id)
         .maybeSingle(),
       admin
@@ -190,6 +191,7 @@ export async function carregarLocacaoAssociado(
     status: string;
     link_assinatura: string | null;
     pdf_url: string | null;
+    pdf_assinado_url: string | null;
     assinado_em: string | null;
   } | null;
 
@@ -262,6 +264,7 @@ export async function carregarLocacaoAssociado(
           linkAssinatura: contratoRow.link_assinatura,
           temPdf: Boolean(contratoRow.pdf_url),
           assinadoEmUtc: contratoRow.assinado_em,
+          assinadoEnviado: Boolean(contratoRow.pdf_assinado_url),
         }
       : null,
     pagamentos: ((pagRes.data ?? []) as Array<{

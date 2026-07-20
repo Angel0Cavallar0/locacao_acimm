@@ -1,6 +1,12 @@
 "use client";
 
-import { Download, FileSignature, RefreshCw, Send } from "lucide-react";
+import {
+  Download,
+  FileCheck2,
+  FileSignature,
+  RefreshCw,
+  Send,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,6 +14,7 @@ import {
   regenerarContratoAction,
   reenviarContratoAction,
   urlContratoAdminAction,
+  urlContratoAssinadoAdminAction,
 } from "@/app/admin/(painel)/contratos/actions";
 import { Button } from "@/components/ui/button";
 
@@ -16,19 +23,31 @@ export function ContratoAcoes({
   locacaoId,
   temContrato,
   temPdf,
+  temAssinado,
   assinado,
 }: {
   locacaoId: string;
   temContrato: boolean;
   temPdf: boolean;
+  temAssinado: boolean;
   assinado: boolean;
 }) {
   const router = useRouter();
-  const [acao, setAcao] = useState<"baixar" | "gerar" | "reenviar" | null>(null);
+  const [acao, setAcao] = useState<
+    "baixar" | "assinado" | "gerar" | "reenviar" | null
+  >(null);
 
   async function baixar() {
     setAcao("baixar");
     const r = await urlContratoAdminAction(locacaoId);
+    setAcao(null);
+    if (r.error) return toast.error(r.error);
+    if (r.url) window.open(r.url, "_blank", "noopener,noreferrer");
+  }
+
+  async function baixarAssinado() {
+    setAcao("assinado");
+    const r = await urlContratoAssinadoAdminAction(locacaoId);
     setAcao(null);
     if (r.error) return toast.error(r.error);
     if (r.url) window.open(r.url, "_blank", "noopener,noreferrer");
@@ -65,6 +84,18 @@ export function ContratoAcoes({
         >
           <Download className="size-4" />
           Baixar
+        </Button>
+      ) : null}
+      {temAssinado ? (
+        <Button
+          variant="outline"
+          size="sm"
+          loading={acao === "assinado"}
+          disabled={acao !== null}
+          onClick={baixarAssinado}
+        >
+          <FileCheck2 className="size-4" />
+          Baixar assinado
         </Button>
       ) : null}
       {!assinado ? (

@@ -206,7 +206,9 @@ export async function carregarLocacao(
       .order("criado_em", { ascending: true }),
     admin
       .from("contratos")
-      .select("status, link_assinatura, pdf_url, enviado_em, assinado_em")
+      .select(
+        "status, link_assinatura, pdf_url, pdf_assinado_url, enviado_em, assinado_em",
+      )
       .eq("locacao_id", id)
       .maybeSingle(),
     admin
@@ -282,6 +284,7 @@ export async function carregarLocacao(
         status: contratoRow.status as string,
         linkAssinatura: (contratoRow.link_assinatura as string) ?? null,
         pdfUrl: (contratoRow.pdf_url as string) ?? null,
+        temAssinado: Boolean(contratoRow.pdf_assinado_url),
         enviadoEmUtc: (contratoRow.enviado_em as string) ?? null,
         assinadoEmUtc: (contratoRow.assinado_em as string) ?? null,
       }
