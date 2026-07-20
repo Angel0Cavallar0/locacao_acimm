@@ -42,6 +42,8 @@ export function DatePicker({
   diasOcupados,
   aoMudarMes,
   className,
+  dataMin,
+  dataMax,
 }: {
   value?: string
   onChange: (valor: string) => void
@@ -52,9 +54,19 @@ export function DatePicker({
   diasOcupados?: Set<string>
   aoMudarMes?: (ano: number, mes: number) => void
   className?: string
+  /** Limites de seleção (inclusivos), em 'YYYY-MM-DD'. */
+  dataMin?: string
+  dataMax?: string
 }) {
   const [aberto, setAberto] = useState(false)
   const selecionada = paraData(value)
+
+  const minD = paraData(dataMin)
+  const maxD = paraData(dataMax)
+  const foraDoIntervalo = [
+    ...(minD ? [{ before: minD }] : []),
+    ...(maxD ? [{ after: maxD }] : []),
+  ]
 
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
@@ -84,6 +96,7 @@ export function DatePicker({
             }
           }}
           onMonthChange={(m) => aoMudarMes?.(m.getFullYear(), m.getMonth() + 1)}
+          disabled={foraDoIntervalo.length > 0 ? foraDoIntervalo : undefined}
           modifiers={
             diasOcupados
               ? { ocupado: (day: Date) => diasOcupados.has(paraISO(day)) }
