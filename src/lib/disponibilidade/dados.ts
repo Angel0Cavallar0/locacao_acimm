@@ -58,7 +58,7 @@ export async function listarDisponibilidade(
   // Salas ativas (filtro de capacidade e de seleção).
   let q = admin
     .from("salas")
-    .select("id, nome, capacidade, equipamentos, fotos")
+    .select("id, nome, descricao, capacidade, equipamentos, fotos")
     .eq("ativa", true)
     .is("excluida_em", null)
     .order("ordem", { ascending: true })
@@ -132,6 +132,7 @@ export async function listarDisponibilidade(
 
   const resultado: SalaDisponibilidade[] = [];
   for (const s of salas) {
+    const fotos = ((s.fotos as string[] | null) ?? []).map(urlFotoSala);
     const ocupacoes = ocupPorSala.get(s.id) ?? [];
     const chips: ChipPeriodo[] = [];
 
@@ -173,19 +174,16 @@ export async function listarDisponibilidade(
     resultado.push({
       id: s.id,
       nome: s.nome,
+      descricao: (s.descricao as string) ?? null,
       capacidade: s.capacidade,
       equipamentos: (s.equipamentos as string[] | null) ?? [],
-      capaUrl: fotoCapa(s.fotos),
+      capaUrl: fotos[0] ?? null,
+      fotos,
       chips,
     });
   }
 
   return { data: input.data, podeSolicitar, salas: resultado, contato };
-}
-
-function fotoCapa(fotos: unknown): string | null {
-  const arr = (fotos as string[] | null) ?? [];
-  return arr[0] ? urlFotoSala(arr[0]) : null;
 }
 
 async function carregarContato(

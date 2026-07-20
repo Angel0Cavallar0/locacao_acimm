@@ -3,6 +3,7 @@
 import {
   ChevronLeft,
   ChevronRight,
+  ImageIcon,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
@@ -235,6 +236,88 @@ function ChipDialog({
   );
 }
 
+/** Dialog com as informações completas da sala (fotos, capacidade, itens). */
+function SalaDetalheDialog({
+  sala,
+  aoFechar,
+}: {
+  sala: SalaDisponibilidade;
+  aoFechar: () => void;
+}) {
+  const [fotoIdx, setFotoIdx] = useState(0);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && aoFechar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{sala.nome}</DialogTitle>
+        </DialogHeader>
+
+        {sala.fotos.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-muted">
+              {/* biome-ignore lint/a11y/useAltText: alt fornecido */}
+              <img
+                src={sala.fotos[fotoIdx]}
+                alt={`Foto de ${sala.nome}`}
+                className="size-full object-cover"
+              />
+            </div>
+            {sala.fotos.length > 1 ? (
+              <div className="flex gap-1.5 overflow-x-auto">
+                {sala.fotos.map((f, i) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setFotoIdx(i)}
+                    className={cn(
+                      "size-12 shrink-0 overflow-hidden rounded border-2",
+                      i === fotoIdx ? "border-brand" : "border-transparent",
+                    )}
+                  >
+                    {/* biome-ignore lint/a11y/useAltText: decorativa */}
+                    <img
+                      src={f}
+                      alt={`Foto ${i + 1} de ${sala.nome}`}
+                      className="size-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex items-center gap-1.5 text-sm text-ink">
+          <Users className="size-4 text-ink-muted" />
+          {sala.capacidade} lugares
+        </div>
+
+        {sala.equipamentos.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {sala.equipamentos.map((e) => (
+              <span
+                key={e}
+                className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink-muted"
+              >
+                {e}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {sala.descricao ? (
+          <p className="whitespace-pre-line text-sm text-ink-muted">
+            {sala.descricao}
+          </p>
+        ) : (
+          <p className="text-sm text-ink-muted">Sem descrição cadastrada.</p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function DisponibilidadeClient({
   inicial,
   todasSalas,
@@ -261,6 +344,7 @@ export function DisponibilidadeClient({
     sala: SalaDisponibilidade;
     chip: ChipPeriodo;
   } | null>(null);
+  const [detalhe, setDetalhe] = useState<SalaDisponibilidade | null>(null);
   const primeira = useRef(true);
 
   // Refetch + sincroniza a URL a cada mudança de data/filtros.
@@ -440,8 +524,13 @@ export function DisponibilidadeClient({
           {dados.salas.map((sala) => (
             <Card key={sala.id}>
               <CardContent className="flex flex-col gap-3">
-                <div className="flex gap-3">
-                  <div className="size-16 shrink-0 overflow-hidden rounded-md bg-surface-muted">
+                <button
+                  type="button"
+                  onClick={() => setDetalhe(sala)}
+                  className="-m-1 flex gap-3 rounded-md p-1 text-left transition-colors hover:bg-surface-muted"
+                  aria-label={`Ver informações de ${sala.nome}`}
+                >
+                  <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-muted text-ink-muted">
                     {sala.capaUrl ? (
                       // biome-ignore lint/a11y/useAltText: alt fornecido
                       <img
@@ -449,7 +538,9 @@ export function DisponibilidadeClient({
                         alt={sala.nome}
                         className="size-full object-cover"
                       />
-                    ) : null}
+                    ) : (
+                      <ImageIcon className="size-5" />
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="truncate font-medium text-ink">{sala.nome}</h3>
@@ -465,8 +556,13 @@ export function DisponibilidadeClient({
                           : ""}
                       </p>
                     ) : null}
+                    {sala.descricao ? (
+                      <p className="mt-0.5 line-clamp-2 text-xs text-ink-muted">
+                        {sala.descricao}
+                      </p>
+                    ) : null}
                   </div>
-                </div>
+                </button>
 
                 <div className="grid grid-cols-2 gap-1.5">
                   {sala.chips.map((chip) => {
@@ -514,6 +610,10 @@ export function DisponibilidadeClient({
           podeSolicitar={dados.podeSolicitar}
           aoFechar={() => setSel(null)}
         />
+      ) : null}
+
+      {detalhe ? (
+        <SalaDetalheDialog sala={detalhe} aoFechar={() => setDetalhe(null)} />
       ) : null}
     </div>
   );

@@ -32,9 +32,12 @@ export interface ChipPeriodo {
 export interface SalaDisponibilidade {
   id: string;
   nome: string;
+  descricao: string | null;
   capacidade: number;
   equipamentos: string[];
   capaUrl: string | null;
+  /** Todas as fotos da sala (URLs) — usadas no detalhe da sala. */
+  fotos: string[];
   chips: ChipPeriodo[];
 }
 
