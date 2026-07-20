@@ -9,7 +9,7 @@ import {
   hojeSP,
   somarDias,
 } from "@/lib/disponibilidade/janela";
-import type { PeriodoDia } from "@/lib/dominio";
+import type { CategoriaHoraAdicional, PeriodoDia } from "@/lib/dominio";
 import { calcularValores } from "@/lib/locacoes/calcular";
 import { dispararEfeitos } from "@/lib/locacoes/efeitos";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
@@ -19,6 +19,12 @@ import { apenasDigitos, documentoValido } from "@/lib/utils/documento";
 import { criarSolicitacaoSchema } from "@/lib/validacoes/solicitacao";
 
 /** Tipos compartilhados server ↔ client da solicitação do associado (Spec 11). */
+
+export interface HoraAdicionalInfo {
+  nome: string;
+  aposMinutos: number;
+  valorHoraCentavos: number;
+}
 
 export interface ResumoSolicitacao {
   salas: {
@@ -31,6 +37,8 @@ export interface ResumoSolicitacao {
   salasCentavos: number;
   coffeeCentavos: number;
   totalCentavos: number;
+  /** Informativo: hora adicional após o período configurado, por sala. */
+  horaAdicional: HoraAdicionalInfo[];
 }
 
 export interface ResultadoSolicitacao {
@@ -45,6 +53,7 @@ export interface SolicitacaoPayload {
   terceiro: boolean;
   emailContato: string;
   telefoneContato: string;
+  responsavelNome: string;
   terceiroNome: string;
   terceiroDocumento: string;
   terceiroEmail: string;
@@ -57,6 +66,7 @@ export interface SolicitacaoPayload {
     nivelId: string;
     qtdPessoas: number;
     horarioServir: string | null;
+    adicionais: { descricao: string; valorCentavos: number }[];
     observacoes: string;
   } | null;
   formaPagamento: "pix" | "boleto_avulso" | "boleto_mensalidade" | null;
@@ -96,12 +106,61 @@ function rangePeriodo(
   };
 }
 
+/** Categoria da hora adicional (comercial/noturno/sábado-domingo) do slot. */
+function categoriaHoraAdicional(
+  data: string,
+  periodo: PeriodoDia,
+): CategoriaHoraAdicional {
+  const [y, m, d] = data.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Dom … 6=Sáb
+  if (dow === 0 || dow === 6) return "sabado_domingo";
+  if (periodo === "noite") return "noturno";
+  return "comercial";
+}
+
+/** Info (não cobrada aqui) de hora adicional por sala para o slot escolhido. */
+async function infoHoraAdicional(
+  admin: ReturnType<typeof createAdminClient>,
+  salaIds: string[],
+  data: string,
+  periodo: PeriodoDia,
+): Promise<HoraAdicionalInfo[]> {
+  const [salasRes, precosRes] = await Promise.all([
+    admin.from("salas").select("id, nome, hora_adicional_minutos").in("id", salaIds),
+    admin
+      .from("precos_hora_adicional")
+      .select("sala_id, valor_centavos")
+      .eq("condicao", "associado")
+      .eq("categoria", categoriaHoraAdicional(data, periodo))
+      .in("sala_id", salaIds),
+  ]);
+  const valorPorSala = new Map(
+    (precosRes.data ?? []).map((p) => [
+      p.sala_id as string,
+      p.valor_centavos as number,
+    ]),
+  );
+  const info: HoraAdicionalInfo[] = [];
+  for (const s of salasRes.data ?? []) {
+    const minutos = s.hora_adicional_minutos as number | null;
+    const valor = valorPorSala.get(s.id as string);
+    if (minutos && minutos > 0 && valor !== undefined) {
+      info.push({
+        nome: s.nome as string,
+        aposMinutos: minutos,
+        valorHoraCentavos: valor,
+      });
+    }
+  }
+  return info;
+}
+
 /** Resumo de valores em tempo real — o client nunca calcula preço (§4/§5). */
 export async function previewValores(input: {
   salaIds: string[];
   data: string;
   periodo: PeriodoDia;
-  coffee: { nivelId: string; qtdPessoas: number } | null;
+  coffee: { nivelId: string; qtdPessoas: number; adicionaisCentavos: number } | null;
 }): Promise<ResumoSolicitacao> {
   const { associado } = await requireAssociado();
   const vazio: ResumoSolicitacao = {
@@ -110,30 +169,33 @@ export async function previewValores(input: {
     salasCentavos: 0,
     coffeeCentavos: 0,
     totalCentavos: 0,
+    horaAdicional: [],
   };
   if (associado.situacao !== "ativo" || input.salaIds.length === 0) return vazio;
 
-  const calc = await calcularValores({
-    salaIds: input.salaIds,
-    data: input.data,
-    periodo: input.periodo,
-    condicao: "associado",
-    coffee: input.coffee
-      ? {
-          nivelId: input.coffee.nivelId,
-          qtdPessoas: input.coffee.qtdPessoas,
-          adicionaisCentavos: 0,
-        }
-      : null,
-    adicionais: [],
-  });
-
   const admin = createAdminClient();
-  const { data: salas } = await admin
-    .from("salas")
-    .select("id, nome")
-    .in("id", input.salaIds);
-  const nome = new Map((salas ?? []).map((s) => [s.id as string, s.nome as string]));
+  const [calc, salasRows, horaAdicional] = await Promise.all([
+    calcularValores({
+      salaIds: input.salaIds,
+      data: input.data,
+      periodo: input.periodo,
+      condicao: "associado",
+      coffee: input.coffee
+        ? {
+            nivelId: input.coffee.nivelId,
+            qtdPessoas: input.coffee.qtdPessoas,
+            adicionaisCentavos: input.coffee.adicionaisCentavos,
+          }
+        : null,
+      adicionais: [],
+    }),
+    admin.from("salas").select("id, nome").in("id", input.salaIds),
+    infoHoraAdicional(admin, input.salaIds, input.data, input.periodo),
+  ]);
+
+  const nome = new Map(
+    (salasRows.data ?? []).map((s) => [s.id as string, s.nome as string]),
+  );
 
   return {
     salas: calc.salas.map((s) => ({
@@ -146,6 +208,7 @@ export async function previewValores(input: {
     salasCentavos: calc.salasCentavos,
     coffeeCentavos: calc.coffeeCentavos,
     totalCentavos: calc.totalCentavos,
+    horaAdicional,
   };
 }
 
@@ -282,6 +345,8 @@ export async function criarSolicitacao(
   }
 
   // (3) Recalcula do zero — valores do client são descartados.
+  const coffeeAdicionaisCentavos =
+    v.coffee?.adicionais.reduce((s, a) => s + a.valorCentavos, 0) ?? 0;
   const calc = await calcularValores({
     salaIds: v.salaIds,
     data: v.data,
@@ -291,7 +356,7 @@ export async function criarSolicitacao(
       ? {
           nivelId: v.coffee.nivelId,
           qtdPessoas: v.coffee.qtdPessoas,
-          adicionaisCentavos: 0,
+          adicionaisCentavos: coffeeAdicionaisCentavos,
         }
       : null,
     adicionais: [],
@@ -332,6 +397,7 @@ export async function criarSolicitacao(
         horario_servir: v.coffee.horarioServir
           ? spWallParaUtc(v.data, v.coffee.horarioServir)
           : null,
+        adicionais: v.coffee.adicionais,
         observacoes: v.coffee.observacoes,
         valor: calc.coffeeCentavos,
       }
@@ -344,7 +410,7 @@ export async function criarSolicitacao(
     p_documento: doc,
     p_email: email,
     p_telefone: telefone,
-    p_responsavel_nome: null,
+    p_responsavel_nome: v.responsavelNome,
     p_inicio: inicio,
     p_fim: fim,
     p_periodo: v.periodo,

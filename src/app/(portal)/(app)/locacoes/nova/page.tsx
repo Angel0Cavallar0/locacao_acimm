@@ -10,6 +10,8 @@ import {
   hojeSP,
 } from "@/lib/disponibilidade/janela";
 import type { ContatoAcimm } from "@/lib/disponibilidade/tipos";
+import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
+import { parsearFaixas } from "@/lib/coffee/faixas-core";
 import type { PeriodoDia } from "@/lib/dominio";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SolicitacaoForm } from "./solicitacao-form";
@@ -40,7 +42,7 @@ export default async function NovaSolicitacaoPage({
     listarSalasAtivas(),
     admin
       .from("coffee_niveis")
-      .select("id, nome")
+      .select("id, nome, faixas_preco, adicionais")
       .eq("ativo", true)
       .order("ordem", { ascending: true }),
     admin
@@ -103,7 +105,12 @@ export default async function NovaSolicitacaoPage({
   return (
     <SolicitacaoForm
       todasSalas={todasSalas}
-      niveis={(niveisRes.data ?? []).map((n) => ({ id: n.id, nome: n.nome }))}
+      niveis={(niveisRes.data ?? []).map((n) => ({
+        id: n.id,
+        nome: n.nome,
+        faixas: parsearFaixas(n.faixas_preco),
+        adicionais: parsearAdicionaisCoffee(n.adicionais),
+      }))}
       campos={(camposRes.data ?? []).map((c) => ({
         id: c.id,
         rotulo: c.rotulo,
