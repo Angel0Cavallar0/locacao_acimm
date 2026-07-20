@@ -143,6 +143,22 @@ async function nomesDeColaboradores(
     .select("user_id, nome")
     .in("user_id", unicos);
   for (const c of data ?? []) mapa.set(c.user_id as string, c.nome as string);
+
+  // Autores que não são colaboradores podem ser associados (ex.: cancelamento
+  // pelo portal — Spec 12). Resolve o nome real para a timeline do admin.
+  const restantes = unicos.filter((id) => !mapa.has(id));
+  if (restantes.length > 0) {
+    const { data: assoc } = await admin
+      .from("associados")
+      .select("user_id, nome, razao_social")
+      .in("user_id", restantes);
+    for (const a of assoc ?? []) {
+      mapa.set(
+        a.user_id as string,
+        (a.razao_social as string | null) ?? (a.nome as string),
+      );
+    }
+  }
   return mapa;
 }
 

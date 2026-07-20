@@ -13,19 +13,20 @@ import {
 export type ResultadoTransicao = { ok: true } | { erro: string };
 
 /**
- * ÚNICO caminho para mudar o status de uma locação (Spec 06 §2.2/§5). Nenhum
- * `update status` deve existir fora daqui. Sequência: guard → valida a
- * transição no mapa → compare-and-swap atômico no banco (RPC) → efeitos
- * pós-commit → revalida. Conflito de agenda (23P01) e corrida de concorrência
- * viram mensagens claras; nada muda no banco nesses casos.
+ * Núcleo da transição, parametrizado pelo autor (Spec 06 §2.2/§5). Sem guard e
+ * sem revalidação — quem chama aplica ambos. Sequência: valida a transição no
+ * mapa → compare-and-swap atômico no banco (RPC) → efeitos pós-commit.
+ * Conflito de agenda (23P01) e corrida de concorrência viram mensagens claras;
+ * nada muda no banco nesses casos. É o ÚNICO ponto que fala com a RPC de
+ * transição — reusado pelo colaborador e pelo cancelamento do associado (§5).
  */
-export async function transicionarLocacao(input: {
+export async function aplicarTransicao(input: {
   locacaoId: string;
   para: StatusLocacao;
+  autorUserId: string;
   motivo?: string;
   observacao?: string;
 }): Promise<ResultadoTransicao> {
-  const { user } = await requireColaborador();
   const admin = createAdminClient();
 
   const { data: loc } = await admin
@@ -49,7 +50,7 @@ export async function transicionarLocacao(input: {
     p_locacao_id: input.locacaoId,
     p_de: de,
     p_para: input.para,
-    p_autor: user.id,
+    p_autor: input.autorUserId,
     p_motivo: motivo || null,
     p_observacao: input.observacao?.trim() || null,
   });
@@ -76,13 +77,30 @@ export async function transicionarLocacao(input: {
     locacaoId: input.locacaoId,
     de,
     para: input.para,
-    autorUserId: user.id,
+    autorUserId: input.autorUserId,
     motivo: motivo || undefined,
   });
 
-  revalidatePath("/admin/locacoes");
-  revalidatePath(`/admin/locacoes/${input.locacaoId}`);
-  revalidatePath("/admin/calendario");
-  revalidatePath("/admin");
   return { ok: true };
+}
+
+/**
+ * ÚNICO caminho do COLABORADOR para mudar o status (Spec 06). Guard →
+ * `aplicarTransicao` → revalida as telas do admin.
+ */
+export async function transicionarLocacao(input: {
+  locacaoId: string;
+  para: StatusLocacao;
+  motivo?: string;
+  observacao?: string;
+}): Promise<ResultadoTransicao> {
+  const { user } = await requireColaborador();
+  const r = await aplicarTransicao({ ...input, autorUserId: user.id });
+  if ("ok" in r) {
+    revalidatePath("/admin/locacoes");
+    revalidatePath(`/admin/locacoes/${input.locacaoId}`);
+    revalidatePath("/admin/calendario");
+    revalidatePath("/admin");
+  }
+  return r;
 }
