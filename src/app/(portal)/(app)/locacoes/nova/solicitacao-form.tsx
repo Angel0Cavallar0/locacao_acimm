@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Plus,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +26,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listarDisponibilidadeAction } from "@/app/(portal)/(app)/disponibilidade/actions";
+import { faixaDe, rotuloFaixa, valorPessoaDe } from "@/lib/coffee/faixas-core";
+import type { AdicionalCoffee, FaixaPreco } from "@/lib/coffee/tipos";
 import { agregarChips } from "@/lib/disponibilidade/agregado-core";
 import { PERIODOS, type PeriodoDia } from "@/lib/dominio";
 import type {
@@ -80,6 +84,15 @@ function emailValido(v: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
 }
 
+/** "4h" / "4h30" / "90 min" para a nota de hora adicional. */
+function formatarDuracao(minutos: number): string {
+  if (minutos % 60 === 0) return `${minutos / 60}h`;
+  if (minutos > 60) {
+    return `${Math.floor(minutos / 60)}h${String(minutos % 60).padStart(2, "0")}`;
+  }
+  return `${minutos} min`;
+}
+
 export function SolicitacaoForm({
   todasSalas,
   niveis,
@@ -91,7 +104,12 @@ export function SolicitacaoForm({
   dataMax,
 }: {
   todasSalas: SalaOpcao[];
-  niveis: { id: string; nome: string }[];
+  niveis: {
+    id: string;
+    nome: string;
+    faixas: FaixaPreco[];
+    adicionais: AdicionalCoffee[];
+  }[];
   campos: CampoDinamico[];
   associado: AssociadoView;
   contato: ContatoAcimm;
@@ -121,6 +139,7 @@ export function SolicitacaoForm({
   const [telefoneContato, setTelefoneContato] = useState(
     mascararTelefone(associado.telefone),
   );
+  const [responsavelNome, setResponsavelNome] = useState("");
   const [terceiro, setTerceiro] = useState(false);
   const [terceiroNome, setTerceiroNome] = useState("");
   const [terceiroDocumento, setTerceiroDocumento] = useState("");
@@ -139,6 +158,9 @@ export function SolicitacaoForm({
   const [coffeeQtd, setCoffeeQtd] = useState("");
   const [coffeeHorario, setCoffeeHorario] = useState("");
   const [coffeeObs, setCoffeeObs] = useState("");
+  const [coffeeAdicionais, setCoffeeAdicionais] = useState<AdicionalCoffee[]>(
+    [],
+  );
 
   // Etapa 5 — pagamento
   const [formaPagamento, setFormaPagamento] = useState("");
@@ -214,12 +236,29 @@ export function SolicitacaoForm({
     capacidadeMenor > 0 &&
     Number(qtdPessoas) > capacidadeMenor;
 
+  // Coffee: nível e valores para exibição (o servidor recalcula no submit).
+  const nivelSel = niveis.find((n) => n.id === coffeeNivelId) ?? null;
+  const qtdCoffee = Number(coffeeQtd) || Number(qtdPessoas) || 0;
+  const faixaCoffee = nivelSel ? faixaDe(nivelSel.faixas, qtdCoffee) : null;
+  const valorPessoaCoffee = nivelSel
+    ? valorPessoaDe(nivelSel.faixas, qtdCoffee)
+    : 0;
+  const coffeeAdicionaisCentavos = coffeeAdicionais.reduce(
+    (s, a) => s + a.valorCentavos,
+    0,
+  );
+  const baseCoffee = valorPessoaCoffee * qtdCoffee;
+  const totalCoffee = baseCoffee + coffeeAdicionaisCentavos;
+
   // Resumo (etapa 5) — server recalcula, client só exibe.
   const chaveResumo = JSON.stringify({
     salaIds,
     data,
     periodo,
-    coffee: coffeeIncluir && coffeeNivelId ? { coffeeNivelId, coffeeQtd } : null,
+    coffee:
+      coffeeIncluir && coffeeNivelId
+        ? { coffeeNivelId, coffeeQtd, coffeeAdicionaisCentavos }
+        : null,
   });
   useEffect(() => {
     if (etapa !== 4 || salaIds.length === 0) return;
@@ -232,7 +271,8 @@ export function SolicitacaoForm({
         coffeeIncluir && coffeeNivelId
           ? {
               nivelId: coffeeNivelId,
-              qtdPessoas: Number(coffeeQtd) || Number(qtdPessoas) || 0,
+              qtdPessoas: qtdCoffee,
+              adicionaisCentavos: coffeeAdicionaisCentavos,
             }
           : null,
     }).then((r) => {
@@ -304,6 +344,7 @@ export function SolicitacaoForm({
       terceiro,
       emailContato: emailContato.trim(),
       telefoneContato: telefoneContato.trim(),
+      responsavelNome: responsavelNome.trim(),
       terceiroNome: terceiroNome.trim(),
       terceiroDocumento,
       terceiroEmail: terceiroEmail.trim(),
@@ -316,8 +357,9 @@ export function SolicitacaoForm({
         coffeeIncluir && coffeeNivelId
           ? {
               nivelId: coffeeNivelId,
-              qtdPessoas: Number(coffeeQtd) || Number(qtdPessoas) || 0,
+              qtdPessoas: qtdCoffee,
               horarioServir: coffeeHorario || null,
+              adicionais: coffeeAdicionais,
               observacoes: coffeeObs.trim(),
             }
           : null,
@@ -430,7 +472,15 @@ export function SolicitacaoForm({
               </p>
             ) : (
               <div className="flex flex-col gap-2">
-                <Label>Período</Label>
+                <div className="flex items-center gap-2">
+                  <Label>Período</Label>
+                  {carregandoDisp ? (
+                    <span className="flex items-center gap-1 text-xs text-ink-muted">
+                      <span className="size-3 animate-spin rounded-full border border-ink-muted border-t-transparent" />
+                      Carregando…
+                    </span>
+                  ) : null}
+                </div>
                 <div
                   className={cn(
                     "grid grid-cols-2 gap-1.5 sm:grid-cols-4",
@@ -604,6 +654,16 @@ export function SolicitacaoForm({
               </div>
             </div>
 
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="responsavel">Responsável pela locação</Label>
+              <Input
+                id="responsavel"
+                value={responsavelNome}
+                onChange={(e) => setResponsavelNome(e.target.value)}
+                placeholder="Quem responde pela reserva"
+              />
+            </div>
+
             <p className="text-xs text-ink-muted">
               Dados cadastrais desatualizados? Fale com a ACIMM.
             </p>
@@ -747,7 +807,10 @@ export function SolicitacaoForm({
                       id="cn"
                       className={inputClasses}
                       value={coffeeNivelId}
-                      onChange={(e) => setCoffeeNivelId(e.target.value)}
+                      onChange={(e) => {
+                        setCoffeeNivelId(e.target.value);
+                        setCoffeeAdicionais([]);
+                      }}
                     >
                       {niveis.map((n) => (
                         <option key={n.id} value={n.id}>
@@ -777,6 +840,94 @@ export function SolicitacaoForm({
                     />
                   </div>
                 </div>
+                {nivelSel && nivelSel.adicionais.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-xs font-medium text-ink-muted">
+                      Adicionais do coffee (clique para incluir)
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {nivelSel.adicionais.map((a) => (
+                        <button
+                          key={`${a.descricao}-${a.valorCentavos}`}
+                          type="button"
+                          onClick={() => setCoffeeAdicionais((p) => [...p, a])}
+                          className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs text-ink-muted hover:border-brand hover:text-brand"
+                        >
+                          <Plus className="size-3" />
+                          {a.descricao} · {centavosParaBRL(a.valorCentavos)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {coffeeAdicionais.length > 0 ? (
+                  <div className="flex flex-col gap-1">
+                    {coffeeAdicionais.map((a, i) => (
+                      <div
+                        // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras
+                        key={i}
+                        className="flex items-center justify-between rounded-md border px-2.5 py-1 text-xs"
+                      >
+                        <span className="text-ink">{a.descricao}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="text-ink-muted">
+                            {centavosParaBRL(a.valorCentavos)}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="Remover adicional"
+                            onClick={() =>
+                              setCoffeeAdicionais((p) =>
+                                p.filter((_, j) => j !== i),
+                              )
+                            }
+                            className="text-ink-muted hover:text-destructive"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {qtdCoffee > 0 ? (
+                  <div className="rounded-md bg-surface-muted px-3 py-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">
+                        Valor por pessoa
+                        {faixaCoffee
+                          ? ` (faixa ${rotuloFaixa(faixaCoffee)})`
+                          : ""}
+                      </span>
+                      <span className="text-ink">
+                        {centavosParaBRL(valorPessoaCoffee)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">{qtdCoffee} pessoas</span>
+                      <span className="text-ink">
+                        {centavosParaBRL(baseCoffee)}
+                      </span>
+                    </div>
+                    {coffeeAdicionaisCentavos > 0 ? (
+                      <div className="flex justify-between">
+                        <span className="text-ink-muted">Adicionais</span>
+                        <span className="text-ink">
+                          {centavosParaBRL(coffeeAdicionaisCentavos)}
+                        </span>
+                      </div>
+                    ) : null}
+                    <div className="mt-0.5 flex justify-between border-t pt-1 font-medium">
+                      <span className="text-ink">Subtotal do coffee</span>
+                      <span className="text-ink">
+                        {centavosParaBRL(totalCoffee)}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="co">Observações do coffee</Label>
                   <Input
@@ -856,6 +1007,18 @@ export function SolicitacaoForm({
                 </div>
               )}
             </div>
+
+            {resumo && resumo.horaAdicional.length > 0 ? (
+              <div className="rounded-md border border-input bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+                <p className="mb-0.5 font-medium text-ink">Hora adicional</p>
+                {resumo.horaAdicional.map((h) => (
+                  <p key={h.nome}>
+                    {h.nome}: após {formatarDuracao(h.aposMinutos)} de uso, cada
+                    hora adicional custa {centavosParaBRL(h.valorHoraCentavos)}.
+                  </p>
+                ))}
+              </div>
+            ) : null}
 
             <div className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2 text-xs text-ink-muted">
               Sua solicitação será analisada pela ACIMM. Você receberá a

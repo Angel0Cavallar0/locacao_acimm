@@ -19,6 +19,15 @@ const coffeeSolicitacaoSchema = z.object({
     .regex(/^\d{2}:\d{2}$/)
     .nullable()
     .default(null),
+  // Adicionais escolhidos do catálogo do nível (valor fixo por item).
+  adicionais: z
+    .array(
+      z.object({
+        descricao: z.string().trim().min(1).max(200),
+        valorCentavos: z.number().int().min(0),
+      }),
+    )
+    .default([]),
   observacoes: z.string().trim().max(1000).optional().default(""),
 });
 
@@ -32,6 +41,8 @@ export const criarSolicitacaoSchema = z
     // Contato do associado (usado quando NÃO é terceiro).
     emailContato: z.email("E-mail inválido"),
     telefoneContato: z.string().trim().min(8, "Telefone inválido").max(20),
+    // Pessoa responsável pela reserva (contato humano; distinta da razão social).
+    responsavelNome: z.string().trim().max(200).optional().default(""),
     // Dados do locatário terceiro (validados só quando `terceiro`).
     terceiroNome: z.string().trim().max(200).optional().default(""),
     terceiroDocumento: z.string().optional().default(""),
