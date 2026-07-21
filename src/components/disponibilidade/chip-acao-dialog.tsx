@@ -122,6 +122,16 @@ export function ChipAcaoDialog({
                 {chip.eventoTitulo}
               </p>
             ) : null}
+            {chip.eventoSymplaUrl ? (
+              <a
+                href={chip.eventoSymplaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand/90"
+              >
+                Participar do evento
+              </a>
+            ) : null}
             <div className="rounded-md border border-brand/30 bg-brand/5 px-3 py-2 text-xs text-ink-muted">
               Precisa desta sala especificamente nesta data? Fale com a equipe da
               ACIMM

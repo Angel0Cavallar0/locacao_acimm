@@ -4,8 +4,15 @@ import { estadoDoSlot } from "./estado-core.ts";
 
 const SLOT = { inicioMs: 100, fimMs: 200 };
 
-function ocup(inicioMs, fimMs, situacao, titulo = null, sympla = null) {
-  return { inicioMs, fimMs, situacao, eventoTitulo: titulo, eventoSymplaId: sympla };
+function ocup(inicioMs, fimMs, situacao, titulo = null, sympla = null, url = null) {
+  return {
+    inicioMs,
+    fimMs,
+    situacao,
+    eventoTitulo: titulo,
+    eventoSymplaId: sympla,
+    eventoSymplaUrl: url,
+  };
 }
 
 test("sem ocupação → livre", () => {

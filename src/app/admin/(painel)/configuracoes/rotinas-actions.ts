@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth/guards";
 import { processarCoffeePdf } from "@/lib/cron/coffee-pdf";
 import { processarLembretes } from "@/lib/cron/lembretes";
+import { processarSymplaInscritos } from "@/lib/cron/sympla-inscritos";
 import { processarNotificacoes } from "@/lib/notificacoes/processar";
 
 /**
@@ -32,6 +33,13 @@ export async function executarJobAction(
       const r = await processarCoffeePdf();
       if (!r.gerado) return { resumo: r.motivo ?? "Nada a processar." };
       return { resumo: r.enviado ? "PDF gerado e envio enfileirado." : `PDF gerado. ${r.motivo ?? ""}` };
+    }
+    if (job === "sympla-inscritos") {
+      const r = await processarSymplaInscritos();
+      return {
+        resumo:
+          r.motivo ?? `${r.processados} evento(s) sincronizado(s), ${r.erros} erro(s).`,
+      };
     }
     return { error: "Rotina desconhecida." };
   } catch {

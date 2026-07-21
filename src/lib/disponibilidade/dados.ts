@@ -98,6 +98,7 @@ export async function listarDisponibilidade(
     situacao: OcupacaoSlot["situacao"];
     evento_titulo: string | null;
     evento_sympla_id: string | null;
+    evento_sympla_url: string | null;
   }>) {
     const lista = ocupPorSala.get(r.sala_id) ?? [];
     lista.push({
@@ -106,6 +107,7 @@ export async function listarDisponibilidade(
       situacao: r.situacao,
       eventoTitulo: r.evento_titulo,
       eventoSymplaId: r.evento_sympla_id,
+      eventoSymplaUrl: r.evento_sympla_url,
     });
     ocupPorSala.set(r.sala_id, lista);
   }
@@ -138,10 +140,8 @@ export async function listarDisponibilidade(
 
     for (const p of PERIODOS) {
       const faixa = horarios[p.valor];
-      const { estado, eventoTitulo, eventoSymplaId } = estadoDoSlot(
-        conflitoRange(p.valor),
-        ocupacoes,
-      );
+      const { estado, eventoTitulo, eventoSymplaId, eventoSymplaUrl } =
+        estadoDoSlot(conflitoRange(p.valor), ocupacoes);
 
       let estadoFinal = estado as ChipPeriodo["estado"];
       let precoCentavos: number | null = null;
@@ -168,6 +168,7 @@ export async function listarDisponibilidade(
         precoCentavos,
         eventoTitulo,
         eventoSymplaId,
+        eventoSymplaUrl,
       });
     }
 
