@@ -86,6 +86,11 @@ export default async function LocacaoAssociadoPage({
                 {dataSP(loc.inicioUtc)} · {horaSP(loc.inicioUtc)}–
                 {horaSP(loc.fimUtc)}
               </p>
+              {loc.combo ? (
+                <span className="mt-1 inline-flex items-center rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+                  Combo · {loc.combo.nome}
+                </span>
+              ) : null}
             </div>
             <span className="rounded-full border border-brand/30 bg-brand/5 px-3 py-1 text-xs font-medium text-brand">
               {STATUS_ROTULO[loc.status]}

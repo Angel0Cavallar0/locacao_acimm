@@ -60,6 +60,8 @@ export const criarSolicitacaoSchema = z
       .default(null),
     // Sócio pode recusar o período gratuito, guardando o uso (Spec 20 §5.3).
     periodoGratuitoRecusado: z.boolean().optional().default(false),
+    // Combo selecionado (Spec 20 §3) — exclusivo de sócio; revalidado no servidor.
+    comboId: z.uuid().nullable().default(null),
   })
   .superRefine((v, ctx) => {
     if (!v.terceiro) return;

@@ -36,6 +36,7 @@ import type {
   DisponibilidadeDia,
   SalaDisponibilidade,
 } from "@/lib/disponibilidade/tipos";
+import type { ComboAplicavel } from "@/lib/locacoes/combos-dados";
 import { somarDias } from "@/lib/disponibilidade/janela";
 import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,18 @@ function digitos(v: string): number {
   return v.replace(/\D/g, "").length;
 }
 
+/** Descrição curta do combo para o card de seleção. */
+function descreverCombo(c: ComboAplicavel): string {
+  if (c.tipo === "evento_privativo") {
+    return `Privativo — todas as salas por ${centavosParaBRL(c.valorCentavos ?? 0)}`;
+  }
+  const desc =
+    c.tipoDesconto === "percentual"
+      ? `${c.descontoValor ?? 0}% de desconto`
+      : `${centavosParaBRL(c.descontoValor ?? 0)} de desconto`;
+  return `Multi-sala — ${desc}`;
+}
+
 /** '01/MM/yyyy' do mês seguinte ao ciclo 'YYYY-MM-01' (renovação do benefício). */
 function renovaEmCiclo(ciclo: string): string {
   const [y, m] = ciclo.split("-").map(Number);
@@ -107,6 +120,7 @@ export function SolicitacaoForm({
   campos,
   associado,
   contato,
+  combos,
   prefill,
   hoje,
   dataMax,
@@ -121,6 +135,7 @@ export function SolicitacaoForm({
   campos: CampoDinamico[];
   associado: AssociadoView;
   contato: ContatoAcimm;
+  combos: ComboAplicavel[];
   prefill: { salaId: string | null; data: string | null; periodo: PeriodoDia | null };
   hoje: string;
   dataMax: string;
@@ -134,6 +149,7 @@ export function SolicitacaoForm({
   );
   const [data, setData] = useState(prefill.data ?? hoje);
   const [periodo, setPeriodo] = useState<PeriodoDia>(prefill.periodo ?? "manha");
+  const [comboId, setComboId] = useState<string | null>(null);
   const [disp, setDisp] = useState<DisponibilidadeDia | null>(null);
   const [carregandoDisp, setCarregandoDisp] = useState(false);
   const [sel, setSel] = useState<{ sala: SalaDisponibilidade; chip: ChipPeriodo } | null>(
@@ -267,6 +283,7 @@ export function SolicitacaoForm({
     data,
     periodo,
     pgRecusado,
+    comboId,
     coffee:
       coffeeIncluir && coffeeNivelId
         ? { coffeeNivelId, coffeeQtd, coffeeAdicionaisCentavos }
@@ -280,6 +297,7 @@ export function SolicitacaoForm({
       data,
       periodo,
       periodoGratuitoRecusado: pgRecusado,
+      comboId,
       coffee:
         coffeeIncluir && coffeeNivelId
           ? {
@@ -298,7 +316,15 @@ export function SolicitacaoForm({
   }, [etapa, chaveResumo]);
 
   function toggleSala(id: string) {
+    if (comboId) return; // salas travadas pelo combo
     setSalaIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  }
+
+  const comboSel = combos.find((c) => c.id === comboId) ?? null;
+  function selecionarCombo(c: ComboAplicavel) {
+    setComboId(c.id);
+    setSalaIds(c.salaIdsObrigatorias);
+    if (c.periodo) setPeriodo(c.periodo);
   }
 
   async function verProximasDatas() {
@@ -385,6 +411,7 @@ export function SolicitacaoForm({
           | "boleto_avulso"
           | "boleto_mensalidade") || null,
       periodoGratuitoRecusado: pgRecusado,
+      comboId,
     });
     setEnviando(false);
     if (r.error) {
@@ -424,6 +451,45 @@ export function SolicitacaoForm({
       {etapa === 0 ? (
         <Card>
           <CardContent className="flex flex-col gap-4">
+            {combos.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                <Label>Combos (opcional)</Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {combos.map((c) => {
+                    const sel = comboId === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => (sel ? setComboId(null) : selecionarCombo(c))}
+                        className={cn(
+                          "flex flex-col items-start rounded-lg border px-3 py-2 text-left transition-colors",
+                          sel ? "border-brand bg-brand/10" : "hover:bg-surface-muted",
+                        )}
+                      >
+                        <span className="text-sm font-medium text-ink">{c.nome}</span>
+                        <span className="text-xs text-ink-muted">
+                          {descreverCombo(c)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {comboSel ? (
+                  <p className="text-xs text-ink-muted">
+                    Combo aplicado — salas e período travados.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setComboId(null)}
+                      className="font-medium text-brand hover:underline"
+                    >
+                      Remover combo
+                    </button>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="flex flex-col gap-1.5">
               <Label>Salas</Label>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -433,9 +499,10 @@ export function SolicitacaoForm({
                     <button
                       key={s.id}
                       type="button"
+                      disabled={comboId !== null}
                       onClick={() => toggleSala(s.id)}
                       className={cn(
-                        "flex flex-col items-start rounded-lg border px-3 py-2 text-left transition-colors",
+                        "flex flex-col items-start rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50",
                         ativoSel
                           ? "border-brand bg-brand/5"
                           : "hover:bg-surface-muted",
@@ -538,7 +605,9 @@ export function SolicitacaoForm({
                         chip={chipView}
                         podeSolicitar={disp?.podeSolicitar ?? false}
                         selecionado={periodo === p.valor}
-                        onClick={() => setPeriodo(p.valor)}
+                        onClick={() => {
+                          if (comboSel?.periodo == null) setPeriodo(p.valor);
+                        }}
                       />
                     );
                   })}
@@ -994,6 +1063,22 @@ export function SolicitacaoForm({
                 <p className="text-ink-muted">Calculando o resumo…</p>
               ) : (
                 <div className="flex flex-col gap-1">
+                  {resumo.combo?.aplicado ? (
+                    <div className="mb-1 flex items-center justify-between rounded-md bg-brand/5 px-2 py-1">
+                      <span className="text-xs font-medium text-brand">
+                        Combo {resumo.combo.nome}
+                      </span>
+                      {resumo.combo.referenciaCentavos != null ? (
+                        <span className="text-xs text-ink-muted">
+                          de{" "}
+                          <span className="line-through">
+                            {centavosParaBRL(resumo.combo.referenciaCentavos)}
+                          </span>{" "}
+                          por {centavosParaBRL(resumo.salasCentavos)}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {resumo.salas.map((s) => (
                     <div key={s.salaId} className="flex justify-between">
                       <span className="text-ink-muted">

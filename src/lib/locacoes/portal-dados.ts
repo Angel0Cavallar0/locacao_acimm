@@ -130,7 +130,7 @@ export async function carregarLocacaoAssociado(
   const { data: loc } = await admin
     .from("locacoes")
     .select(
-      `id, numero, status, associado_id, inicio, fim, qtd_pessoas, tipo_evento,
+      `id, numero, status, associado_id, combo_id, inicio, fim, qtd_pessoas, tipo_evento,
        observacoes, respostas_formulario, forma_pagamento_preferida,
        motivo_encerramento, valor_salas_centavos, valor_coffee_centavos,
        valor_adicionais_centavos, valor_descontos_centavos, valor_total_centavos`,
@@ -139,6 +139,18 @@ export async function carregarLocacaoAssociado(
     .maybeSingle();
 
   if (!loc || loc.associado_id !== associado.id) return null;
+
+  let combo: { nome: string; tipo: string } | null = null;
+  if (loc.combo_id) {
+    const { data: comboRow } = await admin
+      .from("combos")
+      .select("nome, tipo")
+      .eq("id", loc.combo_id)
+      .maybeSingle();
+    if (comboRow) {
+      combo = { nome: comboRow.nome as string, tipo: comboRow.tipo as string };
+    }
+  }
 
   const [salasRes, adicRes, coffeeRes, contratoRes, pagRes, eventosRes] =
     await Promise.all([
@@ -246,6 +258,7 @@ export async function carregarLocacaoAssociado(
     valorAdicionaisCentavos: loc.valor_adicionais_centavos,
     valorDescontosCentavos: loc.valor_descontos_centavos,
     valorTotalCentavos: loc.valor_total_centavos,
+    combo,
     podeCancelar: CANCELAVEIS.includes(status),
     salas,
     adicionais: ((adicRes.data ?? []) as Array<{

@@ -126,6 +126,11 @@ export default async function LocacaoDetalhePage({
                     {rotuloLocacao(loc.numero)}
                   </h2>
                   <StatusBadge status={loc.status} />
+                  {loc.combo ? (
+                    <span className="inline-flex items-center rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+                      Combo · {loc.combo.nome}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-xs text-ink-muted">
                   {loc.criadoPorNome ? `${loc.criadoPorNome} · ` : ""}

@@ -85,6 +85,7 @@ export function ReagendarDialog({
       return;
     }
     toast.success("Locação reagendada.");
+    if (r.aviso) toast.warning(r.aviso);
     aoAbrir(false);
     router.refresh();
   }

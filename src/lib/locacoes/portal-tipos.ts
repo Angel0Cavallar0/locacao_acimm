@@ -86,6 +86,7 @@ export interface LocacaoPortalDetalhe {
   valorAdicionaisCentavos: number;
   valorDescontosCentavos: number;
   valorTotalCentavos: number;
+  combo: { nome: string; tipo: string } | null;
   podeCancelar: boolean;
   salas: SalaDetalhePortal[];
   adicionais: AdicionalPortal[];

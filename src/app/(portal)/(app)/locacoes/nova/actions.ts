@@ -12,6 +12,7 @@ import {
 import type { CategoriaHoraAdicional, PeriodoDia } from "@/lib/dominio";
 import {
   calcularValores,
+  type ComboInfo,
   type LinhaDesconto,
   type PeriodoGratuitoInfo,
 } from "@/lib/locacoes/calcular";
@@ -43,6 +44,7 @@ export interface ResumoSolicitacao {
   descontosCentavos: number;
   descontos: LinhaDesconto[];
   periodoGratuito: PeriodoGratuitoInfo | null;
+  combo: ComboInfo | null;
   totalCentavos: number;
   /** Informativo: hora adicional após o período configurado, por sala. */
   horaAdicional: HoraAdicionalInfo[];
@@ -84,6 +86,8 @@ export interface SolicitacaoPayload {
     | null;
   /** Sócio recusou o período gratuito nesta reserva (Spec 20 §5.3). */
   periodoGratuitoRecusado?: boolean;
+  /** Combo selecionado (Spec 20 §3). */
+  comboId?: string | null;
 }
 
 interface AgendaItem {
@@ -176,6 +180,7 @@ export async function previewValores(input: {
   periodo: PeriodoDia;
   coffee: { nivelId: string; qtdPessoas: number; adicionaisCentavos: number } | null;
   periodoGratuitoRecusado?: boolean;
+  comboId?: string | null;
 }): Promise<ResumoSolicitacao> {
   const { associado } = await requireAssociado();
   const vazio: ResumoSolicitacao = {
@@ -186,6 +191,7 @@ export async function previewValores(input: {
     descontosCentavos: 0,
     descontos: [],
     periodoGratuito: null,
+    combo: null,
     totalCentavos: 0,
     horaAdicional: [],
   };
@@ -208,6 +214,7 @@ export async function previewValores(input: {
       adicionais: [],
       associadoId: associado.id,
       periodoGratuitoRecusado: input.periodoGratuitoRecusado,
+      comboId: input.comboId,
     }),
     admin.from("salas").select("id, nome").in("id", input.salaIds),
     infoHoraAdicional(admin, input.salaIds, input.data, input.periodo),
@@ -230,6 +237,7 @@ export async function previewValores(input: {
     descontosCentavos: calc.descontosCentavos,
     descontos: calc.descontos,
     periodoGratuito: calc.periodoGratuito,
+    combo: calc.combo,
     totalCentavos: calc.totalCentavos,
     horaAdicional,
   };
@@ -385,7 +393,16 @@ export async function criarSolicitacao(
     adicionais: [],
     associadoId: associado.id,
     periodoGratuitoRecusado: v.periodoGratuitoRecusado,
+    comboId: v.comboId,
   });
+
+  // Combo (Spec 20 §3): revalidado no servidor; combo inelegível no payload barra.
+  if (v.comboId && !calc.combo?.aplicado) {
+    return {
+      error:
+        "O combo selecionado não é válido para esta seleção. Revise salas, data e período.",
+    };
+  }
   if (calc.salasSemPreco.length > 0) {
     return {
       error:
@@ -476,6 +493,11 @@ export async function criarSolicitacao(
     };
   }
   const id = novoId as string;
+
+  // Vínculo do combo (metadado): best-effort pós-insert (Spec 20 §3).
+  if (calc.combo?.aplicado) {
+    await admin.from("locacoes").update({ combo_id: calc.combo.id }).eq("id", id);
+  }
 
   // (5) Efeito pós-criação (no-op/log até o Spec 15).
   await dispararEfeitos({
