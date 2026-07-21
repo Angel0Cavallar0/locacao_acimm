@@ -138,6 +138,10 @@ export async function reagendarLocacao(
     };
   }
 
+  // Reagendou → espelho no Google precisa atualizar data/horário/salas (Spec 18).
+  const { marcarLocacaoPendente } = await import("@/lib/google/marcar");
+  await marcarLocacaoPendente(input.locacaoId);
+
   revalidatePath("/admin/locacoes");
   revalidatePath(`/admin/locacoes/${input.locacaoId}`);
   revalidatePath("/admin/calendario");

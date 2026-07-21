@@ -89,6 +89,16 @@ const notif = {
 };
 
 /**
+ * Espelho Google Calendar (Spec 18). Import DINÂMICO: só MARCA a pendência e
+ * dispara a reconciliação via `after()` — nenhuma chamada ao Google no caminho
+ * da transição. O reconciliador decide create/patch/delete pelo status atual.
+ */
+const marcarGoogle: EfeitoFn = async (ctx) => {
+  const { marcarLocacaoPendente } = await import("@/lib/google/marcar");
+  await marcarLocacaoPendente(ctx.locacaoId);
+};
+
+/**
  * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
  * pelo associado), reflete no `contratos.status` para o portal mostrar
  * "Assinado" (revisão Spec 13).
@@ -103,13 +113,13 @@ const sincronizarContratoAssinado: EfeitoFn = async (ctx) => {
 
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   solicitada: [logar("solicitada"), notif.solicitada],
-  aprovada: [logar("aprovada"), notif.aprovada, gerarEEnviarContrato],
+  aprovada: [logar("aprovada"), notif.aprovada, gerarEEnviarContrato, marcarGoogle],
   contrato_enviado: [logar("contrato_enviado"), notif.contratoEnviado],
   contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   aguardando_pagamento: [logar("aguardando_pagamento"), criarPagamentos],
-  confirmada: [logar("confirmada"), notif.confirmada],
-  recusada: [logar("recusada"), notif.recusada],
-  cancelada: [logar("cancelada"), notif.cancelada],
+  confirmada: [logar("confirmada"), notif.confirmada, marcarGoogle],
+  recusada: [logar("recusada"), notif.recusada, marcarGoogle],
+  cancelada: [logar("cancelada"), notif.cancelada, marcarGoogle],
 };
 
 /** Executa os efeitos do estado destino; isola falhas (não propaga). */

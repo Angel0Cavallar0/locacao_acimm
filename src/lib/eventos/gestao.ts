@@ -3,6 +3,10 @@ import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
 import { intervaloSP, spWallParaUtc } from "@/lib/calendario/tempo";
 import type { PrioridadeEvento } from "@/lib/calendario/tipos";
+import {
+  marcarEventoPendente,
+  marcarEventosPendentes,
+} from "@/lib/google/marcar";
 import { contarParticipantes, SymplaError } from "@/lib/integracoes/sympla";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -114,12 +118,14 @@ export async function criarEvento(input: CampoEvento & {
   }
 
   const conflitos: string[] = [];
+  const criados: string[] = [];
   let primeiroId: string | null = null;
 
   for (const data of datas) {
     const r = await inserirOcorrencia(admin, input, data, user.id);
     if ("id" in r) {
       if (!primeiroId) primeiroId = r.id;
+      criados.push(r.id);
     } else if ("conflito" in r) {
       const inicio = spWallParaUtc(data, input.horaInicio);
       const fim = spWallParaUtc(data, input.horaFim);
@@ -148,6 +154,9 @@ export async function criarEvento(input: CampoEvento & {
       input.symplaUrl,
     );
   }
+
+  // Espelho Google (Spec 18): marca todas as ocorrências criadas, dispara 1×.
+  await marcarEventosPendentes(criados);
 
   revalidatePath("/admin/eventos");
   revalidatePath("/admin/calendario");
@@ -181,6 +190,8 @@ export async function editarEvento(
     return { erro: "Não foi possível salvar o evento." };
   }
 
+  await marcarEventoPendente(input.eventoId);
+
   revalidatePath("/admin/eventos");
   revalidatePath(`/admin/eventos/${input.eventoId}`);
   revalidatePath("/admin/calendario");
@@ -195,6 +206,9 @@ export async function cancelarEvento(eventoId: string): Promise<ResultadoEvento>
     .update({ cancelado: true })
     .eq("id", eventoId);
   if (error) return { erro: "Não foi possível cancelar o evento." };
+
+  // Cancelado → remove o espelho no Google (Spec 18).
+  await marcarEventoPendente(eventoId);
 
   revalidatePath("/admin/eventos");
   revalidatePath(`/admin/eventos/${eventoId}`);
@@ -238,6 +252,9 @@ export async function moverEventoSala(input: {
     }
     return { erro: "Não foi possível remanejar o evento." };
   }
+
+  // Remanejou de sala → espelho no Google atualiza (Spec 18).
+  await marcarEventoPendente(input.eventoId);
 
   revalidatePath("/admin/eventos");
   revalidatePath(`/admin/eventos/${input.eventoId}`);
@@ -294,6 +311,9 @@ export async function vincularSympla(input: {
     input.symplaUrl,
   );
 
+  // Link de inscrições entra na descrição do evento espelhado (Spec 18).
+  await marcarEventoPendente(input.eventoId);
+
   revalidatePath(`/admin/eventos/${input.eventoId}`);
   revalidatePath("/admin/eventos");
   return { ok: true, aviso };
@@ -309,6 +329,8 @@ export async function desvincularSympla(
     .update({ sympla_event_id: null, sympla_url: null, qtd_inscritos: null })
     .eq("id", eventoId);
   if (error) return { erro: "Não foi possível desvincular." };
+
+  await marcarEventoPendente(eventoId);
 
   revalidatePath(`/admin/eventos/${eventoId}`);
   revalidatePath("/admin/eventos");

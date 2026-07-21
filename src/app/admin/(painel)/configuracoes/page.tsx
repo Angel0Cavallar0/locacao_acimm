@@ -1,4 +1,4 @@
-import { CalendarClock, FileSignature, Users } from "lucide-react";
+import { CalendarClock, Cable, FileSignature, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -88,6 +88,22 @@ export default async function ConfiguracoesPage() {
           <RotinasCron rotinas={rotinas} />
         </CardContent>
       </Card>
+
+      <Link href="/admin/configuracoes/integracoes" className="block">
+        <Card className="transition-colors hover:bg-surface-muted">
+          <CardContent className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-md bg-brand/10 text-brand">
+              <Cable className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-ink">Integrações</h3>
+              <p className="text-xs text-ink-muted">
+                Conta do Google Agenda (espelho e convites de agenda).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
 
       <Link href="/admin/configuracoes/colaboradores" className="block">
         <Card className="transition-colors hover:bg-surface-muted">
