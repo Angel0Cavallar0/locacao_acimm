@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { requireAssociado } from "@/lib/auth/guards";
 import { listarDisponibilidade, listarSalasAtivas } from "@/lib/disponibilidade/dados";
-import { dataMaximaSP, dentroDaJanela, hojeSP } from "@/lib/disponibilidade/janela";
+import {
+  dataMaximaSP,
+  dentroDaJanela,
+  hojeSP,
+  somarDias,
+} from "@/lib/disponibilidade/janela";
 import { listarCombosAplicaveis } from "@/lib/locacoes/combos-dados";
 import { DisponibilidadeClient } from "./disponibilidade-client";
 
@@ -19,10 +24,13 @@ export default async function DisponibilidadePage({
   const { associado } = await requireAssociado();
   const sp = await searchParams;
 
-  const hoje = hojeSP();
+  // A disponibilidade começa em AMANHÃ (não permitimos reserva no mesmo dia §B).
+  const amanha = somarDias(hojeSP(), 1);
   const bruta = texto(sp.data);
   const data =
-    /^\d{4}-\d{2}-\d{2}$/.test(bruta) && dentroDaJanela(bruta) ? bruta : hoje;
+    /^\d{4}-\d{2}-\d{2}$/.test(bruta) && dentroDaJanela(bruta) && bruta >= amanha
+      ? bruta
+      : amanha;
   const salaIds = texto(sp.salas)
     .split(",")
     .map((s) => s.trim())
@@ -47,7 +55,7 @@ export default async function DisponibilidadePage({
       inicial={inicial}
       todasSalas={todasSalas}
       combos={combos}
-      hoje={hoje}
+      dataMin={amanha}
       dataMax={dataMaximaSP()}
       filtroInicial={{ salaIds, cap }}
       prefill={{

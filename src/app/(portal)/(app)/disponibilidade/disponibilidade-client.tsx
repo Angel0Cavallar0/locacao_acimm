@@ -31,6 +31,7 @@ import { somarDias } from "@/lib/disponibilidade/janela";
 import { descreverCombo } from "@/lib/locacoes/combo-descricao";
 import type { ComboAplicavel } from "@/lib/locacoes/combos-dados";
 import { cn } from "@/lib/utils";
+import { centavosParaBRL } from "@/lib/utils/moeda";
 import { listarDisponibilidadeAction } from "./actions";
 
 interface SalaFiltro {
@@ -188,11 +189,94 @@ function SalaDetalheDialog({
   );
 }
 
+/** Pop-up com as informações completas de um combo + botão para selecioná-lo. */
+function ComboDetalheDialog({
+  combo,
+  salaNome,
+  aoSelecionar,
+  aoFechar,
+}: {
+  combo: ComboAplicavel;
+  salaNome: Map<string, string>;
+  aoSelecionar: () => void;
+  aoFechar: () => void;
+}) {
+  const comDesconto = new Set(combo.salaIdsComDesconto);
+  const salas = combo.salaIdsObrigatorias;
+  const descDesconto =
+    combo.tipoDesconto === "percentual"
+      ? `${combo.descontoValor ?? 0}% de desconto`
+      : `${centavosParaBRL(combo.descontoValor ?? 0)} de desconto`;
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && aoFechar()}>
+      <DialogContent className="w-full sm:max-w-lg">
+        <div className="flex flex-col gap-3">
+          <span className="text-xs font-semibold tracking-wide text-brand uppercase">
+            Combo
+          </span>
+          <DialogTitle className="font-display text-xl font-semibold text-ink">
+            {combo.nome}
+          </DialogTitle>
+          {combo.descricao ? (
+            <p className="text-sm text-ink-muted">{combo.descricao}</p>
+          ) : null}
+
+          <div className="rounded-lg bg-brand/5 p-3 text-sm text-ink">
+            {combo.tipo === "evento_privativo" ? (
+              <p>
+                Reserve <strong>todas as salas</strong> por{" "}
+                <strong>{centavosParaBRL(combo.valorCentavos ?? 0)}</strong>.
+              </p>
+            ) : (
+              <p>
+                Locando as salas do combo você ganha{" "}
+                <strong>{descDesconto}</strong>.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-ink-muted">
+              {combo.tipo === "evento_privativo"
+                ? "Salas incluídas"
+                : "Salas do combo"}
+            </span>
+            <ul className="flex flex-col gap-1">
+              {salas.map((id) => (
+                <li
+                  key={id}
+                  className="flex items-center justify-between gap-2 border-b border-dashed py-1 text-sm"
+                >
+                  <span className="text-ink">{salaNome.get(id) ?? "Sala"}</span>
+                  {combo.tipo === "desconto_multi_sala" &&
+                  comDesconto.has(id) ? (
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                      recebe o desconto
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={aoFechar}>
+              Fechar
+            </Button>
+            <Button onClick={aoSelecionar}>Selecionar combo</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function DisponibilidadeClient({
   inicial,
   todasSalas,
   combos,
-  hoje,
+  dataMin,
   dataMax,
   filtroInicial,
   prefill,
@@ -200,7 +284,8 @@ export function DisponibilidadeClient({
   inicial: DisponibilidadeDia;
   todasSalas: SalaFiltro[];
   combos: ComboAplicavel[];
-  hoje: string;
+  /** Primeiro dia selecionável (amanhã — não permitimos o mesmo dia). */
+  dataMin: string;
   dataMax: string;
   filtroInicial: { salaIds: string[]; cap: number };
   prefill: { nome: string; contato: string };
@@ -217,7 +302,10 @@ export function DisponibilidadeClient({
     chip: ChipPeriodo;
   } | null>(null);
   const [detalhe, setDetalhe] = useState<SalaDisponibilidade | null>(null);
+  const [comboDetalhe, setComboDetalhe] = useState<ComboAplicavel | null>(null);
   const primeira = useRef(true);
+
+  const salaNome = new Map(todasSalas.map((s) => [s.id, s.nome]));
 
   // Refetch + sincroniza a URL a cada mudança de data/filtros.
   useEffect(() => {
@@ -249,7 +337,7 @@ export function DisponibilidadeClient({
     };
   }, [data, salaIds, cap]);
 
-  const noPassado = data <= hoje;
+  const noPassado = data <= dataMin;
   const noFuturo = data >= dataMax;
 
   function clicarChip(sala: SalaDisponibilidade, chip: ChipPeriodo) {
@@ -296,7 +384,7 @@ export function DisponibilidadeClient({
               <DatePicker
                 value={data}
                 onChange={setData}
-                dataMin={hoje}
+                dataMin={dataMin}
                 dataMax={dataMax}
               />
             </div>
@@ -394,9 +482,7 @@ export function DisponibilidadeClient({
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() =>
-                    router.push(`/locacoes/nova?combo=${c.id}&data=${data}`)
-                  }
+                  onClick={() => setComboDetalhe(c)}
                   className="flex flex-col gap-0.5 rounded-lg border border-input p-3 text-left transition-colors hover:border-brand hover:bg-brand/5"
                 >
                   <span className="font-medium text-ink">{c.nome}</span>
@@ -522,6 +608,17 @@ export function DisponibilidadeClient({
 
       {detalhe ? (
         <SalaDetalheDialog sala={detalhe} aoFechar={() => setDetalhe(null)} />
+      ) : null}
+
+      {comboDetalhe ? (
+        <ComboDetalheDialog
+          combo={comboDetalhe}
+          salaNome={salaNome}
+          aoSelecionar={() =>
+            router.push(`/locacoes/nova?combo=${comboDetalhe.id}&data=${data}`)
+          }
+          aoFechar={() => setComboDetalhe(null)}
+        />
       ) : null}
     </div>
   );
