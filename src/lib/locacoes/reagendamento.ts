@@ -6,10 +6,11 @@ import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
 import { avaliarBeneficioReagendamento } from "@/lib/periodo-gratuito/consumo";
 import { resolverPreco } from "@/lib/precos/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidarComboReagendamento } from "./combos-dados";
 import { descreverConflitoAgenda } from "./dados";
 import { podeReagendar, type StatusLocacao } from "./maquina-estados-core";
 
-export type ResultadoReagendamento = { ok: true } | { erro: string };
+export type ResultadoReagendamento = { ok: true; aviso?: string } | { erro: string };
 
 export interface ReagendarInput {
   locacaoId: string;
@@ -39,7 +40,7 @@ export async function reagendarLocacao(
   const { data: loc } = await admin
     .from("locacoes")
     .select(
-      `id, status, condicao, associado_id, inicio, fim, periodo,
+      `id, status, condicao, associado_id, combo_id, inicio, fim, periodo,
        valor_coffee_centavos, valor_adicionais_centavos, valor_descontos_centavos`,
     )
     .eq("id", input.locacaoId)
@@ -90,9 +91,35 @@ export async function reagendarLocacao(
     valorSalas += preco.valorCentavos;
   }
 
-  // Revalida o período gratuito para a nova sala/data/período (Spec 20 §5.3).
+  // Revalida o combo (Spec 20 §3): pode mudar salas/valores; se não couber, cai.
+  let comboIdFinal: string | null = null;
+  let comboAviso: string | undefined;
+  let salasParaRpc = salasComValor;
+  let valorSalasFinal = valorSalas;
+  let descontosCombo = 0;
+  if (loc.combo_id) {
+    const rc = await revalidarComboReagendamento({
+      comboId: loc.combo_id as string,
+      condicao,
+      associadoId: (loc.associado_id as string | null) ?? null,
+      salaIds: input.salaIds,
+      periodo: input.periodo,
+      salasComValor,
+    });
+    if (rc.aplicado) {
+      comboIdFinal = loc.combo_id as string;
+      salasParaRpc = rc.salas;
+      valorSalasFinal = rc.valorSalas;
+      descontosCombo = rc.descontosCentavos;
+    } else {
+      comboAviso =
+        "O combo não é mais válido para esta data/sala/período — o valor foi recalculado sem ele.";
+    }
+  }
+
+  // Período gratuito só quando NÃO há combo (são exclusivos — Spec 20 §3).
   const beneficio =
-    input.salaIds.length === 1
+    !loc.combo_id && input.salaIds.length === 1
       ? await avaliarBeneficioReagendamento({
           associadoId: (loc.associado_id as string | null) ?? null,
           condicao,
@@ -103,10 +130,10 @@ export async function reagendarLocacao(
           salaValorCentavos: salasComValor[0]?.valor ?? 0,
         })
       : null;
-  const descontos = beneficio ? beneficio.descontoCentavos : 0;
+  const descontos = descontosCombo + (beneficio ? beneficio.descontoCentavos : 0);
 
   const valorTotal =
-    valorSalas +
+    valorSalasFinal +
     (loc.valor_coffee_centavos as number) +
     (loc.valor_adicionais_centavos as number) -
     descontos;
@@ -122,7 +149,7 @@ export async function reagendarLocacao(
       fim: fimUtc,
       periodo: input.periodo,
       salas: input.salaIds,
-      valor_salas_centavos: valorSalas,
+      valor_salas_centavos: valorSalasFinal,
       valor_total_centavos: valorTotal,
     },
   };
@@ -141,8 +168,8 @@ export async function reagendarLocacao(
     p_inicio: inicioUtc,
     p_fim: fimUtc,
     p_periodo: input.periodo,
-    p_salas: salasComValor,
-    p_valor_salas: valorSalas,
+    p_salas: salasParaRpc,
+    p_valor_salas: valorSalasFinal,
     p_valor_total: valorTotal,
     p_autor: user.id,
     p_dados: dados,
@@ -166,6 +193,14 @@ export async function reagendarLocacao(
     };
   }
 
+  // Combo revalidado (Spec 20 §3): mantém o vínculo ou o zera se caiu do desenho.
+  if (loc.combo_id) {
+    await admin
+      .from("locacoes")
+      .update({ combo_id: comboIdFinal })
+      .eq("id", input.locacaoId);
+  }
+
   // Reagendou → espelho no Google precisa atualizar data/horário/salas (Spec 18).
   const { marcarLocacaoPendente } = await import("@/lib/google/marcar");
   await marcarLocacaoPendente(input.locacaoId);
@@ -173,5 +208,5 @@ export async function reagendarLocacao(
   revalidatePath("/admin/locacoes");
   revalidatePath(`/admin/locacoes/${input.locacaoId}`);
   revalidatePath("/admin/calendario");
-  return { ok: true };
+  return { ok: true, aviso: comboAviso };
 }

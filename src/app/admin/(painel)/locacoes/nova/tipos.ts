@@ -1,4 +1,5 @@
 import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
+import type { ComboInfo } from "@/lib/locacoes/calcular";
 import type { FormaPagamento } from "@/lib/locacoes/tipos";
 
 /** Tipos compartilhados server ↔ client do fluxo de criação assistida (Spec 07). */
@@ -46,6 +47,7 @@ export interface ResumoValores {
   descontosCentavos: number;
   descontos: { rotulo: string; valorCentavos: number }[];
   periodoGratuito: PeriodoGratuitoResumo | null;
+  combo: ComboInfo | null;
   totalCentavos: number;
 }
 
@@ -88,4 +90,6 @@ export interface CriarLocacaoPayload {
   filaEsperaId?: string | null;
   /** Sócio recusou o período gratuito nesta reserva (Spec 20 §5.3). */
   periodoGratuitoRecusado?: boolean;
+  /** Combo selecionado (Spec 20 §3). */
+  comboId?: string | null;
 }

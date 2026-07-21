@@ -175,6 +175,22 @@ export async function carregarLocacao(
     .maybeSingle();
   if (!loc) return null;
 
+  let combo: { id: string; nome: string; tipo: string } | null = null;
+  if (loc.combo_id) {
+    const { data: comboRow } = await admin
+      .from("combos")
+      .select("id, nome, tipo")
+      .eq("id", loc.combo_id)
+      .maybeSingle();
+    if (comboRow) {
+      combo = {
+        id: comboRow.id as string,
+        nome: comboRow.nome as string,
+        tipo: comboRow.tipo as string,
+      };
+    }
+  }
+
   const [
     { data: salasRows },
     { data: adicionaisRows },
@@ -367,6 +383,7 @@ export async function carregarLocacao(
     valorDescontosCentavos: loc.valor_descontos_centavos,
     valorTotalCentavos: loc.valor_total_centavos,
     periodoGratuitoAplicado: loc.periodo_gratuito_aplicado,
+    combo,
     salas,
     adicionais,
     eventos,

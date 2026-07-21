@@ -166,6 +166,7 @@ export async function calcularResumoAction(input: {
   adicionais: { quantidade: number; valorUnitarioCentavos: number }[];
   associadoId?: string | null;
   periodoGratuitoRecusado?: boolean;
+  comboId?: string | null;
 }): Promise<ResumoValores> {
   await requireColaborador();
 
@@ -173,6 +174,7 @@ export async function calcularResumoAction(input: {
     ...input,
     associadoId: input.condicao === "associado" ? input.associadoId : null,
     periodoGratuitoRecusado: input.periodoGratuitoRecusado,
+    comboId: input.condicao === "associado" ? input.comboId : null,
   });
 
   const admin = createAdminClient();
@@ -196,6 +198,7 @@ export async function calcularResumoAction(input: {
     descontosCentavos: calc.descontosCentavos,
     descontos: calc.descontos,
     periodoGratuito: calc.periodoGratuito,
+    combo: calc.combo,
     totalCentavos: calc.totalCentavos,
   };
 }
@@ -280,7 +283,23 @@ export async function criarLocacaoAssistida(
     adicionais: v.adicionais,
     associadoId: v.condicao === "associado" ? v.associadoId : null,
     periodoGratuitoRecusado: v.periodoGratuitoRecusado,
+    comboId: v.condicao === "associado" ? v.comboId : null,
   });
+
+  // Combo (Spec 20 §3): exclusivo de sócio; recalculado no servidor — se o
+  // payload trouxe combo inelegível, rejeita (nunca aplica desconto forjado).
+  if (v.comboId) {
+    if (v.condicao !== "associado") {
+      return { error: "Combos são exclusivos de associados." };
+    }
+    if (!calc.combo?.aplicado) {
+      return {
+        error:
+          "O combo selecionado não é válido para esta seleção. Revise salas, data e período.",
+      };
+    }
+  }
+
   if (calc.salasSemPreco.length > 0) {
     const nomes = (salas ?? []).filter((s) =>
       calc.salasSemPreco.includes(s.id as string),
@@ -359,6 +378,11 @@ export async function criarLocacaoAssistida(
     };
   }
   const id = novoId as string;
+
+  // Vínculo do combo (metadado): best-effort pós-insert (Spec 20 §3).
+  if (calc.combo?.aplicado) {
+    await admin.from("locacoes").update({ combo_id: calc.combo.id }).eq("id", id);
+  }
 
   // (6) Criar e aprovar: falha de aprovação NÃO desfaz a criação.
   let aprovacaoErro: string | undefined;
