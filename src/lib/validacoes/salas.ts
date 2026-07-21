@@ -83,6 +83,10 @@ export const comboSchema = z
     salas: z
       .array(z.object({ salaId: z.uuid(), aplicaDesconto: z.boolean() }))
       .default([]),
+    /** Coffee break obrigatório do multi-sala (opcional) — Spec 26. */
+    coffeeNivelId: z.uuid().nullable().default(null),
+    /** Exige QUALQUER coffee (sem fixar nível) — Spec 26. */
+    coffeeQualquer: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
     if (v.tipo === "desconto_multi_sala") {

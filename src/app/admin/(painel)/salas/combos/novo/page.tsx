@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { requireColaborador } from "@/lib/auth/guards";
+import { listarNiveis } from "@/lib/coffee/dados";
 import { parseDaterange } from "@/lib/precos/resolver-core";
 import { createClient } from "@/lib/supabase/server";
 import { ComboForm, type PrecosPorSala } from "../../combo-form";
@@ -13,7 +14,7 @@ export default async function NovoComboPage() {
   await requireColaborador();
   const supabase = await createClient();
 
-  const [{ data: salas }, { data: precos }] = await Promise.all([
+  const [{ data: salas }, { data: precos }, niveis] = await Promise.all([
     supabase
       .from("salas")
       .select("id, nome")
@@ -25,7 +26,9 @@ export default async function NovoComboPage() {
       .from("precos_sala")
       .select("sala_id, periodo, valor_centavos, indisponivel, vigencia")
       .eq("condicao", "associado"),
+    listarNiveis(true),
   ]);
+  const coffeeNiveis = niveis.map((n) => ({ id: n.id, nome: n.nome }));
 
   const hoje = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -57,6 +60,7 @@ export default async function NovoComboPage() {
         modo="criar"
         salasDisponiveis={salas ?? []}
         precosPorSala={precosPorSala}
+        coffeeNiveis={coffeeNiveis}
       />
     </div>
   );

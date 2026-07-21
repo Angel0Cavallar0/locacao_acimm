@@ -10,7 +10,8 @@ export type MotivoComboInelegivel =
   | "combo_inativo"
   | "salas_incompletas"
   | "periodo_incompativel"
-  | "salas_faltando_privativo";
+  | "salas_faltando_privativo"
+  | "coffee_faltando";
 
 export interface EntradaElegibilidadeCombo {
   condicao: string; // 'associado' | 'nao_associado'
@@ -22,6 +23,12 @@ export interface EntradaElegibilidadeCombo {
   todasSalasAtivasIds: string[]; // p/ evento_privativo
   comboPeriodo: string | null;
   periodo: string;
+  /** Nível de coffee obrigatório do combo (multi-sala), ou null (Spec 26). */
+  comboCoffeeNivelId?: string | null;
+  /** Combo exige qualquer coffee (sem fixar nível) — Spec 26. */
+  comboCoffeeQualquer?: boolean;
+  /** Nível de coffee incluído na reserva, ou null. */
+  coffeeNivelIdSelecionado?: string | null;
 }
 
 export interface ResultadoElegibilidadeCombo {
@@ -64,6 +71,22 @@ export function avaliarElegibilidadeCombo(
   }
   if (e.comboPeriodo && e.periodo !== e.comboPeriodo) {
     return { elegivel: false, motivo: "periodo_incompativel" };
+  }
+  // Coffee obrigatório (Spec 26). Dois modos:
+  //  - nível específico: a reserva precisa incluir exatamente esse nível;
+  //  - qualquer: basta incluir ALGUM coffee break.
+  if (
+    e.comboCoffeeNivelId &&
+    e.coffeeNivelIdSelecionado !== e.comboCoffeeNivelId
+  ) {
+    return { elegivel: false, motivo: "coffee_faltando" };
+  }
+  if (
+    !e.comboCoffeeNivelId &&
+    e.comboCoffeeQualquer &&
+    !e.coffeeNivelIdSelecionado
+  ) {
+    return { elegivel: false, motivo: "coffee_faltando" };
   }
   return { elegivel: true };
 }
