@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
 import { spWallParaUtc, utcParaNaiveSP } from "@/lib/calendario/tempo";
+import { validarRespostasFormulario } from "@/lib/formulario/validacao";
 import { calcularValores } from "@/lib/locacoes/calcular";
 import { transicionarLocacao } from "@/lib/locacoes/maquina-estados";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -309,6 +310,12 @@ export async function criarLocacaoAssistida(
     };
   }
 
+  // Respostas do formulário dinâmico validadas contra os campos ATIVOS (§4).
+  const respForm = await validarRespostasFormulario(v.respostasFormulario);
+  if (!respForm.ok) {
+    return { error: respForm.erro };
+  }
+
   // (5) Insere tudo numa transação (RPC).
   const coffeePayload = v.coffee
     ? {
@@ -348,7 +355,7 @@ export async function criarLocacaoAssistida(
     p_qtd_pessoas: v.qtdPessoas,
     p_tipo_evento: v.tipoEvento,
     p_observacoes: v.observacoes,
-    p_respostas: v.respostasFormulario,
+    p_respostas: respForm.valores,
     p_forma: v.formaPagamento,
     p_valor_salas: calc.salasCentavos,
     p_valor_coffee: calc.coffeeCentavos,

@@ -6,6 +6,7 @@ import {
   DollarSign,
   DoorOpen,
   FileText,
+  FormInput,
   LayoutDashboard,
   ListOrdered,
   type LucideIcon,
@@ -32,6 +33,11 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/admin/contratos", label: "Contratos", icon: FileText },
   { href: "/admin/comissoes", label: "Comissões", icon: DollarSign },
   { href: "/admin/lista-espera", label: "Lista de Espera", icon: ListOrdered },
+  {
+    href: "/admin/configuracoes/formulario",
+    label: "Formulário",
+    icon: FormInput,
+  },
   {
     href: "/admin/configuracoes",
     label: "Configurações",

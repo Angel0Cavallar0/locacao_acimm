@@ -16,6 +16,7 @@ import {
   type LinhaDesconto,
   type PeriodoGratuitoInfo,
 } from "@/lib/locacoes/calcular";
+import { validarRespostasFormulario } from "@/lib/formulario/validacao";
 import { dispararEfeitos } from "@/lib/locacoes/efeitos";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
 import type { HorariosPeriodos } from "@/lib/locacoes/horarios";
@@ -320,6 +321,14 @@ export async function criarSolicitacao(
     return { error: "Data fora do período disponível para solicitação." };
   }
 
+  // Respostas do formulário dinâmico validadas contra os campos ATIVOS agora
+  // (Spec 22 §4): tipo/obrigatório/opção conferidos; chaves estranhas descartadas.
+  // Corrida edição×submit termina aqui em erro amigável, nunca em dado ruim.
+  const respForm = await validarRespostasFormulario(v.respostasFormulario);
+  if (!respForm.ok) {
+    return { error: respForm.erro };
+  }
+
   const admin = createAdminClient();
 
   // (1a) Limite de 5 solicitações abertas por associado.
@@ -469,7 +478,7 @@ export async function criarSolicitacao(
     p_qtd_pessoas: v.qtdPessoas,
     p_tipo_evento: v.tipoEvento,
     p_observacoes: v.observacoes,
-    p_respostas: v.respostasFormulario,
+    p_respostas: respForm.valores,
     p_forma: v.formaPagamento,
     p_valor_salas: calc.salasCentavos,
     p_valor_coffee: calc.coffeeCentavos,

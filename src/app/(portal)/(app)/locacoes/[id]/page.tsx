@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { requireAssociado } from "@/lib/auth/guards";
 import { dataSP, horaSP } from "@/lib/calendario/tempo";
 import { parsearDadosPagamento } from "@/lib/contratos/tipos";
+import { resolverRespostasFormulario } from "@/lib/formulario/campos-core";
+import { todosCamposDef } from "@/lib/formulario/dados";
 import {
   grupoStatus,
   STATUS_ROTULO,
@@ -64,9 +66,14 @@ export default async function LocacaoAssociadoPage({
   const contatoTexto = contatos.length > 0 ? contatos.join(" · ") : null;
   const dadosPagamento = parsearDadosPagamento(cfgMap.get("dados_pagamento"));
 
-  const respostas = Object.entries(loc.respostasFormulario).filter(
-    ([, v]) => typeof v === "string" && v.trim().length > 0,
-  ) as [string, string][];
+  // Respostas chaveadas por id → rótulo ATUAL do campo (Spec 22 §3).
+  const respostas =
+    Object.keys(loc.respostasFormulario).length > 0
+      ? resolverRespostasFormulario(
+          await todosCamposDef(),
+          loc.respostasFormulario,
+        )
+      : [];
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
@@ -184,10 +191,10 @@ export default async function LocacaoAssociadoPage({
           ) : null}
           {respostas.length > 0 ? (
             <dl className="grid gap-2 border-t pt-3 text-sm sm:grid-cols-2">
-              {respostas.map(([k, v]) => (
-                <div key={k}>
-                  <dt className="text-xs text-ink-muted">{k}</dt>
-                  <dd className="text-ink">{v}</dd>
+              {respostas.map((r) => (
+                <div key={r.id}>
+                  <dt className="text-xs text-ink-muted">{r.rotulo}</dt>
+                  <dd className="text-ink">{r.valor}</dd>
                 </div>
               ))}
             </dl>

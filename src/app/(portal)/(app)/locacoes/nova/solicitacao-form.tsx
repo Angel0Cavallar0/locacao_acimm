@@ -20,6 +20,10 @@ import {
   CamposDinamicos,
   type CampoDinamico,
 } from "@/components/locacoes/campos-dinamicos";
+import {
+  type RespostaValor,
+  respostaVazia,
+} from "@/lib/formulario/campos-core";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -174,7 +178,7 @@ export function SolicitacaoForm({
   const [qtdPessoas, setQtdPessoas] = useState("");
   const [tipoEvento, setTipoEvento] = useState("");
   const [observacoes, setObservacoes] = useState("");
-  const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [respostas, setRespostas] = useState<Record<string, RespostaValor>>({});
 
   // Etapa 4 — coffee
   const [coffeeIncluir, setCoffeeIncluir] = useState(false);
@@ -338,7 +342,7 @@ export function SolicitacaoForm({
   }
 
   const camposObrigatoriosPendentes = campos.some(
-    (c) => c.obrigatorio && !(respostas[c.rotulo] ?? "").trim(),
+    (c) => c.obrigatorio && respostaVazia(c.tipo, respostas[c.id]),
   );
 
   function podeAvancar(): boolean {
@@ -869,8 +873,8 @@ export function SolicitacaoForm({
             <CamposDinamicos
               campos={campos}
               valores={respostas}
-              onChange={(rotulo, valor) =>
-                setRespostas((r) => ({ ...r, [rotulo]: valor }))
+              onChange={(id, valor) =>
+                setRespostas((r) => ({ ...r, [id]: valor }))
               }
             />
           </CardContent>

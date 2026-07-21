@@ -1,4 +1,11 @@
-import { CalendarClock, Cable, FileSignature, Gift, Users } from "lucide-react";
+import {
+  CalendarClock,
+  Cable,
+  FileSignature,
+  FormInput,
+  Gift,
+  Users,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,6 +106,25 @@ export default async function ConfiguracoesPage() {
               <h3 className="text-sm font-medium text-ink">Período gratuito</h3>
               <p className="text-xs text-ink-muted">
                 Benefício do sócio por sala (períodos e usos por ciclo).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+
+      <Link href="/admin/configuracoes/formulario" className="block">
+        <Card className="transition-colors hover:bg-surface-muted">
+          <CardContent className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-md bg-brand/10 text-brand">
+              <FormInput className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-ink">
+                Formulário de solicitação
+              </h3>
+              <p className="text-xs text-ink-muted">
+                Campos extras que o associado responde (criar, ordenar,
+                desativar).
               </p>
             </div>
           </CardContent>

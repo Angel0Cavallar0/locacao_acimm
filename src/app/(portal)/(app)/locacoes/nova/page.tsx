@@ -12,6 +12,7 @@ import {
 import type { ContatoAcimm } from "@/lib/disponibilidade/tipos";
 import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
 import { parsearFaixas } from "@/lib/coffee/faixas-core";
+import { camposAtivos } from "@/lib/formulario/dados";
 import type { PeriodoDia } from "@/lib/dominio";
 import { listarCombosAplicaveis } from "@/lib/locacoes/combos-dados";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -39,18 +40,14 @@ export default async function NovaSolicitacaoPage({
   const sp = await searchParams;
   const admin = createAdminClient();
 
-  const [todasSalas, niveisRes, camposRes, cfgRes, combos] = await Promise.all([
+  const [todasSalas, niveisRes, campos, cfgRes, combos] = await Promise.all([
     listarSalasAtivas(),
     admin
       .from("coffee_niveis")
       .select("id, nome, faixas_preco, adicionais")
       .eq("ativo", true)
       .order("ordem", { ascending: true }),
-    admin
-      .from("campos_formulario")
-      .select("id, rotulo, tipo, opcoes, obrigatorio")
-      .eq("ativo", true)
-      .order("ordem", { ascending: true }),
+    camposAtivos(),
     admin
       .from("configuracoes")
       .select("valor")
@@ -113,13 +110,7 @@ export default async function NovaSolicitacaoPage({
         faixas: parsearFaixas(n.faixas_preco),
         adicionais: parsearAdicionaisCoffee(n.adicionais),
       }))}
-      campos={(camposRes.data ?? []).map((c) => ({
-        id: c.id,
-        rotulo: c.rotulo,
-        tipo: c.tipo,
-        opcoes: (c.opcoes as string[]) ?? [],
-        obrigatorio: c.obrigatorio,
-      }))}
+      campos={campos}
       associado={{
         nome: associado.razao_social ?? associado.nome,
         documento: associado.documento ?? "",
