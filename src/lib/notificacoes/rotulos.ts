@@ -30,6 +30,7 @@ export const TEMPLATE_ROTULO: Record<string, string> = {
   interna_nova_solicitacao: "Interna: nova solicitação",
   interna_comprovante_recebido: "Interna: comprovante recebido",
   interna_vaga_liberada: "Interna: vaga liberada",
+  interna_comissao_estornada: "Interna: comissão estornada",
 };
 
 export function rotuloTemplate(t: string): string {

@@ -481,6 +481,40 @@ export async function notificarVagasLocacao(locacaoId: string): Promise<void> {
   }
 }
 
+/**
+ * Comissão já exportada foi estornada (Spec 21 §4). Só e-mail interno à ACIMM —
+ * é ajuste para a equipe lançar de volta no controle dela. Config vazia → skip.
+ */
+export async function notificarComissaoEstornada(
+  locacaoId: string,
+  qtd: number,
+): Promise<void> {
+  const admin = createAdminClient();
+  const interno = await contatoInterno(admin);
+  if (!interno) return;
+
+  const { data: loc } = await admin
+    .from("locacoes")
+    .select("numero, locatario_nome")
+    .eq("id", locacaoId)
+    .maybeSingle();
+  if (!loc) return;
+
+  await enfileirar(admin, locacaoId, [
+    {
+      canal: "email",
+      destinatario: interno,
+      template: "interna_comissao_estornada",
+      payload: {
+        loc: rot(loc.numero as number),
+        nome: (loc.locatario_nome as string) ?? "—",
+        qtd: String(qtd),
+        linkAdmin: `${envCore.APP_URL}/admin/comissoes?status=estornadas_exportadas`,
+      },
+    },
+  ]);
+}
+
 /** Texto de instrução por forma de pagamento (usa `dados_pagamento`). */
 function textoInstrucoes(
   forma: FormaPagamento | null,

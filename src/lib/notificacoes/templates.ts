@@ -229,4 +229,17 @@ export const templates: Record<string, TemplateBuilders> = {
       ),
     }),
   },
+
+  // Comissão já exportada foi estornada (Spec 21 §4): a ACIMM precisa lançar o
+  // ajuste de volta no controle dela. Só e-mail interno.
+  interna_comissao_estornada: {
+    email: (p) => ({
+      assunto: `Comissão estornada após exportação — ${s(p, "loc")}`,
+      html: moldura(
+        `${par(`Uma locação já exportada foi cancelada e ${s(p, "qtd", "1")} comissão(ões) da <strong>${s(p, "loc")}</strong> foram estornadas.`)}
+         ${nota(`Locatário: ${s(p, "nome", "—")}.<br>Como já constavam em um CSV exportado, lance o ajuste de volta no seu controle.`)}
+         ${botaoPortal(s(p, "linkAdmin"), "Ver comissões estornadas")}`,
+      ),
+    }),
+  },
 };

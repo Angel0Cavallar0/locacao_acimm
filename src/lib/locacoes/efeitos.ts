@@ -129,6 +129,20 @@ const devolverGratuito: EfeitoFn = async (ctx) => {
 };
 
 /**
+ * Comissões (Spec 21). Import DINÂMICO (mesmo motivo dos demais efeitos):
+ * `confirmada` gera as comissões devidas; `cancelada` estorna as vivas. Ambos
+ * idempotentes/no-op quando não há o que fazer.
+ */
+const gerarComissoes: EfeitoFn = async (ctx) => {
+  const { gerarComissoesConfirmada } = await import("@/lib/comissoes/geracao");
+  await gerarComissoesConfirmada(ctx.locacaoId);
+};
+const estornarComissoes: EfeitoFn = async (ctx) => {
+  const { estornarComissoesLocacao } = await import("@/lib/comissoes/geracao");
+  await estornarComissoesLocacao(ctx.locacaoId);
+};
+
+/**
  * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
  * pelo associado), reflete no `contratos.status` para o portal mostrar
  * "Assinado" (revisão Spec 13).
@@ -147,7 +161,7 @@ export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   contrato_enviado: [logar("contrato_enviado"), notif.contratoEnviado],
   contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   aguardando_pagamento: [logar("aguardando_pagamento"), criarPagamentos],
-  confirmada: [logar("confirmada"), notif.confirmada, marcarGoogle],
+  confirmada: [logar("confirmada"), notif.confirmada, marcarGoogle, gerarComissoes],
   recusada: [
     logar("recusada"),
     notif.recusada,
@@ -161,6 +175,7 @@ export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
     marcarGoogle,
     liberarVaga,
     devolverGratuito,
+    estornarComissoes,
   ],
 };
 
