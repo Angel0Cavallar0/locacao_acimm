@@ -98,6 +98,13 @@ export async function reagendarLocacao(
   let valorSalasFinal = valorSalas;
   let descontosCombo = 0;
   if (loc.combo_id) {
+    // Coffee da locação (não muda no reagendamento) — Spec 26: se o combo exige
+    // um coffee, ele continua satisfeito enquanto o mesmo coffee estiver na loc.
+    const { data: cb } = await admin
+      .from("coffee_breaks")
+      .select("nivel_id")
+      .eq("locacao_id", input.locacaoId)
+      .maybeSingle();
     const rc = await revalidarComboReagendamento({
       comboId: loc.combo_id as string,
       condicao,
@@ -105,6 +112,7 @@ export async function reagendarLocacao(
       salaIds: input.salaIds,
       periodo: input.periodo,
       salasComValor,
+      coffeeNivelIdSelecionado: (cb?.nivel_id as string | null) ?? null,
     });
     if (rc.aplicado) {
       comboIdFinal = loc.combo_id as string;

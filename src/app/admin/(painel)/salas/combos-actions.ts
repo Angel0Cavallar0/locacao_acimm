@@ -34,6 +34,9 @@ function linhasCombo(id: string, input: ComboInput) {
         input.tipo === "assinatura_mensal" || input.tipo === "evento_privativo"
           ? input.periodo
           : null,
+      // Coffee obrigatório só no multi-sala (Spec 26).
+      coffee_nivel_id:
+        input.tipo === "desconto_multi_sala" ? input.coffeeNivelId : null,
     },
     salas:
       input.tipo === "evento_privativo"

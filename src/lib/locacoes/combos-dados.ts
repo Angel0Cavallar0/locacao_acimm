@@ -27,6 +27,9 @@ export interface ComboAplicavel {
   salaIdsObrigatorias: string[];
   /** Salas que recebem desconto (multi-sala). */
   salaIdsComDesconto: string[];
+  /** Coffee break obrigatório do combo (multi-sala), ou null (Spec 26). */
+  coffeeNivelId: string | null;
+  coffeeNivelNome: string | null;
 }
 
 export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
@@ -36,7 +39,7 @@ export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
     admin
       .from("combos")
       .select(
-        "id, nome, descricao, tipo, periodo, tipo_desconto, desconto_valor, valor_centavos",
+        "id, nome, descricao, tipo, periodo, tipo_desconto, desconto_valor, valor_centavos, coffee_nivel_id",
       )
       .eq("ativo", true)
       .in("tipo", ["desconto_multi_sala", "evento_privativo"])
@@ -57,10 +60,26 @@ export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
     tipo_desconto: "percentual" | "valor" | null;
     desconto_valor: number | null;
     valor_centavos: number | null;
+    coffee_nivel_id: string | null;
   }[];
   if (combos.length === 0) return [];
 
   const todasAtivas = ((salasRows ?? []) as { id: string }[]).map((s) => s.id);
+
+  // Nomes dos níveis de coffee vinculados (para exibir "Inclui Coffee Break Z").
+  const nivelIds = [
+    ...new Set(combos.map((c) => c.coffee_nivel_id).filter(Boolean)),
+  ] as string[];
+  const nomeNivel = new Map<string, string>();
+  if (nivelIds.length > 0) {
+    const { data: niveisRows } = await admin
+      .from("coffee_niveis")
+      .select("id, nome")
+      .in("id", nivelIds);
+    for (const n of (niveisRows ?? []) as { id: string; nome: string }[]) {
+      nomeNivel.set(n.id, n.nome);
+    }
+  }
 
   const { data: vinculos } = await admin
     .from("combo_salas")
@@ -100,6 +119,10 @@ export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
       salaIdsComDesconto: salas
         .filter((s) => s.aplica_desconto)
         .map((s) => s.sala_id),
+      coffeeNivelId: c.coffee_nivel_id,
+      coffeeNivelNome: c.coffee_nivel_id
+        ? (nomeNivel.get(c.coffee_nivel_id) ?? null)
+        : null,
     };
   });
 }
@@ -126,6 +149,8 @@ export async function revalidarComboReagendamento(input: {
   salaIds: string[];
   periodo: string;
   salasComValor: { sala_id: string; valor: number }[];
+  /** Coffee da locação (não muda no reagendamento) — Spec 26. */
+  coffeeNivelIdSelecionado: string | null;
 }): Promise<RevalidacaoCombo> {
   const admin = createAdminClient();
   const [
@@ -136,7 +161,9 @@ export async function revalidarComboReagendamento(input: {
   ] = await Promise.all([
     admin
       .from("combos")
-      .select("tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo")
+      .select(
+        "tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo, coffee_nivel_id",
+      )
       .eq("id", input.comboId)
       .maybeSingle(),
     admin.from("combo_salas").select("sala_id, aplica_desconto").eq("combo_id", input.comboId),
@@ -167,6 +194,8 @@ export async function revalidarComboReagendamento(input: {
     todasSalasAtivasIds: todasAtivas,
     comboPeriodo: (comboRow.periodo as string | null) ?? null,
     periodo: input.periodo,
+    comboCoffeeNivelId: (comboRow.coffee_nivel_id as string | null) ?? null,
+    coffeeNivelIdSelecionado: input.coffeeNivelIdSelecionado,
   });
   if (!aval.elegivel) return { aplicado: false };
 

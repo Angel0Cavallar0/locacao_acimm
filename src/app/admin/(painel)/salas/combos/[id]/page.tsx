@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
 import { requireColaborador } from "@/lib/auth/guards";
+import { listarNiveis } from "@/lib/coffee/dados";
 import { parseDaterange } from "@/lib/precos/resolver-core";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -23,31 +24,38 @@ export default async function EditarComboPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: combo }, { data: comboSalas }, { data: salas }, { data: precos }] =
-    await Promise.all([
-      supabase
-        .from("combos")
-        .select(
-          "id, nome, descricao, tipo, tipo_desconto, desconto_valor, valor_centavos, dias_no_mes, periodo",
-        )
-        .eq("id", id)
-        .maybeSingle(),
-      supabase
-        .from("combo_salas")
-        .select("sala_id, aplica_desconto")
-        .eq("combo_id", id),
-      supabase
-        .from("salas")
-        .select("id, nome")
-        .eq("ativa", true)
-        .is("excluida_em", null)
-        .order("ordem", { ascending: true })
-        .order("nome", { ascending: true }),
-      supabase
-        .from("precos_sala")
-        .select("sala_id, periodo, valor_centavos, indisponivel, vigencia")
-        .eq("condicao", "associado"),
-    ]);
+  const [
+    { data: combo },
+    { data: comboSalas },
+    { data: salas },
+    { data: precos },
+    niveis,
+  ] = await Promise.all([
+    supabase
+      .from("combos")
+      .select(
+        "id, nome, descricao, tipo, tipo_desconto, desconto_valor, valor_centavos, dias_no_mes, periodo, coffee_nivel_id",
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("combo_salas")
+      .select("sala_id, aplica_desconto")
+      .eq("combo_id", id),
+    supabase
+      .from("salas")
+      .select("id, nome")
+      .eq("ativa", true)
+      .is("excluida_em", null)
+      .order("ordem", { ascending: true })
+      .order("nome", { ascending: true }),
+    supabase
+      .from("precos_sala")
+      .select("sala_id, periodo, valor_centavos, indisponivel, vigencia")
+      .eq("condicao", "associado"),
+    listarNiveis(true),
+  ]);
+  const coffeeNiveis = niveis.map((n) => ({ id: n.id, nome: n.nome }));
 
   if (!combo) notFound();
 
@@ -79,6 +87,7 @@ export default async function EditarComboPage({
       salaId: s.sala_id,
       aplicaDesconto: s.aplica_desconto,
     })),
+    coffeeNivelId: combo.coffee_nivel_id ?? null,
   };
 
   return (
@@ -97,6 +106,7 @@ export default async function EditarComboPage({
         modo="editar"
         salasDisponiveis={salas ?? []}
         precosPorSala={precosPorSala}
+        coffeeNiveis={coffeeNiveis}
         combo={dados}
       />
     </div>

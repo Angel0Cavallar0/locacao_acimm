@@ -161,3 +161,51 @@ test("evento_privativo exige todas as salas ativas", () => {
     "salas_faltando_privativo",
   );
 });
+
+// --- coffee obrigatório (Spec 26) ------------------------------------------
+
+test("combo sem coffee vinculado ignora o coffee da reserva", () => {
+  assert.equal(
+    avaliarElegibilidadeCombo(base({ coffeeNivelIdSelecionado: null })).elegivel,
+    true,
+  );
+  assert.equal(
+    avaliarElegibilidadeCombo(base({ coffeeNivelIdSelecionado: "qualquer" })).elegivel,
+    true,
+  );
+});
+
+test("combo com coffee obrigatório: sem coffee → coffee_faltando", () => {
+  const r = avaliarElegibilidadeCombo(
+    base({ comboCoffeeNivelId: "ouro", coffeeNivelIdSelecionado: null }),
+  );
+  assert.equal(r.motivo, "coffee_faltando");
+});
+
+test("combo com coffee obrigatório: nível errado → coffee_faltando", () => {
+  const r = avaliarElegibilidadeCombo(
+    base({ comboCoffeeNivelId: "ouro", coffeeNivelIdSelecionado: "prata" }),
+  );
+  assert.equal(r.motivo, "coffee_faltando");
+});
+
+test("combo com coffee obrigatório: nível certo → elegível", () => {
+  assert.equal(
+    avaliarElegibilidadeCombo(
+      base({ comboCoffeeNivelId: "ouro", coffeeNivelIdSelecionado: "ouro" }),
+    ).elegivel,
+    true,
+  );
+});
+
+test("coffee obrigatório só checa após salas/período", () => {
+  // Salas incompletas têm prioridade sobre o coffee.
+  const r = avaliarElegibilidadeCombo(
+    base({
+      salasSelecionadas: ["cinza"],
+      comboCoffeeNivelId: "ouro",
+      coffeeNivelIdSelecionado: null,
+    }),
+  );
+  assert.equal(r.motivo, "salas_incompletas");
+});

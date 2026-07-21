@@ -60,6 +60,8 @@ export interface ComboInfo {
   periodo: string | null;
   /** evento_privativo: soma do resolverPreco (referência p/ mostrar a economia). */
   referenciaCentavos?: number;
+  /** Coffee break obrigatório do combo (multi-sala), ou null (Spec 26). */
+  coffeeNivelId?: string | null;
 }
 
 /** Info do período gratuito para a UX e o submit (null = nada a exibir). */
@@ -220,7 +222,9 @@ async function avaliarCombo(
   ] = await Promise.all([
     admin
       .from("combos")
-      .select("id, nome, tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo")
+      .select(
+        "id, nome, tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo, coffee_nivel_id",
+      )
       .eq("id", comboId)
       .maybeSingle(),
     admin.from("combo_salas").select("sala_id, aplica_desconto").eq("combo_id", comboId),
@@ -250,6 +254,8 @@ async function avaliarCombo(
   );
 
   const semPrecoRef = salasRef.filter((s) => s.semPreco).map((s) => s.salaId);
+  const comboCoffeeNivelId =
+    (comboRow.coffee_nivel_id as string | null) ?? null;
   const infoBase: ComboInfo = {
     id: comboRow.id as string,
     nome: comboRow.nome as string,
@@ -258,6 +264,7 @@ async function avaliarCombo(
     aplicado: false,
     salaIdsObrigatorias,
     periodo: (comboRow.periodo as string | null) ?? null,
+    coffeeNivelId: comboCoffeeNivelId,
   };
 
   // Assinatura mensal (ou tipo desconhecido) não é aplicável nesta fase.
@@ -282,6 +289,8 @@ async function avaliarCombo(
     todasSalasAtivasIds: todasAtivas,
     comboPeriodo: (comboRow.periodo as string | null) ?? null,
     periodo: input.periodo,
+    comboCoffeeNivelId,
+    coffeeNivelIdSelecionado: input.coffee?.nivelId ?? null,
   });
 
   const info: ComboInfo = {

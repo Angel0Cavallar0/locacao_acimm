@@ -202,10 +202,18 @@ export function NovaLocacaoForm({
     setComboId(c.id);
     setSalaIds(c.salaIdsObrigatorias);
     if (c.periodo) trocarPeriodo(c.periodo);
+    // Coffee obrigatório do combo (Spec 26): já inclui e trava o nível.
+    if (c.coffeeNivelId) {
+      setCoffeeIncluir(true);
+      setCoffeeNivelId(c.coffeeNivelId);
+    }
   }
   function removerCombo() {
     setComboId(null);
   }
+
+  /** Coffee travado pelo combo selecionado (Spec 26). */
+  const coffeeTravadoPeloCombo = comboSel?.coffeeNivelId ?? null;
 
   // Combo exige sócio ativo — se o colaborador troca de locatário, cai o combo.
   useEffect(() => {
@@ -734,12 +742,19 @@ export function NovaLocacaoForm({
                 type="checkbox"
                 className="size-4"
                 checked={coffeeIncluir}
+                disabled={coffeeTravadoPeloCombo !== null}
                 onChange={(e) => setCoffeeIncluir(e.target.checked)}
               />
               <span className="text-sm font-semibold text-ink">
                 Incluir coffee break
               </span>
             </label>
+            {coffeeTravadoPeloCombo ? (
+              <p className="text-xs text-brand">
+                Este combo inclui o coffee break{" "}
+                {comboSel?.coffeeNivelNome ?? ""} — nível fixado.
+              </p>
+            ) : null}
             {coffeeIncluir ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -749,6 +764,7 @@ export function NovaLocacaoForm({
                       id="cn"
                       className={inputClasses}
                       value={coffeeNivelId}
+                      disabled={coffeeTravadoPeloCombo !== null}
                       onChange={(e) => setCoffeeNivelId(e.target.value)}
                     >
                       {niveis.map((n) => (
