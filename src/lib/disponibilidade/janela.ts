@@ -24,3 +24,17 @@ export function dataMaximaSP(): string {
 export function dentroDaJanela(data: string): boolean {
   return data >= hojeSP() && data <= dataMaximaSP();
 }
+
+/**
+ * A data respeita a antecedência mínima de `diasMin` dias (Melhorias §A)?
+ * `diasMin = 0` → sempre respeita (sem restrição). Comparação em datas 'YYYY-MM-DD'
+ * de São Paulo — `hoje` opcional para testes determinísticos.
+ */
+export function respeitaAntecedencia(
+  data: string,
+  diasMin: number,
+  hoje: string = hojeSP(),
+): boolean {
+  if (!Number.isFinite(diasMin) || diasMin <= 0) return true;
+  return data >= somarDias(hoje, diasMin);
+}

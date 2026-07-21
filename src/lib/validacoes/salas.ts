@@ -11,6 +11,12 @@ export const salaSchema = z.object({
     .positive("Capacidade deve ser maior que zero"),
   equipamentos: z.array(z.string().trim().min(1)).max(50).default([]),
   ativa: z.boolean().default(true),
+  diasAntecedenciaMinima: z.coerce
+    .number()
+    .int("Antecedência inválida")
+    .min(0, "Antecedência não pode ser negativa")
+    .max(365, "Antecedência máxima de 365 dias")
+    .default(0),
 });
 
 export type SalaInput = z.infer<typeof salaSchema>;

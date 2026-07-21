@@ -22,6 +22,8 @@ import {
 
 export interface ResultadoAcao {
   error?: string;
+  /** Aviso não-bloqueante (ex.: antecedência do coffee — §A). */
+  aviso?: string;
 }
 
 export async function transicionar(input: {
@@ -106,7 +108,7 @@ export async function salvarCoffeeAction(input: {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
   const r = await salvarCoffeeLocacao(parsed.data);
-  return "ok" in r ? {} : { error: r.erro };
+  return "ok" in r ? { aviso: r.aviso } : { error: r.erro };
 }
 
 export async function removerCoffeeAction(

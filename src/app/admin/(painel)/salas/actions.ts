@@ -63,6 +63,7 @@ export async function criarSala(
     capacidade: formData.get("capacidade"),
     equipamentos: lerEquipamentos(formData.get("equipamentos")),
     ativa: formData.get("ativa") === "on" || formData.get("ativa") === "true",
+    diasAntecedenciaMinima: formData.get("diasAntecedenciaMinima") ?? 0,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
@@ -81,6 +82,7 @@ export async function criarSala(
       capacidade: parsed.data.capacidade,
       equipamentos: parsed.data.equipamentos,
       ativa: parsed.data.ativa,
+      dias_antecedencia_minima: parsed.data.diasAntecedenciaMinima,
     })
     .select("id")
     .single();
@@ -107,6 +109,7 @@ export async function atualizarSala(
     capacidade: formData.get("capacidade"),
     equipamentos: lerEquipamentos(formData.get("equipamentos")),
     ativa: formData.get("ativa") === "on" || formData.get("ativa") === "true",
+    diasAntecedenciaMinima: formData.get("diasAntecedenciaMinima") ?? 0,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
@@ -125,6 +128,7 @@ export async function atualizarSala(
       capacidade: parsed.data.capacidade,
       equipamentos: parsed.data.equipamentos,
       ativa: parsed.data.ativa,
+      dias_antecedencia_minima: parsed.data.diasAntecedenciaMinima,
     })
     .eq("id", id);
 

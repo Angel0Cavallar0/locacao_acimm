@@ -126,6 +126,7 @@ function CoffeeDialog({
       return;
     }
     toast.success(coffee ? "Coffee salvo." : "Coffee incluído.");
+    if (r.aviso) toast.warning(r.aviso);
     aoAbrir(false);
     router.refresh();
   }

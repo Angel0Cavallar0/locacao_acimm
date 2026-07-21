@@ -1,6 +1,7 @@
 import "server-only";
 import { proximoDiaISO, spWallParaUtc } from "@/lib/calendario/tempo";
 import { PERIODOS, type PeriodoDia } from "@/lib/dominio";
+import { respeitaAntecedencia } from "@/lib/disponibilidade/janela";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
 import { salasComGratuitoDisponivel } from "@/lib/periodo-gratuito/consumo";
 import { resolverPreco } from "@/lib/precos/resolver";
@@ -61,7 +62,9 @@ export async function listarDisponibilidade(
   // Salas ativas (filtro de capacidade e de seleção).
   let q = admin
     .from("salas")
-    .select("id, nome, descricao, capacidade, equipamentos, fotos")
+    .select(
+      "id, nome, descricao, capacidade, equipamentos, fotos, dias_antecedencia_minima",
+    )
     .eq("ativa", true)
     .is("excluida_em", null)
     .order("ordem", { ascending: true })
@@ -161,6 +164,11 @@ export async function listarDisponibilidade(
     const ocupacoes = ocupPorSala.get(s.id) ?? [];
     const chips: ChipPeriodo[] = [];
 
+    // Antecedência mínima da sala (§A): dentro do prazo, o slot livre vira
+    // "antecedencia" (não aparece disponível no calendário).
+    const minDias = (s.dias_antecedencia_minima as number | null) ?? 0;
+    const dentroDoPrazo = !respeitaAntecedencia(input.data, minDias);
+
     for (const p of PERIODOS) {
       const faixa = horarios[p.valor];
       const { estado, eventoTitulo, eventoSymplaId, eventoSymplaUrl } =
@@ -169,7 +177,11 @@ export async function listarDisponibilidade(
       let estadoFinal = estado as ChipPeriodo["estado"];
       let precoCentavos: number | null = null;
 
-      if (estado === "livre" && podeSolicitar) {
+      if (estadoFinal === "livre" && dentroDoPrazo) {
+        estadoFinal = "antecedencia";
+      }
+
+      if (estadoFinal === "livre" && podeSolicitar) {
         const preco = await resolverPreco({
           salaId: s.id,
           data: dataEvento,
@@ -210,6 +222,7 @@ export async function listarDisponibilidade(
       capaUrl: fotos[0] ?? null,
       fotos,
       chips,
+      diasAntecedenciaMinima: minDias,
     });
   }
 

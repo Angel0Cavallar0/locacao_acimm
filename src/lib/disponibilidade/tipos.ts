@@ -7,7 +7,9 @@ export type EstadoPeriodo =
   | "solicitado"
   | "ocupado"
   | "evento_acimm"
-  | "sem_preco";
+  | "sem_preco"
+  /** Dentro do prazo mínimo de antecedência da sala (Melhorias §A). */
+  | "antecedencia";
 
 /** Ocupação materializada em ms (entrada da lógica pura de estado). */
 export interface OcupacaoSlot {
@@ -44,6 +46,8 @@ export interface SalaDisponibilidade {
   /** Todas as fotos da sala (URLs) — usadas no detalhe da sala. */
   fotos: string[];
   chips: ChipPeriodo[];
+  /** Antecedência mínima da sala em dias (0 = sem restrição — Melhorias §A). */
+  diasAntecedenciaMinima: number;
 }
 
 export interface ContatoAcimm {

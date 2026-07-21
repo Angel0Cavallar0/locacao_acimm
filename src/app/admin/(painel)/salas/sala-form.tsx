@@ -39,6 +39,7 @@ export interface SalaDados {
   capacidade: number;
   equipamentos: string[];
   ativa: boolean;
+  diasAntecedenciaMinima: number;
 }
 
 interface FotoPendente {
@@ -89,6 +90,25 @@ function Campos({
           required
           className="w-32"
         />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="diasAntecedenciaMinima">
+          Antecedência mínima (dias)
+        </Label>
+        <Input
+          id="diasAntecedenciaMinima"
+          name="diasAntecedenciaMinima"
+          type="number"
+          min={0}
+          max={365}
+          defaultValue={sala?.diasAntecedenciaMinima ?? 0}
+          className="w-32"
+        />
+        <p className="text-xs text-ink-muted">
+          Dias de antecedência exigidos para reservar esta sala. 0 = sem
+          restrição.
+        </p>
       </div>
 
       <div className="flex flex-col gap-1.5">

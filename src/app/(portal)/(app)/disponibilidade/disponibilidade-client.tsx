@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   ImageIcon,
   SlidersHorizontal,
   Users,
@@ -142,6 +143,18 @@ function SalaDetalheDialog({
                 </li>
               ))}
             </ul>
+
+            {sala.diasAntecedenciaMinima > 0 ? (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+                <Clock className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  Reservas desta sala precisam de{" "}
+                  <strong>{sala.diasAntecedenciaMinima}</strong>{" "}
+                  {sala.diasAntecedenciaMinima === 1 ? "dia" : "dias"} de
+                  antecedência.
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       </DialogContent>
@@ -394,6 +407,16 @@ export function DisponibilidadeClient({
                     ) : null}
                   </div>
                 </button>
+
+                {sala.diasAntecedenciaMinima > 0 &&
+                sala.chips.some((c) => c.estado === "antecedencia") ? (
+                  <p className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+                    <Clock className="size-3" />
+                    Reserve com {sala.diasAntecedenciaMinima}{" "}
+                    {sala.diasAntecedenciaMinima === 1 ? "dia" : "dias"} de
+                    antecedência.
+                  </p>
+                ) : null}
 
                 <div className="grid grid-cols-2 gap-1.5">
                   {sala.chips.map((chip) => (
