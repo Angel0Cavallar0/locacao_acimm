@@ -188,9 +188,9 @@ export function SolicitacaoForm({
   const [observacoes, setObservacoes] = useState("");
   const [respostas, setRespostas] = useState<Record<string, RespostaValor>>({});
 
-  // Etapa 4 — coffee (combo com coffee obrigatório já inclui e trava — Spec 26)
+  // Etapa 4 — coffee (combo com coffee obrigatório já inclui — Spec 26)
   const [coffeeIncluir, setCoffeeIncluir] = useState(
-    Boolean(comboPrefill?.coffeeNivelId),
+    Boolean(comboPrefill?.coffeeNivelId || comboPrefill?.coffeeQualquer),
   );
   const [coffeeNivelId, setCoffeeNivelId] = useState(
     comboPrefill?.coffeeNivelId ?? niveis[0]?.id ?? "",
@@ -337,16 +337,23 @@ export function SolicitacaoForm({
   }
 
   const comboSel = combos.find((c) => c.id === comboId) ?? null;
-  /** Coffee travado pelo combo selecionado (Spec 26). */
-  const coffeeTravadoPeloCombo = comboSel?.coffeeNivelId ?? null;
+  // Coffee exigido pelo combo (nível fixo OU qualquer) trava o toggle "incluir".
+  const coffeeObrigatorioCombo = Boolean(
+    comboSel?.coffeeNivelId || comboSel?.coffeeQualquer,
+  );
+  // O nível só é travado quando o combo fixa um específico.
+  const coffeeNivelTravado = comboSel?.coffeeNivelId ?? null;
   function selecionarCombo(c: ComboAplicavel) {
     setComboId(c.id);
     setSalaIds(c.salaIdsObrigatorias);
     if (c.periodo) setPeriodo(c.periodo);
-    // Coffee obrigatório do combo (Spec 26): já inclui e trava o nível.
+    // Coffee obrigatório do combo (Spec 26): nível fixo → inclui e trava; ou
+    // "qualquer" → só garante que o coffee esteja incluído.
     if (c.coffeeNivelId) {
       setCoffeeIncluir(true);
       setCoffeeNivelId(c.coffeeNivelId);
+    } else if (c.coffeeQualquer) {
+      setCoffeeIncluir(true);
     }
   }
 
@@ -909,17 +916,21 @@ export function SolicitacaoForm({
                 type="checkbox"
                 className="size-4"
                 checked={coffeeIncluir}
-                disabled={coffeeTravadoPeloCombo !== null}
+                disabled={coffeeObrigatorioCombo}
                 onChange={(e) => setCoffeeIncluir(e.target.checked)}
               />
               <span className="text-sm font-semibold text-ink">
                 Incluir coffee break
               </span>
             </label>
-            {coffeeTravadoPeloCombo ? (
+            {coffeeNivelTravado ? (
               <p className="text-xs text-brand">
                 Este combo inclui o coffee break{" "}
                 {comboSel?.coffeeNivelNome ?? ""} — nível fixado.
+              </p>
+            ) : coffeeObrigatorioCombo ? (
+              <p className="text-xs text-brand">
+                Este combo exige um coffee break — escolha um nível.
               </p>
             ) : null}
             {coffeeIncluir ? (
@@ -931,7 +942,7 @@ export function SolicitacaoForm({
                       id="cn"
                       className={inputClasses}
                       value={coffeeNivelId}
-                      disabled={coffeeTravadoPeloCombo !== null}
+                      disabled={coffeeNivelTravado !== null}
                       onChange={(e) => {
                         setCoffeeNivelId(e.target.value);
                         setCoffeeAdicionais([]);

@@ -266,6 +266,11 @@ function ComboDetalheDialog({
               <strong>{combo.coffeeNivelNome}</strong> (obrigatório para o
               desconto).
             </p>
+          ) : combo.coffeeQualquer ? (
+            <p className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+              Exige um <strong>coffee break</strong> (qualquer nível) para o
+              desconto.
+            </p>
           ) : null}
 
           <div className="flex justify-end gap-2 pt-1">
@@ -500,6 +505,10 @@ export function DisponibilidadeClient({
                   {c.coffeeNivelNome ? (
                     <span className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
                       + coffee break {c.coffeeNivelNome}
+                    </span>
+                  ) : c.coffeeQualquer ? (
+                    <span className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+                      + requer coffee break
                     </span>
                   ) : null}
                   {c.descricao ? (

@@ -62,6 +62,8 @@ export interface ComboInfo {
   referenciaCentavos?: number;
   /** Coffee break obrigatório do combo (multi-sala), ou null (Spec 26). */
   coffeeNivelId?: string | null;
+  /** Combo exige qualquer coffee break (Spec 26). */
+  coffeeQualquer?: boolean;
 }
 
 /** Info do período gratuito para a UX e o submit (null = nada a exibir). */
@@ -223,7 +225,7 @@ async function avaliarCombo(
     admin
       .from("combos")
       .select(
-        "id, nome, tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo, coffee_nivel_id",
+        "id, nome, tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo, coffee_nivel_id, coffee_qualquer",
       )
       .eq("id", comboId)
       .maybeSingle(),
@@ -265,6 +267,7 @@ async function avaliarCombo(
     salaIdsObrigatorias,
     periodo: (comboRow.periodo as string | null) ?? null,
     coffeeNivelId: comboCoffeeNivelId,
+    coffeeQualquer: comboRow.coffee_qualquer === true,
   };
 
   // Assinatura mensal (ou tipo desconhecido) não é aplicável nesta fase.
@@ -290,6 +293,7 @@ async function avaliarCombo(
     comboPeriodo: (comboRow.periodo as string | null) ?? null,
     periodo: input.periodo,
     comboCoffeeNivelId,
+    comboCoffeeQualquer: comboRow.coffee_qualquer === true,
     coffeeNivelIdSelecionado: input.coffee?.nivelId ?? null,
   });
 

@@ -34,7 +34,7 @@ export default async function EditarComboPage({
     supabase
       .from("combos")
       .select(
-        "id, nome, descricao, tipo, tipo_desconto, desconto_valor, valor_centavos, dias_no_mes, periodo, coffee_nivel_id",
+        "id, nome, descricao, tipo, tipo_desconto, desconto_valor, valor_centavos, dias_no_mes, periodo, coffee_nivel_id, coffee_qualquer",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -88,6 +88,7 @@ export default async function EditarComboPage({
       aplicaDesconto: s.aplica_desconto,
     })),
     coffeeNivelId: combo.coffee_nivel_id ?? null,
+    coffeeQualquer: combo.coffee_qualquer ?? false,
   };
 
   return (

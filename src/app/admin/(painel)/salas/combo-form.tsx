@@ -30,6 +30,7 @@ export interface ComboDados {
   periodo: PeriodoDia | null;
   salas: { salaId: string; aplicaDesconto: boolean }[];
   coffeeNivelId: string | null;
+  coffeeQualquer: boolean;
 }
 
 /** Preço de referência (associado, vigente) por sala e por período, em centavos. */
@@ -88,6 +89,9 @@ export function ComboForm({
     combo?.valorCentavos != null ? centavosParaTexto(combo.valorCentavos) : "",
   );
   const [coffeeNivelId, setCoffeeNivelId] = useState(combo?.coffeeNivelId ?? "");
+  const [coffeeQualquer, setCoffeeQualquer] = useState(
+    combo?.coffeeQualquer ?? false,
+  );
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -140,6 +144,8 @@ export function ComboForm({
             : [],
       coffeeNivelId:
         tipo === "desconto_multi_sala" && coffeeNivelId ? coffeeNivelId : null,
+      coffeeQualquer:
+        tipo === "desconto_multi_sala" && !coffeeNivelId && coffeeQualquer,
     };
 
     const r =
@@ -297,10 +303,22 @@ export function ComboForm({
                 <select
                   id="cf"
                   className={inputClasses}
-                  value={coffeeNivelId}
-                  onChange={(e) => setCoffeeNivelId(e.target.value)}
+                  value={coffeeQualquer ? "__qualquer__" : coffeeNivelId}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__qualquer__") {
+                      setCoffeeQualquer(true);
+                      setCoffeeNivelId("");
+                    } else {
+                      setCoffeeQualquer(false);
+                      setCoffeeNivelId(v);
+                    }
+                  }}
                 >
                   <option value="">Nenhum</option>
+                  <option value="__qualquer__">
+                    Qualquer coffee break (obrigatório escolher um)
+                  </option>
                   {coffeeNiveis.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.nome}
@@ -308,8 +326,9 @@ export function ComboForm({
                   ))}
                 </select>
                 <p className="text-xs text-ink-muted">
-                  Se definido, o desconto só se aplica quando a reserva incluir
-                  este coffee break.
+                  "Qualquer" exige que a reserva inclua algum coffee (o associado
+                  escolhe o nível). Um nível específico exige exatamente esse
+                  coffee. O desconto só se aplica quando a condição é atendida.
                 </p>
               </div>
             </>

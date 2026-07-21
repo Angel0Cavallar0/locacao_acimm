@@ -30,6 +30,8 @@ export interface ComboAplicavel {
   /** Coffee break obrigatório do combo (multi-sala), ou null (Spec 26). */
   coffeeNivelId: string | null;
   coffeeNivelNome: string | null;
+  /** Combo exige qualquer coffee (sem fixar nível) — Spec 26. */
+  coffeeQualquer: boolean;
 }
 
 export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
@@ -39,7 +41,7 @@ export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
     admin
       .from("combos")
       .select(
-        "id, nome, descricao, tipo, periodo, tipo_desconto, desconto_valor, valor_centavos, coffee_nivel_id",
+        "id, nome, descricao, tipo, periodo, tipo_desconto, desconto_valor, valor_centavos, coffee_nivel_id, coffee_qualquer",
       )
       .eq("ativo", true)
       .in("tipo", ["desconto_multi_sala", "evento_privativo"])
@@ -61,6 +63,7 @@ export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
     desconto_valor: number | null;
     valor_centavos: number | null;
     coffee_nivel_id: string | null;
+    coffee_qualquer: boolean;
   }[];
   if (combos.length === 0) return [];
 
@@ -123,6 +126,7 @@ export async function listarCombosAplicaveis(): Promise<ComboAplicavel[]> {
       coffeeNivelNome: c.coffee_nivel_id
         ? (nomeNivel.get(c.coffee_nivel_id) ?? null)
         : null,
+      coffeeQualquer: c.coffee_qualquer === true,
     };
   });
 }
@@ -162,7 +166,7 @@ export async function revalidarComboReagendamento(input: {
     admin
       .from("combos")
       .select(
-        "tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo, coffee_nivel_id",
+        "tipo, tipo_desconto, desconto_valor, valor_centavos, periodo, ativo, coffee_nivel_id, coffee_qualquer",
       )
       .eq("id", input.comboId)
       .maybeSingle(),
@@ -195,6 +199,7 @@ export async function revalidarComboReagendamento(input: {
     comboPeriodo: (comboRow.periodo as string | null) ?? null,
     periodo: input.periodo,
     comboCoffeeNivelId: (comboRow.coffee_nivel_id as string | null) ?? null,
+    comboCoffeeQualquer: comboRow.coffee_qualquer === true,
     coffeeNivelIdSelecionado: input.coffeeNivelIdSelecionado,
   });
   if (!aval.elegivel) return { aplicado: false };
