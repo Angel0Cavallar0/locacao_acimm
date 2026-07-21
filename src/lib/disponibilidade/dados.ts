@@ -3,7 +3,7 @@ import { proximoDiaISO, spWallParaUtc } from "@/lib/calendario/tempo";
 import { PERIODOS, type PeriodoDia } from "@/lib/dominio";
 import { respeitaAntecedencia } from "@/lib/disponibilidade/janela";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
-import { salasComGratuitoDisponivel } from "@/lib/periodo-gratuito/consumo";
+import { saldoDoAssociado } from "@/lib/periodo-gratuito/consumo";
 import { resolverPreco } from "@/lib/precos/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { urlFotoSala } from "@/lib/storage";
@@ -138,16 +138,21 @@ export async function listarDisponibilidade(
   // Meio-dia SP garante data/dia-da-semana corretos para o preço.
   const dataEvento = new Date(spWallParaUtc(input.data, "12:00"));
 
-  // Período gratuito (§5.4): regra ativa por sala × períodos + saldo do sócio.
+  // Período gratuito (§5.4 + Melhorias §B): regra ativa por sala × períodos +
+  // saldo do sócio (limite/disponíveis por sala, para o detalhe da sala).
   const gratuitoRegras = new Map<string, Set<string>>();
+  const gratuitoInfo = new Map<
+    string,
+    { usosPorCiclo: number; disponiveis: number }
+  >();
   let gratuitoSaldo = new Set<string>();
-  if (podeSolicitar && input.associadoId) {
-    const [{ data: regras }, saldo] = await Promise.all([
+  if (input.associadoId) {
+    const [{ data: regras }, saldos] = await Promise.all([
       admin
         .from("regras_periodo_gratuito")
         .select("sala_id, periodos")
         .eq("ativo", true),
-      salasComGratuitoDisponivel(input.associadoId),
+      saldoDoAssociado(input.associadoId),
     ]);
     for (const r of (regras ?? []) as {
       sala_id: string;
@@ -155,7 +160,15 @@ export async function listarDisponibilidade(
     }[]) {
       gratuitoRegras.set(r.sala_id, new Set(r.periodos));
     }
-    gratuitoSaldo = saldo;
+    for (const s of saldos) {
+      gratuitoInfo.set(s.salaId, {
+        usosPorCiclo: s.limite,
+        disponiveis: s.disponiveis,
+      });
+    }
+    gratuitoSaldo = new Set(
+      saldos.filter((s) => s.disponiveis > 0).map((s) => s.salaId),
+    );
   }
 
   const resultado: SalaDisponibilidade[] = [];
@@ -197,6 +210,7 @@ export async function listarDisponibilidade(
 
       const gratuitoDisponivel =
         estadoFinal === "livre" &&
+        podeSolicitar &&
         (gratuitoRegras.get(s.id)?.has(p.valor) ?? false) &&
         gratuitoSaldo.has(s.id);
 
@@ -213,6 +227,8 @@ export async function listarDisponibilidade(
       });
     }
 
+    const pgInfo = gratuitoInfo.get(s.id) ?? null;
+
     resultado.push({
       id: s.id,
       nome: s.nome,
@@ -223,6 +239,12 @@ export async function listarDisponibilidade(
       fotos,
       chips,
       diasAntecedenciaMinima: minDias,
+      periodoGratuito: pgInfo
+        ? {
+            usosPorCiclo: pgInfo.usosPorCiclo,
+            disponiveis: podeSolicitar ? pgInfo.disponiveis : null,
+          }
+        : null,
     });
   }
 

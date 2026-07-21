@@ -100,6 +100,7 @@ export default async function NovaSolicitacaoPage({
   const periodoPrefill = texto(sp.periodo);
   const dataBruta = texto(sp.data);
   const salaBruta = texto(sp.sala);
+  const comboBruta = texto(sp.combo);
 
   return (
     <SolicitacaoForm
@@ -134,6 +135,10 @@ export default async function NovaSolicitacaoPage({
           periodoPrefill &&
           PERIODOS_VALIDOS.includes(periodoPrefill as PeriodoDia)
             ? (periodoPrefill as PeriodoDia)
+            : null,
+        comboId:
+          comboBruta && combos.some((c) => c.id === comboBruta)
+            ? comboBruta
             : null,
       }}
       hoje={hojeSP()}

@@ -36,6 +36,14 @@ export interface ChipPeriodo {
   gratuitoDisponivel: boolean;
 }
 
+/** Benefício de período gratuito da sala, exibido no detalhe (Melhorias §B). */
+export interface PeriodoGratuitoSala {
+  /** Locações gratuitas por mês que a sala concede ao associado. */
+  usosPorCiclo: number;
+  /** Saldo do associado no mês; `null` quando ele não pode solicitar (suspenso). */
+  disponiveis: number | null;
+}
+
 export interface SalaDisponibilidade {
   id: string;
   nome: string;
@@ -48,6 +56,8 @@ export interface SalaDisponibilidade {
   chips: ChipPeriodo[];
   /** Antecedência mínima da sala em dias (0 = sem restrição — Melhorias §A). */
   diasAntecedenciaMinima: number;
+  /** Regra de período gratuito ativa da sala (null quando não há). */
+  periodoGratuito: PeriodoGratuitoSala | null;
 }
 
 export interface ContatoAcimm {
