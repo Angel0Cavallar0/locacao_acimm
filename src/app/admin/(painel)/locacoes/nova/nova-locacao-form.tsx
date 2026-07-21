@@ -6,7 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CamposDinamicos } from "@/components/locacoes/campos-dinamicos";
+import {
+  CamposDinamicos,
+  type CampoDinamico,
+} from "@/components/locacoes/campos-dinamicos";
+import type { RespostaValor } from "@/lib/formulario/campos-core";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -70,14 +74,6 @@ function mesDeData(iso: string | null): { ano: number; mes: number } {
   return { ano: y, mes: m };
 }
 
-interface Campo {
-  id: string;
-  rotulo: string;
-  tipo: string;
-  opcoes: string[];
-  obrigatorio: boolean;
-}
-
 const ESTADO_ROTULO: Record<string, { texto: string; classe: string }> = {
   livre: { texto: "Livre", classe: "text-emerald-700 dark:text-emerald-400" },
   solicitado: {
@@ -103,7 +99,7 @@ export function NovaLocacaoForm({
     nome: string;
     adicionais: { descricao: string; valorCentavos: number }[];
   }[];
-  campos: Campo[];
+  campos: CampoDinamico[];
   horarios: HorariosPeriodos;
   combos: ComboAplicavel[];
   prefill: {
@@ -151,7 +147,7 @@ export function NovaLocacaoForm({
   const [qtdPessoas, setQtdPessoas] = useState("");
   const [tipoEvento, setTipoEvento] = useState("");
   const [observacoes, setObservacoes] = useState("");
-  const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [respostas, setRespostas] = useState<Record<string, RespostaValor>>({});
   const [diasOcupados, setDiasOcupados] = useState<Set<string>>(new Set());
   const [mesVisto, setMesVisto] = useState(() => mesDeData(prefill.data));
 
@@ -721,8 +717,8 @@ export function NovaLocacaoForm({
           <CamposDinamicos
             campos={campos}
             valores={respostas}
-            onChange={(rotulo, valor) =>
-              setRespostas((r) => ({ ...r, [rotulo]: valor }))
+            onChange={(id, valor) =>
+              setRespostas((r) => ({ ...r, [id]: valor }))
             }
           />
         </CardContent>

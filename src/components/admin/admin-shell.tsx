@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { signOutColaborador } from "@/app/admin/(painel)/actions";
-import { type NavItem, NAV_ITEMS, itemAtivo } from "@/components/admin/nav";
+import { type NavItem, NAV_ITEMS, hrefAtivo } from "@/components/admin/nav";
 import { cn } from "@/lib/utils";
 
 function NavLista({
@@ -18,10 +18,14 @@ function NavLista({
   pathname: string;
   onNavegar?: () => void;
 }) {
+  const ativoHref = hrefAtivo(
+    pathname,
+    itens.map((i) => i.href),
+  );
   return (
     <nav className="flex flex-1 flex-col gap-0.5 p-3">
       {itens.map((item) => {
-        const ativo = itemAtivo(pathname, item.href);
+        const ativo = item.href === ativoHref;
         const Icone = item.icon;
         return (
           <Link
@@ -117,8 +121,12 @@ export function AdminShell({
   const [drawerAberto, setDrawerAberto] = useState(false);
 
   const itens = NAV_ITEMS.filter((i) => !i.adminOnly || role === "admin");
+  const ativoHref = hrefAtivo(
+    pathname,
+    itens.map((i) => i.href),
+  );
   const tituloAtual =
-    itens.find((i) => itemAtivo(pathname, i.href))?.label ?? "Painel";
+    itens.find((i) => i.href === ativoHref)?.label ?? "Painel";
 
   // Fecha o drawer ao navegar.
   useEffect(() => {

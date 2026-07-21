@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { requireColaborador } from "@/lib/auth/guards";
 import { dataSP, horaSP, intervaloSP, utcParaNaiveSP } from "@/lib/calendario/tempo";
 import { listarNiveis } from "@/lib/coffee/dados";
+import { resolverRespostasFormulario } from "@/lib/formulario/campos-core";
+import { todosCamposDef } from "@/lib/formulario/dados";
 import { PERIODOS } from "@/lib/dominio";
 import { carregarLocacao } from "@/lib/locacoes/dados";
 import { podeEditarAdicionais } from "@/lib/locacoes/maquina-estados-core";
@@ -98,7 +100,14 @@ export default async function LocacaoDetalhePage({
     ? (PERIODOS.find((p) => p.valor === loc.periodo)?.rotulo ?? loc.periodo)
     : null;
   const editavelAdicionais = podeEditarAdicionais(loc.status);
-  const respostas = Object.entries(loc.respostasFormulario);
+  // Respostas chaveadas por id → rótulo ATUAL do campo (Spec 22 §3).
+  const respostas =
+    Object.keys(loc.respostasFormulario).length > 0
+      ? resolverRespostasFormulario(
+          await todosCamposDef(),
+          loc.respostasFormulario,
+        )
+      : [];
 
   const dataFoco = utcParaNaiveSP(loc.inicioUtc).slice(0, 10);
   const salaFoco = loc.salas[0]?.salaId ?? "";
@@ -202,8 +211,8 @@ export default async function LocacaoDetalhePage({
                   Formulário
                 </p>
                 <div className="flex flex-col gap-1">
-                  {respostas.map(([k, v]) => (
-                    <Linha key={k} rotulo={k} valor={String(v)} />
+                  {respostas.map((r) => (
+                    <Linha key={r.id} rotulo={r.rotulo} valor={r.valor} />
                   ))}
                 </div>
               </div>

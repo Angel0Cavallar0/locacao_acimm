@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireColaborador } from "@/lib/auth/guards";
 import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
+import { camposAtivos } from "@/lib/formulario/dados";
 import { listarCombosAplicaveis } from "@/lib/locacoes/combos-dados";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
 import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
@@ -28,7 +29,7 @@ export default async function NovaLocacaoPage({
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: salas }, { data: niveis }, { data: campos }, horarios, combos] =
+  const [{ data: salas }, { data: niveis }, campos, horarios, combos] =
     await Promise.all([
       supabase
         .from("salas")
@@ -41,11 +42,7 @@ export default async function NovaLocacaoPage({
         .select("id, nome, adicionais")
         .eq("ativo", true)
         .order("ordem", { ascending: true }),
-      supabase
-        .from("campos_formulario")
-        .select("id, rotulo, tipo, opcoes, obrigatorio")
-        .eq("ativo", true)
-        .order("ordem", { ascending: true }),
+      camposAtivos(),
       obterHorariosPeriodos(),
       listarCombosAplicaveis(),
     ]);
@@ -157,13 +154,7 @@ export default async function NovaLocacaoPage({
           nome: n.nome,
           adicionais: parsearAdicionaisCoffee(n.adicionais),
         }))}
-        campos={(campos ?? []).map((c) => ({
-          id: c.id,
-          rotulo: c.rotulo,
-          tipo: c.tipo,
-          opcoes: (c.opcoes as string[]) ?? [],
-          obrigatorio: c.obrigatorio,
-        }))}
+        campos={campos}
         horarios={horarios}
         prefill={prefill}
         combos={combos}

@@ -6,6 +6,7 @@ import {
   DollarSign,
   DoorOpen,
   FileText,
+  FormInput,
   LayoutDashboard,
   ListOrdered,
   type LucideIcon,
@@ -33,6 +34,11 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/admin/comissoes", label: "Comissões", icon: DollarSign },
   { href: "/admin/lista-espera", label: "Lista de Espera", icon: ListOrdered },
   {
+    href: "/admin/configuracoes/formulario",
+    label: "Formulário",
+    icon: FormInput,
+  },
+  {
     href: "/admin/configuracoes",
     label: "Configurações",
     icon: Settings,
@@ -44,4 +50,18 @@ export const NAV_ITEMS: NavItem[] = [
 export function itemAtivo(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === "/admin";
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * href do item MAIS específico (prefixo mais longo) que casa com o pathname —
+ * evita que o pai (`/admin/configuracoes`) acenda junto com o filho
+ * (`/admin/configuracoes/formulario`), que tem item próprio no menu.
+ */
+export function hrefAtivo(pathname: string, hrefs: string[]): string | null {
+  let melhor: string | null = null;
+  for (const href of hrefs) {
+    if (!itemAtivo(pathname, href)) continue;
+    if (melhor === null || href.length > melhor.length) melhor = href;
+  }
+  return melhor;
 }
