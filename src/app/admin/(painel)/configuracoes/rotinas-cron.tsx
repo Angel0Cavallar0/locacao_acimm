@@ -30,6 +30,10 @@ const META: Record<string, { titulo: string; quando: string }> = {
     titulo: "PDF semanal de coffee",
     quando: "Segunda, 07:00",
   },
+  "sympla-inscritos": {
+    titulo: "Sync de inscritos (Sympla)",
+    quando: "A cada hora",
+  },
 };
 
 export function RotinasCron({ rotinas }: { rotinas: RotinaCron[] }) {

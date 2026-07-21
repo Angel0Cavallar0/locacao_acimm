@@ -16,6 +16,7 @@ export interface OcupacaoSlot {
   situacao: "solicitado" | "ocupado" | "evento_acimm";
   eventoTitulo: string | null;
   eventoSymplaId: string | null;
+  eventoSymplaUrl: string | null;
 }
 
 export interface ChipPeriodo {
@@ -27,6 +28,8 @@ export interface ChipPeriodo {
   precoCentavos: number | null;
   eventoTitulo: string | null;
   eventoSymplaId: string | null;
+  /** Link público do evento Sympla (quando vinculado) — CTA "participar". */
+  eventoSymplaUrl: string | null;
 }
 
 export interface SalaDisponibilidade {

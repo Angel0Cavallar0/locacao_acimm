@@ -503,6 +503,9 @@ export function SolicitacaoForm({
                       chips.find(Boolean)?.faixa ?? { inicio: "", fim: "" };
                     const eventoTitulo =
                       chips.find((c) => c?.eventoTitulo)?.eventoTitulo ?? null;
+                    const eventoSymplaUrl =
+                      chips.find((c) => c?.eventoSymplaUrl)?.eventoSymplaUrl ??
+                      null;
                     const chipView: ChipPeriodo = {
                       periodo: p.valor,
                       rotulo: p.rotulo,
@@ -511,6 +514,7 @@ export function SolicitacaoForm({
                       precoCentavos: a?.precoTotal ?? null,
                       eventoTitulo,
                       eventoSymplaId: null,
+                      eventoSymplaUrl,
                     };
                     return (
                       <ChipPeriodoButton

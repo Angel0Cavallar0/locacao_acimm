@@ -19,6 +19,7 @@ export interface ResultadoEstado {
   estado: EstadoBase;
   eventoTitulo: string | null;
   eventoSymplaId: string | null;
+  eventoSymplaUrl: string | null;
 }
 
 /**
@@ -34,7 +35,12 @@ export function estadoDoSlot(
     (o) => o.inicioMs < slot.fimMs && o.fimMs > slot.inicioMs,
   );
   if (sobrepostas.length === 0) {
-    return { estado: "livre", eventoTitulo: null, eventoSymplaId: null };
+    return {
+      estado: "livre",
+      eventoTitulo: null,
+      eventoSymplaId: null,
+      eventoSymplaUrl: null,
+    };
   }
   const top = sobrepostas.reduce((a, b) =>
     PRIORIDADE[b.situacao] > PRIORIDADE[a.situacao] ? b : a,
@@ -43,5 +49,6 @@ export function estadoDoSlot(
     estado: top.situacao,
     eventoTitulo: top.eventoTitulo,
     eventoSymplaId: top.eventoSymplaId,
+    eventoSymplaUrl: top.eventoSymplaUrl,
   };
 }

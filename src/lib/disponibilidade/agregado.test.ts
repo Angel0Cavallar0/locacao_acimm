@@ -15,6 +15,7 @@ function chip(
     precoCentavos,
     eventoTitulo: null,
     eventoSymplaId: null,
+    eventoSymplaUrl: null,
   };
 }
 
