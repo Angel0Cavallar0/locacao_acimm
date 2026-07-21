@@ -65,6 +65,7 @@ export const criarLocacaoSchema = z
       .nullable()
       .default(null),
     aprovar: z.boolean().default(false),
+    filaEsperaId: z.uuid().nullable().default(null),
   })
   .refine((v) => v.horaFim > v.horaInicio, {
     message: "A hora de fim deve ser maior que a de início.",

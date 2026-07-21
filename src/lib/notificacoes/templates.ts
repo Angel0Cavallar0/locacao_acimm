@@ -215,4 +215,18 @@ export const templates: Record<string, TemplateBuilders> = {
       ),
     }),
   },
+
+  // Vaga liberada (Spec 19 §6): uma locação bloqueante caiu (recusa/cancelamento/
+  // remanejamento) e há fila para a sala/data. Só e-mail interno — a equipe é
+  // quem contata o interessado (nenhum disparo automático ao associado).
+  interna_vaga_liberada: {
+    email: (p) => ({
+      assunto: `Vaga liberada — ${s(p, "sala")} em ${s(p, "data")}`,
+      html: moldura(
+        `${par(`Um horário foi liberado em <strong>${s(p, "sala")}</strong> no dia <strong>${s(p, "data")}</strong>.`)}
+         ${nota(`${s(p, "qtd", "0")} interessado(s) na fila de espera.<br>Primeiro da fila: <strong>${s(p, "primeiro", "—")}</strong>.`)}
+         ${botaoPortal(s(p, "linkAdmin"), "Abrir a lista de espera")}`,
+      ),
+    }),
+  },
 };
