@@ -62,6 +62,7 @@ test("todo template renderiza os canais que declara, com e sem payload", () => {
 test("internas só têm e-mail; locatário tem WhatsApp", () => {
   assert.equal(templates.interna_nova_solicitacao.whatsapp, undefined);
   assert.equal(templates.interna_comprovante_recebido.whatsapp, undefined);
+  assert.equal(templates.interna_comissao_estornada.whatsapp, undefined);
   assert.ok(templates.solicitacao_recebida.whatsapp);
   assert.ok(templates.confirmada.email);
 });
