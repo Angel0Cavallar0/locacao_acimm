@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { processarCoffeePdf } from "@/lib/cron/coffee-pdf";
 import { processarLembretes } from "@/lib/cron/lembretes";
 import { processarSymplaInscritos } from "@/lib/cron/sympla-inscritos";
+import { processarReconciliacaoGoogle } from "@/lib/google/reconciliacao";
 import { processarNotificacoes } from "@/lib/notificacoes/processar";
 
 /**
@@ -39,6 +40,13 @@ export async function executarJobAction(
       return {
         resumo:
           r.motivo ?? `${r.processados} evento(s) sincronizado(s), ${r.erros} erro(s).`,
+      };
+    }
+    if (job === "google-reconciliacao") {
+      const r = await processarReconciliacaoGoogle();
+      return {
+        resumo:
+          r.motivo ?? `${r.processados} item(ns) espelhado(s), ${r.erros} erro(s).`,
       };
     }
     return { error: "Rotina desconhecida." };

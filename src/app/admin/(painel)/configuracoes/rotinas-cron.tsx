@@ -34,6 +34,10 @@ const META: Record<string, { titulo: string; quando: string }> = {
     titulo: "Sync de inscritos (Sympla)",
     quando: "A cada hora",
   },
+  "google-reconciliacao": {
+    titulo: "Espelho do Google Agenda",
+    quando: "A cada 15 minutos",
+  },
 };
 
 export function RotinasCron({ rotinas }: { rotinas: RotinaCron[] }) {
