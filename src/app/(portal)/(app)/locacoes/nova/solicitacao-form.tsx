@@ -41,6 +41,7 @@ import type {
   SalaDisponibilidade,
 } from "@/lib/disponibilidade/tipos";
 import type { ComboAplicavel } from "@/lib/locacoes/combos-dados";
+import { descreverCombo } from "@/lib/locacoes/combo-descricao";
 import { somarDias } from "@/lib/disponibilidade/janela";
 import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
 import { cn } from "@/lib/utils";
@@ -83,18 +84,6 @@ const ETAPAS = [
 
 function digitos(v: string): number {
   return v.replace(/\D/g, "").length;
-}
-
-/** Descrição curta do combo para o card de seleção. */
-function descreverCombo(c: ComboAplicavel): string {
-  if (c.tipo === "evento_privativo") {
-    return `Privativo — todas as salas por ${centavosParaBRL(c.valorCentavos ?? 0)}`;
-  }
-  const desc =
-    c.tipoDesconto === "percentual"
-      ? `${c.descontoValor ?? 0}% de desconto`
-      : `${centavosParaBRL(c.descontoValor ?? 0)} de desconto`;
-  return `Multi-sala — ${desc}`;
 }
 
 /** '01/MM/yyyy' do mês seguinte ao ciclo 'YYYY-MM-01' (renovação do benefício). */
@@ -140,20 +129,39 @@ export function SolicitacaoForm({
   associado: AssociadoView;
   contato: ContatoAcimm;
   combos: ComboAplicavel[];
-  prefill: { salaId: string | null; data: string | null; periodo: PeriodoDia | null };
+  prefill: {
+    salaId: string | null;
+    data: string | null;
+    periodo: PeriodoDia | null;
+    comboId: string | null;
+  };
   hoje: string;
   dataMax: string;
 }) {
   const router = useRouter();
   const [etapa, setEtapa] = useState(0);
 
+  // Combo pré-selecionado via ?combo= (vindo da tela de disponibilidade, §B):
+  // governa sala(s) e período iniciais.
+  const comboPrefill = prefill.comboId
+    ? (combos.find((c) => c.id === prefill.comboId) ?? null)
+    : null;
+
   // Etapa 1 — sala e data
   const [salaIds, setSalaIds] = useState<string[]>(
-    prefill.salaId ? [prefill.salaId] : [],
+    comboPrefill
+      ? comboPrefill.salaIdsObrigatorias
+      : prefill.salaId
+        ? [prefill.salaId]
+        : [],
   );
   const [data, setData] = useState(prefill.data ?? hoje);
-  const [periodo, setPeriodo] = useState<PeriodoDia>(prefill.periodo ?? "manha");
-  const [comboId, setComboId] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<PeriodoDia>(
+    comboPrefill?.periodo ?? prefill.periodo ?? "manha",
+  );
+  const [comboId, setComboId] = useState<string | null>(
+    comboPrefill?.id ?? null,
+  );
   const [disp, setDisp] = useState<DisponibilidadeDia | null>(null);
   const [carregandoDisp, setCarregandoDisp] = useState(false);
   const [sel, setSel] = useState<{ sala: SalaDisponibilidade; chip: ChipPeriodo } | null>(

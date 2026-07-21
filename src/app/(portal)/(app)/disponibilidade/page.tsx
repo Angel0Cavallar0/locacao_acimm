@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireAssociado } from "@/lib/auth/guards";
 import { listarDisponibilidade, listarSalasAtivas } from "@/lib/disponibilidade/dados";
 import { dataMaximaSP, dentroDaJanela, hojeSP } from "@/lib/disponibilidade/janela";
+import { listarCombosAplicaveis } from "@/lib/locacoes/combos-dados";
 import { DisponibilidadeClient } from "./disponibilidade-client";
 
 export const metadata: Metadata = { title: "Disponibilidade" };
@@ -28,20 +29,24 @@ export default async function DisponibilidadePage({
     .filter(Boolean);
   const cap = Number(texto(sp.cap)) || 0;
 
-  const [todasSalas, inicial] = await Promise.all([
+  const [todasSalas, inicial, combos] = await Promise.all([
     listarSalasAtivas(),
     listarDisponibilidade({
       data,
       salaIds: salaIds.length > 0 ? salaIds : null,
       capacidadeMin: cap || null,
       situacao: associado.situacao,
+      associadoId: associado.id,
     }),
+    // Combos aparecem direto na tela só para associado ativo (§B).
+    associado.situacao === "ativo" ? listarCombosAplicaveis() : [],
   ]);
 
   return (
     <DisponibilidadeClient
       inicial={inicial}
       todasSalas={todasSalas}
+      combos={combos}
       hoje={hoje}
       dataMax={dataMaximaSP()}
       filtroInicial={{ salaIds, cap }}

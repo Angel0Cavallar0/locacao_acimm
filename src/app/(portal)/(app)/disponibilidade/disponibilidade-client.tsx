@@ -5,7 +5,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Gift,
   ImageIcon,
+  Loader2,
+  Sparkles,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
@@ -25,6 +28,8 @@ import type {
   SalaDisponibilidade,
 } from "@/lib/disponibilidade/tipos";
 import { somarDias } from "@/lib/disponibilidade/janela";
+import { descreverCombo } from "@/lib/locacoes/combo-descricao";
+import type { ComboAplicavel } from "@/lib/locacoes/combos-dados";
 import { cn } from "@/lib/utils";
 import { listarDisponibilidadeAction } from "./actions";
 
@@ -112,6 +117,7 @@ function SalaDetalheDialog({
   aoFechar: () => void;
 }) {
   const itens = [`${sala.capacidade} lugares`, ...sala.equipamentos];
+  const pg = sala.periodoGratuito;
 
   return (
     <Dialog open onOpenChange={(o) => !o && aoFechar()}>
@@ -155,6 +161,26 @@ function SalaDetalheDialog({
                 </p>
               </div>
             ) : null}
+
+            {pg ? (
+              <div className="flex items-start gap-2 rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-300">
+                <Gift className="mt-0.5 size-4 shrink-0" />
+                <div>
+                  <p className="font-medium">
+                    Associados têm direito a {pg.usosPorCiclo}{" "}
+                    {pg.usosPorCiclo === 1 ? "locação" : "locações"} gratuita
+                    {pg.usosPorCiclo === 1 ? "" : "s"} por mês nesta sala.
+                  </p>
+                  {pg.disponiveis !== null ? (
+                    <p className="text-xs opacity-90">
+                      Você tem {pg.disponiveis}{" "}
+                      {pg.disponiveis === 1 ? "disponível" : "disponíveis"} neste
+                      mês.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </DialogContent>
@@ -165,6 +191,7 @@ function SalaDetalheDialog({
 export function DisponibilidadeClient({
   inicial,
   todasSalas,
+  combos,
   hoje,
   dataMax,
   filtroInicial,
@@ -172,6 +199,7 @@ export function DisponibilidadeClient({
 }: {
   inicial: DisponibilidadeDia;
   todasSalas: SalaFiltro[];
+  combos: ComboAplicavel[];
   hoje: string;
   dataMax: string;
   filtroInicial: { salaIds: string[]; cap: number };
@@ -259,7 +287,7 @@ export function DisponibilidadeClient({
               variant="outline"
               size="icon-sm"
               aria-label="Dia anterior"
-              disabled={noPassado}
+              disabled={noPassado || carregando}
               onClick={() => setData((d) => somarDias(d, -1))}
             >
               <ChevronLeft className="size-4" />
@@ -276,7 +304,7 @@ export function DisponibilidadeClient({
               variant="outline"
               size="icon-sm"
               aria-label="Próximo dia"
-              disabled={noFuturo}
+              disabled={noFuturo || carregando}
               onClick={() => setData((d) => somarDias(d, 1))}
             >
               <ChevronRight className="size-4" />
@@ -351,6 +379,42 @@ export function DisponibilidadeClient({
         </CardContent>
       </Card>
 
+      {/* Combos disponíveis (direto na tela, §B) — só para associado ativo. */}
+      {dados.podeSolicitar && combos.length > 0 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="size-4 text-brand" />
+              <h3 className="text-sm font-semibold text-ink">
+                Combos disponíveis
+              </h3>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {combos.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() =>
+                    router.push(`/locacoes/nova?combo=${c.id}&data=${data}`)
+                  }
+                  className="flex flex-col gap-0.5 rounded-lg border border-input p-3 text-left transition-colors hover:border-brand hover:bg-brand/5"
+                >
+                  <span className="font-medium text-ink">{c.nome}</span>
+                  <span className="text-xs text-ink-muted">
+                    {descreverCombo(c)}
+                  </span>
+                  {c.descricao ? (
+                    <span className="mt-0.5 line-clamp-2 text-xs text-ink-muted">
+                      {c.descricao}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Cards de sala */}
       {dados.salas.length === 0 ? (
         <Card>
@@ -359,13 +423,22 @@ export function DisponibilidadeClient({
           </CardContent>
         </Card>
       ) : (
-        <div
-          className={cn(
-            "grid gap-3 sm:grid-cols-2",
-            carregando && "opacity-60",
-          )}
-        >
-          {dados.salas.map((sala) => (
+        <div className="relative">
+          {carregando ? (
+            <div className="absolute inset-0 z-10 flex items-start justify-center pt-10">
+              <span className="inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-sm text-ink-muted shadow-sm ring-1 ring-border">
+                <Loader2 className="size-4 animate-spin" />
+                Carregando disponibilidade…
+              </span>
+            </div>
+          ) : null}
+          <div
+            className={cn(
+              "grid gap-3 transition-opacity sm:grid-cols-2",
+              carregando && "pointer-events-none opacity-50",
+            )}
+          >
+            {dados.salas.map((sala) => (
             <Card key={sala.id}>
               <CardContent className="flex flex-col gap-3">
                 <button
@@ -430,7 +503,8 @@ export function DisponibilidadeClient({
                 </div>
               </CardContent>
             </Card>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
