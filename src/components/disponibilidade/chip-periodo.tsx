@@ -18,6 +18,7 @@ export const CHIP_ESTILO: Record<ChipPeriodo["estado"], string> = {
   ocupado: "border-input bg-surface-muted text-ink-muted",
   evento_acimm: "border-brand/40 bg-brand/10 text-brand hover:bg-brand/20",
   sem_preco: "border-input bg-surface-muted text-ink-muted",
+  antecedencia: "border-input bg-surface-muted text-ink-muted",
 };
 
 export function rotuloEstado(chip: ChipPeriodo, podeSolicitar: boolean): string {
@@ -34,13 +35,16 @@ export function rotuloEstado(chip: ChipPeriodo, podeSolicitar: boolean): string 
       return chip.eventoTitulo ?? "Evento ACIMM";
     case "sem_preco":
       return "Não disponível";
+    case "antecedencia":
+      return "Antecedência";
   }
 }
 
-/** `sem_preco` e `livre` sem permissão de solicitar são inertes (não clicáveis). */
+/** `sem_preco`/`antecedencia` e `livre` sem permissão são inertes (não clicáveis). */
 export function chipInerte(chip: ChipPeriodo, podeSolicitar: boolean): boolean {
   return (
     chip.estado === "sem_preco" ||
+    chip.estado === "antecedencia" ||
     (chip.estado === "livre" && !podeSolicitar)
   );
 }
@@ -66,7 +70,9 @@ export function ChipPeriodoButton({
       title={
         chip.estado === "sem_preco"
           ? "Período não disponível para locação"
-          : undefined
+          : chip.estado === "antecedencia"
+            ? "Esta sala exige antecedência mínima para esta data"
+            : undefined
       }
       onClick={onClick}
       className={cn(
