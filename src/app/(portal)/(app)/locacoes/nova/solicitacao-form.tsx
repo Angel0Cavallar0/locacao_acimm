@@ -80,6 +80,14 @@ function digitos(v: string): number {
   return v.replace(/\D/g, "").length;
 }
 
+/** '01/MM/yyyy' do mês seguinte ao ciclo 'YYYY-MM-01' (renovação do benefício). */
+function renovaEmCiclo(ciclo: string): string {
+  const [y, m] = ciclo.split("-").map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return `01/${String(nm).padStart(2, "0")}/${ny}`;
+}
+
 function emailValido(v: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
 }
@@ -250,11 +258,15 @@ export function SolicitacaoForm({
   const baseCoffee = valorPessoaCoffee * qtdCoffee;
   const totalCoffee = baseCoffee + coffeeAdicionaisCentavos;
 
+  // Período gratuito do sócio: pode recusar (guarda o uso para outra data).
+  const [pgRecusado, setPgRecusado] = useState(false);
+
   // Resumo (etapa 5) — server recalcula, client só exibe.
   const chaveResumo = JSON.stringify({
     salaIds,
     data,
     periodo,
+    pgRecusado,
     coffee:
       coffeeIncluir && coffeeNivelId
         ? { coffeeNivelId, coffeeQtd, coffeeAdicionaisCentavos }
@@ -267,6 +279,7 @@ export function SolicitacaoForm({
       salaIds,
       data,
       periodo,
+      periodoGratuitoRecusado: pgRecusado,
       coffee:
         coffeeIncluir && coffeeNivelId
           ? {
@@ -371,6 +384,7 @@ export function SolicitacaoForm({
           | "transferencia"
           | "boleto_avulso"
           | "boleto_mensalidade") || null,
+      periodoGratuitoRecusado: pgRecusado,
     });
     setEnviando(false);
     if (r.error) {
@@ -515,6 +529,8 @@ export function SolicitacaoForm({
                       eventoTitulo,
                       eventoSymplaId: null,
                       eventoSymplaUrl,
+                      // Benefício exige sala única — não vale no chip agregado.
+                      gratuitoDisponivel: false,
                     };
                     return (
                       <ChipPeriodoButton
@@ -1000,13 +1016,43 @@ export function SolicitacaoForm({
                       </span>
                     </div>
                   ) : null}
-                  <div className="flex justify-between">
-                    <span className="text-ink-muted">
-                      Descontos{" "}
-                      <span className="text-xs">(avaliados pela ACIMM)</span>
-                    </span>
-                    <span className="text-ink">R$ 0,00</span>
-                  </div>
+                  {resumo.descontos.map((d) => (
+                    <div key={d.rotulo} className="flex justify-between">
+                      <span className="text-emerald-700 dark:text-emerald-400">
+                        {d.rotulo}
+                      </span>
+                      <span className="text-emerald-700 dark:text-emerald-400">
+                        − {centavosParaBRL(d.valorCentavos)}
+                      </span>
+                    </div>
+                  ))}
+                  {resumo.periodoGratuito &&
+                  (resumo.periodoGratuito.elegivel ||
+                    resumo.periodoGratuito.motivo === "esgotado") ? (
+                    <div className="mt-1 rounded-md bg-brand/5 px-2.5 py-2 text-xs">
+                      {resumo.periodoGratuito.motivo === "esgotado" ? (
+                        <span className="text-ink-muted">
+                          Benefício desta sala já utilizado no mês · renova em{" "}
+                          {renovaEmCiclo(resumo.periodoGratuito.ciclo)}.
+                        </span>
+                      ) : (
+                        <label className="flex cursor-pointer items-start gap-2">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 size-3.5"
+                            checked={!pgRecusado}
+                            onChange={(e) => setPgRecusado(!e.target.checked)}
+                          />
+                          <span className="text-ink-muted">
+                            Usar meu período gratuito (uso{" "}
+                            {resumo.periodoGratuito.usoAtual + 1} de{" "}
+                            {resumo.periodoGratuito.limite} desta sala no mês).
+                            Desmarque para guardar para outra data.
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                  ) : null}
                   <div className="flex justify-between border-t pt-1 font-semibold">
                     <span className="text-ink">Total</span>
                     <span className="text-ink">

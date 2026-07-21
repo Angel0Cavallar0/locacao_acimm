@@ -29,6 +29,7 @@ export async function listarDisponibilidadeAction(input: {
     salaIds: parsed.data.salaIds.length > 0 ? parsed.data.salaIds : null,
     capacidadeMin: parsed.data.capacidadeMin || null,
     situacao: associado.situacao,
+    associadoId: associado.id,
   });
 }
 

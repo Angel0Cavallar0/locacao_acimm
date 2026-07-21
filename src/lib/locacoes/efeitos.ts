@@ -118,6 +118,17 @@ const liberarVaga: EfeitoFn = async (ctx) => {
 };
 
 /**
+ * Devolve o uso do período gratuito (Spec 20 §5.3) quando a locação é
+ * recusada/cancelada — libera o benefício para outra data do ciclo.
+ */
+const devolverGratuito: EfeitoFn = async (ctx) => {
+  const { devolverPeriodoGratuito } = await import(
+    "@/lib/periodo-gratuito/consumo"
+  );
+  await devolverPeriodoGratuito(ctx.locacaoId);
+};
+
+/**
  * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
  * pelo associado), reflete no `contratos.status` para o portal mostrar
  * "Assinado" (revisão Spec 13).
@@ -137,8 +148,20 @@ export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   aguardando_pagamento: [logar("aguardando_pagamento"), criarPagamentos],
   confirmada: [logar("confirmada"), notif.confirmada, marcarGoogle],
-  recusada: [logar("recusada"), notif.recusada, marcarGoogle, liberarVaga],
-  cancelada: [logar("cancelada"), notif.cancelada, marcarGoogle, liberarVaga],
+  recusada: [
+    logar("recusada"),
+    notif.recusada,
+    marcarGoogle,
+    liberarVaga,
+    devolverGratuito,
+  ],
+  cancelada: [
+    logar("cancelada"),
+    notif.cancelada,
+    marcarGoogle,
+    liberarVaga,
+    devolverGratuito,
+  ],
 };
 
 /** Executa os efeitos do estado destino; isola falhas (não propaga). */

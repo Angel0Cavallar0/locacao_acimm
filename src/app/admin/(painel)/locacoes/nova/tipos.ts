@@ -26,6 +26,17 @@ export interface DisponibilidadeSala {
   ocupante?: string;
 }
 
+export interface PeriodoGratuitoResumo {
+  salaId: string;
+  salaNome: string;
+  ciclo: string; // 'YYYY-MM-01'
+  elegivel: boolean;
+  aplicado: boolean;
+  usoAtual: number;
+  limite: number;
+  motivo?: string;
+}
+
 export interface ResumoValores {
   salas: { salaId: string; nome: string; valorCentavos: number; semPreco: boolean }[];
   salasSemPreco: string[];
@@ -33,6 +44,8 @@ export interface ResumoValores {
   coffeeCentavos: number;
   adicionaisCentavos: number;
   descontosCentavos: number;
+  descontos: { rotulo: string; valorCentavos: number }[];
+  periodoGratuito: PeriodoGratuitoResumo | null;
   totalCentavos: number;
 }
 
@@ -73,4 +86,6 @@ export interface CriarLocacaoPayload {
   aprovar: boolean;
   /** Conversão a partir da lista de espera (Spec 19 §4). */
   filaEsperaId?: string | null;
+  /** Sócio recusou o período gratuito nesta reserva (Spec 20 §5.3). */
+  periodoGratuitoRecusado?: boolean;
 }

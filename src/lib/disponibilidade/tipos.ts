@@ -30,6 +30,8 @@ export interface ChipPeriodo {
   eventoSymplaId: string | null;
   /** Link público do evento Sympla (quando vinculado) — CTA "participar". */
   eventoSymplaUrl: string | null;
+  /** Sócio elegível com saldo de período gratuito nesta sala/período (§5.4). */
+  gratuitoDisponivel: boolean;
 }
 
 export interface SalaDisponibilidade {

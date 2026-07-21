@@ -1,10 +1,11 @@
-import { CalendarCheck, LogOut } from "lucide-react";
+import { CalendarCheck, Gift, LogOut } from "lucide-react";
 import type { Metadata } from "next";
 import { signOutAssociado } from "@/app/(portal)/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireAssociado } from "@/lib/auth/guards";
 import { formatarDocumento } from "@/lib/locacoes/tipos";
+import { saldoDoAssociado } from "@/lib/periodo-gratuito/consumo";
 import { cn } from "@/lib/utils";
 import { mascararTelefone } from "@/lib/utils/mascaras";
 import { TrocarSenhaForm } from "./trocar-senha-form";
@@ -33,6 +34,10 @@ export default async function PerfilPage() {
     rotulo: associado.situacao,
     classe: "bg-surface-muted text-ink-muted",
   };
+  const beneficios =
+    associado.situacao === "ativo"
+      ? await saldoDoAssociado(associado.id)
+      : [];
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
@@ -93,6 +98,41 @@ export default async function PerfilPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Benefícios do mês (período gratuito por sala) */}
+      {beneficios.length > 0 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Gift className="size-4 text-brand" />
+              <h3 className="text-sm font-semibold text-ink">
+                Seus benefícios do mês
+              </h3>
+            </div>
+            <ul className="flex flex-col gap-1.5 text-sm">
+              {beneficios.map((b) => (
+                <li key={b.salaId} className="flex justify-between">
+                  <span className="text-ink-muted">{b.salaNome}</span>
+                  <span
+                    className={
+                      b.disponiveis > 0
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-ink-muted"
+                    }
+                  >
+                    {b.disponiveis} de {b.limite} disponível
+                    {b.limite > 1 ? "eis" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-ink-muted">
+              Período gratuito do sócio: aplicado automaticamente na reserva de
+              sala única elegível; renova a cada mês.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Acesso */}
       <Card>
