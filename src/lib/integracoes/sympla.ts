@@ -16,6 +16,8 @@ export interface SymplaEvent {
   startDate: string | null;
   endDate: string | null;
   url: string | null;
+  /** `false` = rascunho no Sympla; `null` = campo não retornado. */
+  publicado: boolean | null;
 }
 
 /** Erro tipado: `config` (401 — token inválido) vs `temporario` (429/5xx). */
@@ -65,6 +67,7 @@ function parseEvento(raw: unknown): SymplaEvent | null {
     startDate: o.start_date ? String(o.start_date) : null,
     endDate: o.end_date ? String(o.end_date) : null,
     url: o.url ? String(o.url) : null,
+    publicado: typeof o.published === "boolean" ? o.published : null,
   };
 }
 
@@ -78,7 +81,7 @@ export async function listarEventos(opts: {
   ate: string; // ISO (YYYY-MM-DD)
   maxPaginas?: number;
 }): Promise<SymplaEvent[]> {
-  const fields = encodeURIComponent("id,name,start_date,end_date,url");
+  const fields = encodeURIComponent("id,name,start_date,end_date,url,published");
   const maxPaginas = opts.maxPaginas ?? 5;
   const acumulados: SymplaEvent[] = [];
 
@@ -95,8 +98,10 @@ export async function listarEventos(opts: {
     if (dados.length === 0 || pag.has_next !== true) break;
   }
 
-  // Janela por start_date (comparação de data em string ISO funciona).
+  // Só publicados (rascunhos = published:false; se o campo não vier, mantém) e
+  // dentro da janela por start_date (comparação de string ISO funciona).
   return acumulados
+    .filter((e) => e.publicado !== false)
     .filter((e) => {
       if (!e.startDate) return true;
       const dia = e.startDate.slice(0, 10);

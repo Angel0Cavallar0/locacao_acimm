@@ -23,6 +23,7 @@ import {
 export interface ResultadoEventoAction {
   id?: string;
   conflitos?: string[];
+  aviso?: string;
   error?: string;
 }
 
@@ -34,7 +35,9 @@ export async function criarEventoAction(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
   const r = await criarEvento(parsed.data);
-  return "erro" in r ? { error: r.erro } : { id: r.id, conflitos: r.conflitos };
+  return "erro" in r
+    ? { error: r.erro }
+    : { id: r.id, conflitos: r.conflitos, aviso: r.aviso };
 }
 
 export async function editarEventoAction(
@@ -88,13 +91,16 @@ export interface SymplaOpcao {
   id: string;
   name: string;
   startDate: string | null;
+  endDate: string | null;
   url: string | null;
 }
 
-/** Busca eventos na conta Sympla para o dropdown de vínculo (§5). */
-export async function buscarEventosSymplaAction(
-  termo: string,
-): Promise<{ eventos?: SymplaOpcao[]; error?: string }> {
+/** Eventos publicados na conta Sympla para o dropdown de vínculo (§5). Sem
+ * busca por nome — lista os publicados na janela (−30 dias → +1 ano). */
+export async function listarEventosSymplaAction(): Promise<{
+  eventos?: SymplaOpcao[];
+  error?: string;
+}> {
   await requireColaborador();
   const agora = Date.now();
   const de = new Date(agora - 30 * 86_400_000).toISOString().slice(0, 10);
@@ -102,15 +108,12 @@ export async function buscarEventosSymplaAction(
 
   try {
     const eventos = await listarSympla({ de, ate });
-    const t = termo.trim().toLowerCase();
-    const filtrados = t
-      ? eventos.filter((e) => e.name.toLowerCase().includes(t))
-      : eventos;
     return {
-      eventos: filtrados.slice(0, 30).map((e) => ({
+      eventos: eventos.slice(0, 100).map((e) => ({
         id: e.id,
         name: e.name,
         startDate: e.startDate,
+        endDate: e.endDate,
         url: e.url,
       })),
     };
@@ -119,7 +122,7 @@ export async function buscarEventosSymplaAction(
       error:
         e instanceof SymplaError && e.tipo === "config"
           ? "Token do Sympla inválido — verifique a configuração."
-          : "Não foi possível buscar eventos no Sympla no momento.",
+          : "Não foi possível carregar eventos do Sympla no momento.",
     };
   }
 }

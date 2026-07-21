@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireColaborador } from "@/lib/auth/guards";
 import { utcParaNaiveSP } from "@/lib/calendario/tempo";
+import { isSymplaConfigured } from "@/lib/integracoes/sympla";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { EventoForm } from "../evento-form";
 
@@ -34,7 +35,11 @@ export default async function NovoEventoPage() {
       ) : (
         <Card>
           <CardContent>
-            <EventoForm salas={salas ?? []} hoje={hoje} />
+            <EventoForm
+              salas={salas ?? []}
+              hoje={hoje}
+              symplaConfigurado={isSymplaConfigured()}
+            />
           </CardContent>
         </Card>
       )}

@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { utcParaNaiveSP } from "@/lib/calendario/tempo";
 import type { EventoDetalhe } from "@/lib/eventos/tipos";
-import { PRIORIDADES } from "@/lib/eventos/tipos";
+import { partesDataHoraSympla, PRIORIDADES } from "@/lib/eventos/tipos";
+import type { SymplaOpcao } from "./actions";
 import { criarEventoAction, editarEventoAction } from "./actions";
+import { SymplaSeletor } from "./sympla-seletor";
 
 const selectClasses =
   "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -21,10 +23,12 @@ export function EventoForm({
   salas,
   evento,
   hoje,
+  symplaConfigurado = false,
 }: {
   salas: { id: string; nome: string }[];
   evento?: EventoDetalhe;
   hoje: string;
+  symplaConfigurado?: boolean;
 }) {
   const router = useRouter();
   const editando = Boolean(evento);
@@ -41,7 +45,23 @@ export function EventoForm({
   const [prioridade, setPrioridade] = useState(evento?.prioridade ?? "media");
   const [repetir, setRepetir] = useState(false);
   const [repetirAte, setRepetirAte] = useState("");
+  const [symplaSel, setSymplaSel] = useState<SymplaOpcao | null>(null);
   const [salvando, setSalvando] = useState(false);
+
+  // Ao escolher um evento do Sympla: replica nome, data e horários (§5).
+  function aoEscolherSympla(op: SymplaOpcao | null) {
+    setSymplaSel(op);
+    if (!op) return;
+    setTitulo(op.name);
+    const ini = partesDataHoraSympla(op.startDate);
+    const fim = partesDataHoraSympla(op.endDate);
+    if (ini) {
+      setData(ini.data);
+      setHoraInicio(ini.hora);
+    }
+    // Só replica o fim quando é no mesmo dia (nosso evento é de dia único).
+    if (fim && (!ini || fim.data === ini.data)) setHoraFim(fim.hora);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,7 +91,10 @@ export function EventoForm({
 
     const r = await criarEventoAction({
       ...base,
-      repetirSemanalAte: repetir && repetirAte ? repetirAte : undefined,
+      repetirSemanalAte:
+        repetir && repetirAte && !symplaSel ? repetirAte : undefined,
+      symplaEventId: symplaSel?.id,
+      symplaUrl: symplaSel?.url ?? undefined,
     });
     setSalvando(false);
     if (r.error) return toast.error(r.error);
@@ -82,11 +105,36 @@ export function EventoForm({
     } else {
       toast.success("Evento criado.");
     }
+    if (r.aviso) toast.warning(r.aviso);
     if (r.id) router.push(`/admin/eventos/${r.id}`);
   }
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+      {!editando && symplaConfigurado ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-brand/20 bg-brand/5 p-3">
+          <Label>Vincular a um evento do Sympla (opcional)</Label>
+          <SymplaSeletor onSelecionar={aoEscolherSympla} valorId={symplaSel?.id} />
+          {symplaSel ? (
+            <p className="text-xs text-ink-muted">
+              Preenchido a partir de <strong>{symplaSel.name}</strong>. Você pode
+              ajustar sala e prioridade abaixo.{" "}
+              <button
+                type="button"
+                className="text-brand hover:underline"
+                onClick={() => setSymplaSel(null)}
+              >
+                Remover vínculo
+              </button>
+            </p>
+          ) : (
+            <p className="text-xs text-ink-muted">
+              Ao escolher, nome, data e horário são preenchidos automaticamente.
+            </p>
+          )}
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="ev-titulo">Título</Label>
         <Input
@@ -171,7 +219,7 @@ export function EventoForm({
         </div>
       </div>
 
-      {!editando ? (
+      {!editando && !symplaSel ? (
         <div className="flex flex-col gap-2 rounded-lg border p-3">
           <label className="flex items-center gap-2 text-sm text-ink">
             <input

@@ -1,18 +1,17 @@
 "use client";
 
-import { ExternalLink, Link2, Link2Off, Search } from "lucide-react";
+import { ExternalLink, Link2Off } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { dataSP } from "@/lib/calendario/tempo";
 import {
-  buscarEventosSymplaAction,
   desvincularSymplaAction,
   type SymplaOpcao,
   vincularSymplaAction,
 } from "../actions";
+import { SymplaSeletor } from "../sympla-seletor";
 
 export function SymplaVinculo({
   eventoId,
@@ -30,9 +29,6 @@ export function SymplaVinculo({
   symplaConfigurado: boolean;
 }) {
   const router = useRouter();
-  const [termo, setTermo] = useState("");
-  const [buscando, setBuscando] = useState(false);
-  const [resultados, setResultados] = useState<SymplaOpcao[] | null>(null);
   const [acao, setAcao] = useState(false);
 
   if (!symplaConfigurado) {
@@ -91,15 +87,8 @@ export function SymplaVinculo({
     );
   }
 
-  async function buscar() {
-    setBuscando(true);
-    const r = await buscarEventosSymplaAction(termo);
-    setBuscando(false);
-    if (r.error) return toast.error(r.error);
-    setResultados(r.eventos ?? []);
-  }
-
-  async function vincular(op: SymplaOpcao) {
+  async function vincular(op: SymplaOpcao | null) {
+    if (!op) return;
     setAcao(true);
     const r = await vincularSymplaAction({
       eventoId,
@@ -113,54 +102,12 @@ export function SymplaVinculo({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <p className="text-xs text-ink-muted">
-        Busque o evento correspondente na conta Sympla para acompanhar inscritos.
+        Escolha o evento publicado no Sympla para acompanhar inscritos.
       </p>
-      <div className="flex gap-2">
-        <Input
-          value={termo}
-          onChange={(e) => setTermo(e.target.value)}
-          placeholder="Nome do evento no Sympla"
-          onKeyDown={(e) => e.key === "Enter" && buscar()}
-        />
-        <Button variant="outline" loading={buscando} onClick={buscar}>
-          <Search className="size-4" />
-          Buscar
-        </Button>
-      </div>
-
-      {resultados ? (
-        resultados.length === 0 ? (
-          <p className="text-sm text-ink-muted">Nenhum evento encontrado.</p>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {resultados.map((op) => (
-              <li
-                key={op.id}
-                className="flex items-center justify-between gap-2 rounded-md border p-2.5"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-ink">{op.name}</p>
-                  {op.startDate ? (
-                    <p className="text-xs text-ink-muted">
-                      {dataSP(op.startDate)}
-                    </p>
-                  ) : null}
-                </div>
-                <Button
-                  size="sm"
-                  disabled={acao}
-                  onClick={() => vincular(op)}
-                >
-                  <Link2 className="size-4" />
-                  Vincular
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )
-      ) : null}
+      <SymplaSeletor onSelecionar={vincular} />
+      {acao ? <p className="text-xs text-ink-muted">Vinculando…</p> : null}
     </div>
   );
 }

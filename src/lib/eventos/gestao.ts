@@ -95,8 +95,10 @@ async function inserirOcorrencia(
 
 export async function criarEvento(input: CampoEvento & {
   repetirSemanalAte?: string;
+  symplaEventId?: string;
+  symplaUrl?: string;
 }): Promise<
-  { ok: true; id: string; conflitos: string[] } | { erro: string }
+  { ok: true; id: string; conflitos: string[]; aviso?: string } | { erro: string }
 > {
   const { user } = await requireColaborador();
   const admin = createAdminClient();
@@ -136,9 +138,20 @@ export async function criarEvento(input: CampoEvento & {
     };
   }
 
+  // Vínculo Sympla na criação (§5) — só na primeira ocorrência.
+  let aviso: string | undefined;
+  if (input.symplaEventId) {
+    aviso = await aplicarVinculoSympla(
+      admin,
+      primeiroId,
+      input.symplaEventId,
+      input.symplaUrl,
+    );
+  }
+
   revalidatePath("/admin/eventos");
   revalidatePath("/admin/calendario");
-  return { ok: true, id: primeiroId, conflitos };
+  return { ok: true, id: primeiroId, conflitos, aviso };
 }
 
 export async function editarEvento(
@@ -232,6 +245,32 @@ export async function moverEventoSala(input: {
   return { ok: true };
 }
 
+/** Grava o vínculo e tenta a contagem imediata. Devolve `aviso` se a contagem
+ * falhar (o vínculo é salvo de qualquer forma). Sem guard — quem chama já fez. */
+async function aplicarVinculoSympla(
+  admin: Admin,
+  eventoId: string,
+  symplaEventId: string,
+  symplaUrl?: string,
+): Promise<string | undefined> {
+  await admin
+    .from("eventos_internos")
+    .update({ sympla_event_id: symplaEventId, sympla_url: symplaUrl || null })
+    .eq("id", eventoId);
+  try {
+    const qtd = await contarParticipantes(symplaEventId);
+    await admin
+      .from("eventos_internos")
+      .update({ qtd_inscritos: qtd, sincronizado_em: new Date().toISOString() })
+      .eq("id", eventoId);
+    return undefined;
+  } catch (e) {
+    return e instanceof SymplaError && e.tipo === "config"
+      ? "Vínculo salvo, mas o token do Sympla parece inválido — verifique a configuração."
+      : "Vínculo salvo. A contagem de inscritos será atualizada no próximo sync.";
+  }
+}
+
 /** Vincula ao evento Sympla + conta inscritos imediatamente (§5). */
 export async function vincularSympla(input: {
   eventoId: string;
@@ -241,28 +280,19 @@ export async function vincularSympla(input: {
   await requireColaborador();
   const admin = createAdminClient();
 
-  const { error } = await admin
+  const { data: existe } = await admin
     .from("eventos_internos")
-    .update({
-      sympla_event_id: input.symplaEventId,
-      sympla_url: input.symplaUrl || null,
-    })
-    .eq("id", input.eventoId);
-  if (error) return { erro: "Não foi possível vincular o evento." };
+    .select("id")
+    .eq("id", input.eventoId)
+    .maybeSingle();
+  if (!existe) return { erro: "Evento não encontrado." };
 
-  let aviso: string | undefined;
-  try {
-    const qtd = await contarParticipantes(input.symplaEventId);
-    await admin
-      .from("eventos_internos")
-      .update({ qtd_inscritos: qtd, sincronizado_em: new Date().toISOString() })
-      .eq("id", input.eventoId);
-  } catch (e) {
-    aviso =
-      e instanceof SymplaError && e.tipo === "config"
-        ? "Vínculo salvo, mas o token do Sympla parece inválido — verifique a configuração."
-        : "Vínculo salvo. A contagem de inscritos será atualizada no próximo sync.";
-  }
+  const aviso = await aplicarVinculoSympla(
+    admin,
+    input.eventoId,
+    input.symplaEventId,
+    input.symplaUrl,
+  );
 
   revalidatePath(`/admin/eventos/${input.eventoId}`);
   revalidatePath("/admin/eventos");

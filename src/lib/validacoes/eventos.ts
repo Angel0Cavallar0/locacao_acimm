@@ -27,6 +27,9 @@ export const criarEventoSchema = z.intersection(
   z.object({
     /** Recorrência semanal opcional: cria ocorrências até esta data (inclusive). */
     repetirSemanalAte: dataISO.optional(),
+    /** Vínculo Sympla opcional já na criação (§5). */
+    symplaEventId: z.string().trim().min(1).max(64).optional(),
+    symplaUrl: z.string().trim().url().max(500).optional(),
   }),
 );
 

@@ -38,3 +38,16 @@ export interface SalaRemanejo {
   nome: string;
   capacidade: number;
 }
+
+/**
+ * Data/hora do Sympla ("YYYY-MM-DD HH:mm:ss" no fuso local do evento, Brasil) →
+ * `{ data, hora }` de parede para preencher o formulário. Puro/client-safe.
+ */
+export function partesDataHoraSympla(
+  valor: string | null | undefined,
+): { data: string; hora: string } | null {
+  if (!valor) return null;
+  const m = valor.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+  if (!m) return null;
+  return { data: m[1], hora: m[2] };
+}
