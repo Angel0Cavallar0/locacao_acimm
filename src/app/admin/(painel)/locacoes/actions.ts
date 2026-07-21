@@ -45,13 +45,13 @@ export async function reagendar(input: {
   horaFim: string;
   periodo: PeriodoDia;
   salaIds: string[];
-}): Promise<ResultadoAcao> {
+}): Promise<ResultadoAcao & { aviso?: string }> {
   const parsed = reagendarSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
   const r = await reagendarLocacao(parsed.data);
-  return "ok" in r ? {} : { error: r.erro };
+  return "ok" in r ? { aviso: r.aviso } : { error: r.erro };
 }
 
 export async function adicionarAdicionalAction(input: {

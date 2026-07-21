@@ -158,6 +158,7 @@ export interface LocacaoDetalhe {
   valorDescontosCentavos: number;
   valorTotalCentavos: number;
   periodoGratuitoAplicado: boolean;
+  combo: { id: string; nome: string; tipo: string } | null;
   salas: SalaLinha[];
   adicionais: AdicionalLinha[];
   eventos: EventoTimeline[];

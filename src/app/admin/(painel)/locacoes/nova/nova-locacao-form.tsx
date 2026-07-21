@@ -15,6 +15,7 @@ import {
   PERIODOS,
   type PeriodoDia,
 } from "@/lib/dominio";
+import type { ComboAplicavel } from "@/lib/locacoes/combos-dados";
 import type { HorariosPeriodos } from "@/lib/locacoes/horarios";
 import { DatePicker } from "@/components/ui/date-picker";
 import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
@@ -36,6 +37,18 @@ import type {
 
 const inputClasses =
   "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+/** Descrição curta do combo para o card de seleção. */
+function descreverCombo(c: ComboAplicavel): string {
+  if (c.tipo === "evento_privativo") {
+    return `Privativo — todas as salas por ${centavosParaBRL(c.valorCentavos ?? 0)}`;
+  }
+  const desc =
+    c.tipoDesconto === "percentual"
+      ? `${c.descontoValor ?? 0}% de desconto`
+      : `${centavosParaBRL(c.descontoValor ?? 0)} de desconto`;
+  return `Multi-sala — ${desc}`;
+}
 
 /** '01/MM/yyyy' do mês seguinte ao ciclo 'YYYY-MM-01' (renovação do benefício). */
 function renovaEm(ciclo: string): string {
@@ -82,6 +95,7 @@ export function NovaLocacaoForm({
   campos,
   horarios,
   prefill,
+  combos,
 }: {
   salas: { id: string; nome: string; capacidade: number }[];
   niveis: {
@@ -91,6 +105,7 @@ export function NovaLocacaoForm({
   }[];
   campos: Campo[];
   horarios: HorariosPeriodos;
+  combos: ComboAplicavel[];
   prefill: {
     salaId: string | null;
     data: string | null;
@@ -129,6 +144,7 @@ export function NovaLocacaoForm({
   );
   const [data, setData] = useState(prefill.data ?? "");
   const [periodo, setPeriodo] = useState<PeriodoDia>(prefill.periodo ?? "manha");
+  const [comboId, setComboId] = useState<string | null>(null);
   const faixaInicial = horarios[prefill.periodo ?? "manha"];
   const [horaInicio, setHoraInicio] = useState(faixaInicial.inicio);
   const [horaFim, setHoraFim] = useState(faixaInicial.fim);
@@ -178,8 +194,27 @@ export function NovaLocacaoForm({
   }
 
   function toggleSala(id: string) {
+    if (comboId) return; // salas travadas pelo combo
     setSalaIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   }
+
+  const assocAtivo =
+    condicao === "associado" && assoc !== null && assoc.situacao === "ativo";
+  const comboSel = combos.find((c) => c.id === comboId) ?? null;
+
+  function selecionarCombo(c: ComboAplicavel) {
+    setComboId(c.id);
+    setSalaIds(c.salaIdsObrigatorias);
+    if (c.periodo) trocarPeriodo(c.periodo);
+  }
+  function removerCombo() {
+    setComboId(null);
+  }
+
+  // Combo exige sócio ativo — se o colaborador troca de locatário, cai o combo.
+  useEffect(() => {
+    if (comboId && !assocAtivo) setComboId(null);
+  }, [comboId, assocAtivo]);
 
   const assocInativo =
     condicao === "associado" && assoc !== null && assoc.situacao !== "ativo";
@@ -225,6 +260,7 @@ export function NovaLocacaoForm({
     condicao,
     associadoIdCalc,
     pgRecusado,
+    comboId,
     coffee: coffeeIncluir
       ? { coffeeNivelId, coffeeQtd, coffeeAdicionaisCentavos }
       : null,
@@ -244,6 +280,7 @@ export function NovaLocacaoForm({
         condicao,
         associadoId: associadoIdCalc,
         periodoGratuitoRecusado: pgRecusado,
+        comboId,
         coffee:
           coffeeIncluir && coffeeNivelId
             ? {
@@ -372,6 +409,7 @@ export function NovaLocacaoForm({
       aprovar,
       filaEsperaId: filaId,
       periodoGratuitoRecusado: pgRecusado,
+      comboId,
     });
     setEnviando(false);
     setEnviandoQual(null);
@@ -516,6 +554,47 @@ export function NovaLocacaoForm({
         <CardContent className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-ink">Evento</h3>
 
+          {/* Combos (exclusivos de sócio ativo) */}
+          {assocAtivo && combos.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <Label>Combos (opcional)</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {combos.map((c) => {
+                  const sel = comboId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => (sel ? removerCombo() : selecionarCombo(c))}
+                      className={
+                        sel
+                          ? "flex flex-col items-start rounded-lg border border-brand bg-brand/10 px-3 py-2 text-left"
+                          : "flex flex-col items-start rounded-lg border px-3 py-2 text-left hover:bg-surface-muted"
+                      }
+                    >
+                      <span className="text-sm font-medium text-ink">{c.nome}</span>
+                      <span className="text-xs text-ink-muted">
+                        {descreverCombo(c)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {comboSel ? (
+                <p className="text-xs text-ink-muted">
+                  Combo aplicado — salas e período travados.{" "}
+                  <button
+                    type="button"
+                    onClick={removerCombo}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    Remover combo
+                  </button>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="flex flex-col gap-1.5">
             <Label>Salas</Label>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -526,11 +605,12 @@ export function NovaLocacaoForm({
                   <button
                     key={s.id}
                     type="button"
+                    disabled={comboId !== null}
                     onClick={() => toggleSala(s.id)}
                     className={
                       sel
-                        ? "flex flex-col items-start rounded-lg border border-brand bg-brand/5 px-3 py-2 text-left"
-                        : "flex flex-col items-start rounded-lg border px-3 py-2 text-left hover:bg-surface-muted"
+                        ? "flex flex-col items-start rounded-lg border border-brand bg-brand/5 px-3 py-2 text-left disabled:opacity-70"
+                        : "flex flex-col items-start rounded-lg border px-3 py-2 text-left hover:bg-surface-muted disabled:opacity-50"
                     }
                   >
                     <span className="text-sm font-medium text-ink">{s.nome}</span>
@@ -566,6 +646,7 @@ export function NovaLocacaoForm({
                 id="periodo"
                 className={inputClasses}
                 value={periodo}
+                disabled={comboSel?.periodo != null}
                 onChange={(e) => trocarPeriodo(e.target.value as PeriodoDia)}
               >
                 {PERIODOS.map((p) => (
@@ -784,6 +865,22 @@ export function NovaLocacaoForm({
               </p>
             ) : (
               <div className="flex flex-col gap-1">
+                {resumo.combo?.aplicado ? (
+                  <div className="mb-1 flex items-center justify-between rounded-md bg-brand/5 px-2 py-1">
+                    <span className="text-xs font-medium text-brand">
+                      Combo {resumo.combo.nome}
+                    </span>
+                    {resumo.combo.referenciaCentavos != null ? (
+                      <span className="text-xs text-ink-muted">
+                        de{" "}
+                        <span className="line-through">
+                          {centavosParaBRL(resumo.combo.referenciaCentavos)}
+                        </span>{" "}
+                        por {centavosParaBRL(resumo.salasCentavos)}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
                 {resumo.salas.map((s) => (
                   <div key={s.salaId} className="flex justify-between">
                     <span className="text-ink-muted">

@@ -13,6 +13,7 @@ import type { ContatoAcimm } from "@/lib/disponibilidade/tipos";
 import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
 import { parsearFaixas } from "@/lib/coffee/faixas-core";
 import type { PeriodoDia } from "@/lib/dominio";
+import { listarCombosAplicaveis } from "@/lib/locacoes/combos-dados";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SolicitacaoForm } from "./solicitacao-form";
 
@@ -38,7 +39,7 @@ export default async function NovaSolicitacaoPage({
   const sp = await searchParams;
   const admin = createAdminClient();
 
-  const [todasSalas, niveisRes, camposRes, cfgRes] = await Promise.all([
+  const [todasSalas, niveisRes, camposRes, cfgRes, combos] = await Promise.all([
     listarSalasAtivas(),
     admin
       .from("coffee_niveis")
@@ -55,6 +56,7 @@ export default async function NovaSolicitacaoPage({
       .select("valor")
       .eq("chave", "contato_acimm")
       .maybeSingle(),
+    listarCombosAplicaveis(),
   ]);
 
   const cv = (cfgRes.data?.valor ?? {}) as Partial<ContatoAcimm>;
@@ -125,6 +127,7 @@ export default async function NovaSolicitacaoPage({
         telefone: associado.telefone ?? "",
       }}
       contato={contato}
+      combos={combos}
       prefill={{
         salaId:
           salaBruta && todasSalas.some((s) => s.id === salaBruta)
