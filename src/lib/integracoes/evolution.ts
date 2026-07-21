@@ -43,3 +43,40 @@ export async function enviarWhatsappTexto(
     );
   }
 }
+
+/**
+ * Envia um documento (PDF) por URL como mídia ao número normalizado. Usado pelo
+ * PDF semanal de compras do coffee (Spec 16). A Evolution baixa o arquivo da URL
+ * assinada e o envia como documento com legenda.
+ */
+export async function enviarWhatsappMidia(
+  numero: string,
+  opts: { url: string; caption?: string; filename?: string },
+): Promise<void> {
+  const { apiUrl, apiKey, instance } = getEnvEvolution();
+
+  const resp = await fetch(
+    `${apiUrl.replace(/\/$/, "")}/message/sendMedia/${encodeURIComponent(instance)}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        number: numero,
+        mediatype: "document",
+        media: opts.url,
+        fileName: opts.filename ?? "documento.pdf",
+        caption: opts.caption ?? "",
+      }),
+    },
+  );
+
+  if (!resp.ok) {
+    const detalhe = await resp.text().catch(() => "");
+    throw new Error(
+      `Evolution (mídia) falhou (${resp.status}): ${detalhe.slice(0, 300)}`,
+    );
+  }
+}

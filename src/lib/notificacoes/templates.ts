@@ -187,6 +187,12 @@ export const templates: Record<string, TemplateBuilders> = {
     }),
   },
 
+  // Documento (PDF de compras) — WhatsApp com mídia; o texto é a legenda (§16).
+  coffee_pdf: {
+    whatsapp: (p) =>
+      `Lista de compras do coffee break — semana ${s(p, "rotulo")}. ${s(p, "qtd", "0")} pedido(s) firme(s). Segue o PDF.`,
+  },
+
   // --- Internas (ACIMM) — só e-mail (§5) ----------------------------------
   interna_nova_solicitacao: {
     email: (p) => ({
