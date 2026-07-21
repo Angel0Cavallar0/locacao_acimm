@@ -61,6 +61,34 @@ identidade ACIMM (sem menção a ferramentas):
 Sem SMTP configurado, o convite ainda cria o usuário, mas o e-mail pode não ser
 entregue — nesse caso, use o fluxo de "Recuperar senha" ou o dashboard.
 
+## Jobs agendados (pg_cron) — seed do Vault
+
+Os agendamentos rodam no Postgres do Supabase (pg_cron → pg_net → rotas
+`/api/cron/*`). A migration `..._cron_jobs.sql` registra os jobs, mas eles ficam
+**inertes** até semear dois segredos no **Supabase Vault** (nenhum segredo vai
+em código/migration). Uma única vez, no **SQL Editor** do projeto:
+
+```sql
+select vault.create_secret('https://acimm.facioflow.com.br', 'app_url');
+select vault.create_secret('<CRON_SECRET da Vercel>', 'cron_secret');
+```
+
+- `app_url` — URL pública do app (sem barra final).
+- `cron_secret` — o MESMO valor de `CRON_SECRET` nas env vars da Vercel (as
+  rotas exigem `Authorization: Bearer <CRON_SECRET>`).
+
+Enquanto o Vault não estiver semeado, `chamar_cron` é um no-op limpo (não chama
+nada). Jobs registrados: `notificacoes-retry` (15min), `lembretes` (diário 08:00
+BRT), `coffee-pdf` (segunda 07:00 BRT). Acompanhe execuções e dispare
+manualmente em **Admin → Configurações → Rotinas automáticas**.
+
+Em dev/staging não há agendamento — chame as rotas manualmente:
+
+```bash
+curl -X POST http://localhost:3000/api/cron/notificacoes-retry \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
 ## Estrutura
 
 - `src/app/(site)` — área pública (tela inicial).

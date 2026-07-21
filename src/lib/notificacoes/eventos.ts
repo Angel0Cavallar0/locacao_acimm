@@ -330,6 +330,68 @@ export async function notificarContratoEnviado(
   ]);
 }
 
+/** Lembrete pré-evento (Spec 16). Dedupe: uma linha por locação/template —
+ * rodar o job 2× no mesmo dia não duplica. Retorna se enfileirou. */
+export async function notificarLembrete(locacaoId: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { count } = await admin
+    .from("notificacoes")
+    .select("id", { count: "exact", head: true })
+    .eq("locacao_id", locacaoId)
+    .eq("template", "lembrete_pre_evento");
+  if ((count ?? 0) > 0) return false;
+
+  const base = await montarBase(admin, locacaoId);
+  if (!base) return false;
+  await enfileirar(admin, locacaoId, parLocatario(base, "lembrete_pre_evento"));
+  return true;
+}
+
+/** PDF semanal de compras → WhatsApp de compras como documento (Spec 16 §4.3).
+ * Número não configurado → skip (sem lixo na fila). Retorna se enfileirou. */
+export async function enfileirarCoffeePdf(input: {
+  path: string;
+  semana: string;
+  rotulo: string;
+  qtd: number;
+}): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data: cfg } = await admin
+    .from("configuracoes")
+    .select("valor")
+    .eq("chave", "contato_compras")
+    .maybeSingle();
+  const whatsapp = (
+    (cfg?.valor as { whatsapp?: string } | null)?.whatsapp ?? ""
+  ).trim();
+  if (!whatsapp) {
+    console.info("[coffee-pdf] contato_compras.whatsapp vazio — envio ignorado.");
+    return false;
+  }
+
+  // URL assinada (7 dias) para a Evolution baixar o documento.
+  const { data: signed } = await admin.storage
+    .from("coffee-pdfs")
+    .createSignedUrl(input.path, 604800);
+  if (!signed) return false;
+
+  await enfileirar(admin, null, [
+    {
+      canal: "whatsapp",
+      destinatario: whatsapp,
+      template: "coffee_pdf",
+      payload: {
+        semana: input.semana,
+        rotulo: input.rotulo,
+        qtd: String(input.qtd),
+        documentoUrl: signed.signedUrl,
+        documentoNome: `compras-coffee-${input.semana}.pdf`,
+      },
+    },
+  ]);
+  return true;
+}
+
 /** Comprovante recebido — aviso interno à ACIMM (§5). */
 export async function notificarComprovanteRecebido(
   locacaoId: string,

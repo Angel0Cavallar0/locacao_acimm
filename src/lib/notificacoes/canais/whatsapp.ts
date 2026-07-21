@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  enviarWhatsappMidia,
   enviarWhatsappTexto,
   isEvolutionConfigured,
 } from "@/lib/integracoes/evolution";
@@ -35,6 +36,41 @@ export async function enviarWhatsapp(
     return {
       ok: false,
       erro: e instanceof Error ? e.message : "Falha no envio do WhatsApp.",
+      retryable: true,
+    };
+  }
+}
+
+/** Envia um documento (PDF) por URL com legenda (Spec 16 — PDF de compras). */
+export async function enviarWhatsappDocumento(
+  destino: string,
+  url: string,
+  legenda: string,
+  nomeArquivo: string,
+): Promise<ResultadoEnvio> {
+  const norm = normalizarTelefoneBR(destino);
+  if ("erro" in norm) {
+    return { ok: false, erro: norm.erro, retryable: false };
+  }
+  if (!isEvolutionConfigured()) {
+    return {
+      ok: false,
+      erro: "Canal WhatsApp não configurado.",
+      retryable: true,
+    };
+  }
+
+  try {
+    await enviarWhatsappMidia(norm.numero, {
+      url,
+      caption: legenda,
+      filename: nomeArquivo,
+    });
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      erro: e instanceof Error ? e.message : "Falha no envio do documento.",
       retryable: true,
     };
   }

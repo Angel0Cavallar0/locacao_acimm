@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarEmailCanal } from "./canais/email";
 import type { ResultadoEnvio } from "./canais/tipos";
-import { enviarWhatsapp } from "./canais/whatsapp";
+import { enviarWhatsapp, enviarWhatsappDocumento } from "./canais/whatsapp";
 import { type PayloadNotificacao, templates } from "./templates";
 
 /**
@@ -38,6 +38,16 @@ async function enviarLinha(linha: LinhaReservada): Promise<ResultadoEnvio> {
       texto = builders.whatsapp(payload);
     } catch {
       return { ok: false, erro: "Falha ao montar a mensagem.", retryable: false };
+    }
+    // Payload com documento → envia como mídia (PDF de compras, Spec 16).
+    const docUrl =
+      typeof payload.documentoUrl === "string" ? payload.documentoUrl : "";
+    if (docUrl) {
+      const nome =
+        typeof payload.documentoNome === "string"
+          ? payload.documentoNome
+          : "documento.pdf";
+      return enviarWhatsappDocumento(linha.destinatario, docUrl, texto, nome);
     }
     return enviarWhatsapp(linha.destinatario, texto);
   }

@@ -26,6 +26,7 @@ export const TEMPLATE_ROTULO: Record<string, string> = {
   confirmada: "Locação confirmada",
   cancelada: "Locação cancelada",
   lembrete_pre_evento: "Lembrete pré-evento",
+  coffee_pdf: "PDF semanal de coffee",
   interna_nova_solicitacao: "Interna: nova solicitação",
   interna_comprovante_recebido: "Interna: comprovante recebido",
 };

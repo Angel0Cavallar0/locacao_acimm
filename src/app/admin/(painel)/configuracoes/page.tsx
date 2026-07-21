@@ -1,4 +1,4 @@
-import { FileSignature, Users } from "lucide-react";
+import { CalendarClock, FileSignature, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth/guards";
 import { isAutentiqueConfigured } from "@/lib/integracoes/autentique";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ContratoModoForm } from "./contrato-modo";
+import { type RotinaCron, RotinasCron } from "./rotinas-cron";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -22,6 +23,25 @@ export default async function ConfiguracoesPage() {
     .maybeSingle();
   const modo = parsearModoEnvio(cfg?.valor);
   const autentiqueDisponivel = isAutentiqueConfigured();
+
+  const { data: rotinasRows } = await admin.rpc("listar_rotinas_cron");
+  const rotinas: RotinaCron[] = (
+    (rotinasRows ?? []) as Array<{
+      jobname: string;
+      schedule: string;
+      active: boolean;
+      ultima_status: string | null;
+      ultima_inicio: string | null;
+      ultima_msg: string | null;
+    }>
+  ).map((r) => ({
+    jobname: r.jobname,
+    schedule: r.schedule,
+    active: r.active,
+    ultimaStatus: r.ultima_status,
+    ultimaInicioUtc: r.ultima_inicio,
+    ultimaMsg: r.ultima_msg,
+  }));
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
@@ -47,6 +67,25 @@ export default async function ConfiguracoesPage() {
             modoInicial={modo}
             autentiqueDisponivel={autentiqueDisponivel}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-md bg-brand/10 text-brand">
+              <CalendarClock className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-ink">
+                Rotinas automáticas
+              </h3>
+              <p className="text-xs text-ink-muted">
+                Jobs agendados (notificações, lembretes, PDF de compras).
+              </p>
+            </div>
+          </div>
+          <RotinasCron rotinas={rotinas} />
         </CardContent>
       </Card>
 
