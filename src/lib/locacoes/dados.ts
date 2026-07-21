@@ -12,6 +12,7 @@ import type {
   FormaPagamento,
   LocacaoDetalhe,
   LocacaoLista,
+  NotificacaoLinha,
   PagamentoLinha,
   SalaLinha,
 } from "./tipos";
@@ -181,6 +182,7 @@ export async function carregarLocacao(
     { data: coffeeRows },
     { data: contratoRow },
     { data: pagamentosRows },
+    { data: notificacoesRows },
     { data: associadoRow },
   ] = await Promise.all([
     admin
@@ -215,6 +217,13 @@ export async function carregarLocacao(
       .from("pagamentos")
       .select(
         "id, descricao, forma, valor_centavos, status, comprovante_url, observacao, baixa_por, baixa_em, criado_em",
+      )
+      .eq("locacao_id", id)
+      .order("criado_em", { ascending: true }),
+    admin
+      .from("notificacoes")
+      .select(
+        "id, canal, template, destinatario, status, tentativas, ultimo_erro, enviada_em, criado_em",
       )
       .eq("locacao_id", id)
       .order("criado_em", { ascending: true }),
@@ -309,6 +318,18 @@ export async function carregarLocacao(
     };
   });
 
+  const notificacoes: NotificacaoLinha[] = (notificacoesRows ?? []).map((r) => ({
+    id: r.id as string,
+    canal: r.canal as "whatsapp" | "email",
+    template: r.template as string,
+    destinatario: r.destinatario as string,
+    status: r.status as string,
+    tentativas: r.tentativas as number,
+    ultimoErro: (r.ultimo_erro as string) ?? null,
+    enviadaEmUtc: (r.enviada_em as string) ?? null,
+    criadoEmUtc: r.criado_em as string,
+  }));
+
   const associadoNome =
     (associadoRow as { nome?: string } | null)?.nome ?? null;
 
@@ -352,6 +373,7 @@ export async function carregarLocacao(
     coffee,
     contrato,
     pagamentos,
+    notificacoes,
   };
 }
 

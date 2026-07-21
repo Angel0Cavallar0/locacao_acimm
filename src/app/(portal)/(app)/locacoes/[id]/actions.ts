@@ -146,10 +146,11 @@ export async function confirmarComprovante(input: {
     dados: { tipo: "comprovante_enviado" },
   });
 
-  // Hook de notificação ao colaborador — no-op até o Spec 15.
-  console.info(
-    `[comprovante] locacao=${posse.locacaoId} pagamento=${input.pagamentoId} enviado`,
+  // Aviso interno à ACIMM: comprovante recebido (Spec 15 §5).
+  const { notificarComprovanteRecebido } = await import(
+    "@/lib/notificacoes/eventos"
   );
+  await notificarComprovanteRecebido(posse.locacaoId);
 
   revalidatePath(`/locacoes/${posse.locacaoId}`);
   revalidatePath("/admin/locacoes");

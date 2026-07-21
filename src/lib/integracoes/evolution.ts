@@ -1,15 +1,10 @@
 import "server-only";
+import { getEnvEvolution } from "@/lib/env";
 
 /**
- * Integração Evolution API (CLAUDE.md §6.5) — WhatsApp transacional.
- * Notificações sempre em par com e-mail (Resend); falha em um canal não
- * bloqueia o outro. Stub tipado — implementação real na Fase 4.
+ * Integração Evolution API v2 (CLAUDE.md §6.5) — WhatsApp transacional.
+ * Chamada direta à API REST. Nenhum conteúdo menciona ferramentas/stack.
  */
-
-export interface MensagemWhatsapp {
-  telefone: string;
-  texto: string;
-}
 
 export function isEvolutionConfigured(): boolean {
   return Boolean(
@@ -19,6 +14,32 @@ export function isEvolutionConfigured(): boolean {
   );
 }
 
-export async function enviarWhatsapp(_msg: MensagemWhatsapp): Promise<void> {
-  throw new Error("Evolution API: não implementado (stub Fase 0).");
+/**
+ * Envia texto simples ao número já normalizado (55 + DDD + 9 + 8 dígitos).
+ * Lança em falha de rede/HTTP — quem chama decide sobre retry.
+ */
+export async function enviarWhatsappTexto(
+  numero: string,
+  texto: string,
+): Promise<void> {
+  const { apiUrl, apiKey, instance } = getEnvEvolution();
+
+  const resp = await fetch(
+    `${apiUrl.replace(/\/$/, "")}/message/sendText/${encodeURIComponent(instance)}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ number: numero, text: texto }),
+    },
+  );
+
+  if (!resp.ok) {
+    const detalhe = await resp.text().catch(() => "");
+    throw new Error(
+      `Evolution falhou (${resp.status}): ${detalhe.slice(0, 300)}`,
+    );
+  }
 }
