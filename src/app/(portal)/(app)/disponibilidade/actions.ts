@@ -44,6 +44,7 @@ async function contarNaFrente(
     .eq("sala_id", salaId)
     .eq("data", data)
     .is("convertido_locacao_id", null)
+    .is("arquivado_em", null)
     .lt("criado_em", criadoEm);
   return count ?? 0;
 }
@@ -66,6 +67,7 @@ export async function statusFilaEspera(
     .eq("sala_id", salaId)
     .eq("data", data)
     .is("convertido_locacao_id", null)
+    .is("arquivado_em", null)
     .order("criado_em", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -127,6 +129,7 @@ export async function entrarFilaEspera(input: {
     .eq("sala_id", parsed.data.salaId)
     .eq("data", parsed.data.data)
     .is("convertido_locacao_id", null)
+    .is("arquivado_em", null)
     .order("criado_em", { ascending: true })
     .limit(1)
     .maybeSingle();

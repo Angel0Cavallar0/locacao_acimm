@@ -1,5 +1,5 @@
 import "server-only";
-import { dataSP, horaSP } from "@/lib/calendario/tempo";
+import { dataSP, horaSP, utcParaNaiveSP } from "@/lib/calendario/tempo";
 import {
   type DadosPagamento,
   parsearDadosPagamento,
@@ -410,6 +410,75 @@ export async function notificarComprovanteRecebido(
       payload: { loc: base.loc, nome: base.nome, linkAdmin: base.linkAdmin },
     },
   ]);
+}
+
+/**
+ * Vaga liberada (Spec 19 §6): avisa a ACIMM (interno) quando um horário com fila
+ * fica livre. Match: mesma data e (sala liberada OU "qualquer sala"), ainda
+ * aguardando. Sem fila → nenhum ruído. Nenhum disparo ao interessado — a equipe
+ * contata pela tela. `locacao_id` null (a fila não pertence a uma locação).
+ */
+export async function notificarVagaLiberada(
+  salaId: string,
+  salaNome: string,
+  dataISO: string,
+): Promise<void> {
+  const admin = createAdminClient();
+  const interno = await contatoInterno(admin);
+  if (!interno) return;
+
+  const { data: fila } = await admin
+    .from("lista_espera")
+    .select("nome")
+    .eq("data", dataISO)
+    .is("convertido_locacao_id", null)
+    .is("arquivado_em", null)
+    .or(`sala_id.eq.${salaId},sala_id.is.null`)
+    .order("criado_em", { ascending: true });
+
+  const rows = (fila ?? []) as { nome: string }[];
+  if (rows.length === 0) return;
+
+  const dataFmt = dataISO.split("-").reverse().join("/");
+  await enfileirar(admin, null, [
+    {
+      canal: "email",
+      destinatario: interno,
+      template: "interna_vaga_liberada",
+      payload: {
+        sala: salaNome,
+        data: dataFmt,
+        qtd: String(rows.length),
+        primeiro: rows[0].nome,
+        linkAdmin: `${envCore.APP_URL}/admin/lista-espera?sala=${salaId}&data=${dataISO}`,
+      },
+    },
+  ]);
+}
+
+/** Todas as salas de uma locação liberada (recusa/cancelamento) → avisa a fila. */
+export async function notificarVagasLocacao(locacaoId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data: loc } = await admin
+    .from("locacoes")
+    .select("inicio")
+    .eq("id", locacaoId)
+    .maybeSingle();
+  if (!loc) return;
+  const dataISO = utcParaNaiveSP(loc.inicio as string).slice(0, 10);
+
+  const { data: salasRows } = await admin
+    .from("locacao_salas")
+    .select("sala_id, salas ( nome )")
+    .eq("locacao_id", locacaoId);
+
+  for (const r of (salasRows ?? []) as {
+    sala_id: string;
+    salas: { nome: string } | { nome: string }[] | null;
+  }[]) {
+    const salaNome = um(r.salas)?.nome ?? "sala";
+    await notificarVagaLiberada(r.sala_id, salaNome, dataISO);
+  }
 }
 
 /** Texto de instrução por forma de pagamento (usa `dados_pagamento`). */

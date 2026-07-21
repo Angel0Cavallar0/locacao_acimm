@@ -3,9 +3,12 @@ import Link from "next/link";
 import { requireColaborador } from "@/lib/auth/guards";
 import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
-import type { PeriodoDia } from "@/lib/dominio";
+import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { mascararDocumento, mascararTelefone } from "@/lib/utils/mascaras";
 import { NovaLocacaoForm } from "./nova-locacao-form";
+import type { AssociadoBusca } from "./tipos";
 
 export const metadata: Metadata = { title: "Nova locação" };
 
@@ -46,13 +49,92 @@ export default async function NovaLocacaoPage({
     ]);
 
   const periodoPrefill = texto(sp.periodo);
+
+  // Conversão a partir da lista de espera (?fila={id}, Spec 19 §4): pré-preenche
+  // sala/data e o locatário (associado da base ou externo da fila).
+  type LocatarioPrefill = {
+    condicao: CondicaoLocatario;
+    associado: AssociadoBusca | null;
+    nome: string;
+    documento: string;
+    email: string;
+    telefone: string;
+  };
+  let filaId: string | null = null;
+  let filaSalaId: string | null = null;
+  let filaData: string | null = null;
+  let locatario: LocatarioPrefill | null = null;
+
+  const filaParam = texto(sp.fila);
+  if (filaParam) {
+    const admin = createAdminClient();
+    const { data: fe } = await admin
+      .from("lista_espera")
+      .select(
+        "id, sala_id, data, associado_id, nome, contato, convertido_locacao_id, arquivado_em",
+      )
+      .eq("id", filaParam)
+      .maybeSingle();
+
+    if (fe && !fe.convertido_locacao_id && !fe.arquivado_em) {
+      filaId = fe.id as string;
+      filaSalaId = (fe.sala_id as string | null) ?? null;
+      filaData = fe.data as string;
+
+      if (fe.associado_id) {
+        const { data: a } = await admin
+          .from("associados")
+          .select(
+            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao",
+          )
+          .eq("id", fe.associado_id)
+          .maybeSingle();
+        if (a) {
+          const associado: AssociadoBusca = {
+            id: a.id as string,
+            nome: a.nome as string,
+            razaoSocial: (a.razao_social as string | null) ?? null,
+            documento: (a.documento as string | null) ?? null,
+            emails: (a.emails as string[] | null) ?? [],
+            telefone:
+              (a.whatsapp as string | null) ??
+              (a.celular as string | null) ??
+              (a.telefone as string | null) ??
+              null,
+            situacao: a.situacao as AssociadoBusca["situacao"],
+          };
+          locatario = {
+            condicao: "associado",
+            associado,
+            nome: associado.razaoSocial ?? associado.nome,
+            documento: mascararDocumento(associado.documento ?? ""),
+            email: associado.emails[0] ?? "",
+            telefone: mascararTelefone(associado.telefone ?? ""),
+          };
+        }
+      }
+      if (!locatario) {
+        locatario = {
+          condicao: "nao_associado",
+          associado: null,
+          nome: (fe.nome as string) ?? "",
+          documento: "",
+          email: "",
+          telefone: mascararTelefone((fe.contato as string) ?? ""),
+        };
+      }
+    }
+  }
+
   const prefill = {
-    salaId: texto(sp.sala),
-    data: texto(sp.data),
+    salaId: filaSalaId ?? texto(sp.sala),
+    data: filaData ?? texto(sp.data),
     periodo:
       periodoPrefill && PERIODOS_VALIDOS.includes(periodoPrefill as PeriodoDia)
         ? (periodoPrefill as PeriodoDia)
         : null,
+    filaId,
+    locatario,
   };
 
   return (

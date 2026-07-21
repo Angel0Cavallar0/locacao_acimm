@@ -99,6 +99,25 @@ const marcarGoogle: EfeitoFn = async (ctx) => {
 };
 
 /**
+ * Vaga liberada (Spec 19 §6): quando uma locação que era BLOQUEANTE na agenda
+ * cai (recusa/cancelamento), avisa a fila de espera da(s) sala(s)/data. Só o
+ * estado anterior importa — `solicitada`/`em_analise` não bloqueavam ninguém.
+ */
+const BLOQUEANTES: StatusLocacao[] = [
+  "aprovada",
+  "contrato_enviado",
+  "contrato_assinado",
+  "aguardando_pagamento",
+  "confirmada",
+  "realizada",
+];
+const liberarVaga: EfeitoFn = async (ctx) => {
+  if (!ctx.de || !BLOQUEANTES.includes(ctx.de)) return;
+  const { notificarVagasLocacao } = await import("@/lib/notificacoes/eventos");
+  await notificarVagasLocacao(ctx.locacaoId);
+};
+
+/**
  * Ao marcar a locação como assinada (colaborador aprovou o assinado enviado
  * pelo associado), reflete no `contratos.status` para o portal mostrar
  * "Assinado" (revisão Spec 13).
@@ -118,8 +137,8 @@ export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   aguardando_pagamento: [logar("aguardando_pagamento"), criarPagamentos],
   confirmada: [logar("confirmada"), notif.confirmada, marcarGoogle],
-  recusada: [logar("recusada"), notif.recusada, marcarGoogle],
-  cancelada: [logar("cancelada"), notif.cancelada, marcarGoogle],
+  recusada: [logar("recusada"), notif.recusada, marcarGoogle, liberarVaga],
+  cancelada: [logar("cancelada"), notif.cancelada, marcarGoogle, liberarVaga],
 };
 
 /** Executa os efeitos do estado destino; isola falhas (não propaga). */

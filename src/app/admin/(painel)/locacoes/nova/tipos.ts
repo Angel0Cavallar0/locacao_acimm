@@ -71,4 +71,6 @@ export interface CriarLocacaoPayload {
   adicionais: AdicionalPayload[];
   formaPagamento: FormaPagamento | null;
   aprovar: boolean;
+  /** Conversão a partir da lista de espera (Spec 19 §4). */
+  filaEsperaId?: string | null;
 }

@@ -322,6 +322,7 @@ export async function criarLocacaoAssistida(
       valor_unitario: a.valorUnitarioCentavos,
     })),
     p_autor: user.id,
+    p_fila_espera_id: v.filaEsperaId ?? null,
   });
 
   if (error || !novoId) {

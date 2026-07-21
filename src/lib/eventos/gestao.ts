@@ -1,7 +1,11 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
-import { intervaloSP, spWallParaUtc } from "@/lib/calendario/tempo";
+import {
+  intervaloSP,
+  spWallParaUtc,
+  utcParaNaiveSP,
+} from "@/lib/calendario/tempo";
 import type { PrioridadeEvento } from "@/lib/calendario/tipos";
 import {
   marcarEventoPendente,
@@ -226,7 +230,7 @@ export async function moverEventoSala(input: {
 
   const { data: ev } = await admin
     .from("eventos_internos")
-    .select("prioridade, inicio, fim, cancelado")
+    .select("prioridade, inicio, fim, cancelado, sala_id")
     .eq("id", input.eventoId)
     .maybeSingle();
   if (!ev) return { erro: "Evento não encontrado." };
@@ -234,6 +238,8 @@ export async function moverEventoSala(input: {
   if (ev.prioridade === "alta") {
     return { erro: "Evento de alta prioridade não é remanejado." };
   }
+
+  const salaAntigaId = ev.sala_id as string;
 
   const { error } = await admin
     .from("eventos_internos")
@@ -255,6 +261,24 @@ export async function moverEventoSala(input: {
 
   // Remanejou de sala → espelho no Google atualiza (Spec 18).
   await marcarEventoPendente(input.eventoId);
+
+  // Sala anterior ficou livre → avisa a fila de espera dessa sala/data (Spec 19).
+  if (salaAntigaId !== input.salaId) {
+    const { data: salaAntiga } = await admin
+      .from("salas")
+      .select("nome")
+      .eq("id", salaAntigaId)
+      .maybeSingle();
+    const dataISO = utcParaNaiveSP(ev.inicio as string).slice(0, 10);
+    const { notificarVagaLiberada } = await import(
+      "@/lib/notificacoes/eventos"
+    );
+    await notificarVagaLiberada(
+      salaAntigaId,
+      (salaAntiga?.nome as string) ?? "sala",
+      dataISO,
+    );
+  }
 
   revalidatePath("/admin/eventos");
   revalidatePath(`/admin/eventos/${input.eventoId}`);

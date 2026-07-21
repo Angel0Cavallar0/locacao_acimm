@@ -83,17 +83,36 @@ export function NovaLocacaoForm({
   }[];
   campos: Campo[];
   horarios: HorariosPeriodos;
-  prefill: { salaId: string | null; data: string | null; periodo: PeriodoDia | null };
+  prefill: {
+    salaId: string | null;
+    data: string | null;
+    periodo: PeriodoDia | null;
+    filaId?: string | null;
+    locatario?: {
+      condicao: CondicaoLocatario;
+      associado: AssociadoBusca | null;
+      nome: string;
+      documento: string;
+      email: string;
+      telefone: string;
+    } | null;
+  };
 }) {
   const router = useRouter();
 
-  // Locatário
-  const [condicao, setCondicao] = useState<CondicaoLocatario>("associado");
-  const [assoc, setAssoc] = useState<AssociadoBusca | null>(null);
-  const [nome, setNome] = useState("");
-  const [documento, setDocumento] = useState("");
-  const [email, setEmail] = useState("");
-  const [telefone, setTelefone] = useState("");
+  // Locatário (pré-preenchido quando convertendo da lista de espera).
+  const pl = prefill.locatario;
+  const [filaId] = useState<string | null>(prefill.filaId ?? null);
+  const [condicao, setCondicao] = useState<CondicaoLocatario>(
+    pl?.condicao ?? "associado",
+  );
+  const [assoc, setAssoc] = useState<AssociadoBusca | null>(
+    pl?.associado ?? null,
+  );
+  const [nome, setNome] = useState(pl?.nome ?? "");
+  const [documento, setDocumento] = useState(pl?.documento ?? "");
+  const [email, setEmail] = useState(pl?.email ?? "");
+  const [telefone, setTelefone] = useState(pl?.telefone ?? "");
   const [responsavelNome, setResponsavelNome] = useState("");
 
   // Evento
@@ -335,6 +354,7 @@ export function NovaLocacaoForm({
         })),
       formaPagamento: formaPagamento || null,
       aprovar,
+      filaEsperaId: filaId,
     });
     setEnviando(false);
     setEnviandoQual(null);
@@ -350,6 +370,14 @@ export function NovaLocacaoForm({
 
   return (
     <div className="flex flex-col gap-4">
+      {filaId ? (
+        <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-sm text-ink">
+          Convertendo um interessado da{" "}
+          <span className="font-medium">lista de espera</span>. Ao salvar, a
+          entrada é marcada como convertida.
+        </div>
+      ) : null}
+
       {/* Locatário */}
       <Card>
         <CardContent className="flex flex-col gap-3">

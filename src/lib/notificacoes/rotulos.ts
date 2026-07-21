@@ -29,6 +29,7 @@ export const TEMPLATE_ROTULO: Record<string, string> = {
   coffee_pdf: "PDF semanal de coffee",
   interna_nova_solicitacao: "Interna: nova solicitação",
   interna_comprovante_recebido: "Interna: comprovante recebido",
+  interna_vaga_liberada: "Interna: vaga liberada",
 };
 
 export function rotuloTemplate(t: string): string {
