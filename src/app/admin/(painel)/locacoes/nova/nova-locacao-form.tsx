@@ -37,6 +37,14 @@ import type {
 const inputClasses =
   "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
+/** '01/MM/yyyy' do mês seguinte ao ciclo 'YYYY-MM-01' (renovação do benefício). */
+function renovaEm(ciclo: string): string {
+  const [y, m] = ciclo.split("-").map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return `01/${String(nm).padStart(2, "0")}/${ny}`;
+}
+
 function mesDeData(iso: string | null): { ano: number; mes: number } {
   if (iso && /^\d{4}-\d{2}/.test(iso)) {
     const [y, m] = iso.split("-").map(Number);
@@ -205,12 +213,18 @@ export function NovaLocacaoForm({
     }))
     .filter((a) => a.quantidade > 0);
 
+  // Período gratuito do sócio: o colaborador pode recusar (guarda o uso).
+  const [pgRecusado, setPgRecusado] = useState(false);
+
   // Resumo em tempo real (server recalcula — client só exibe).
+  const associadoIdCalc = condicao === "associado" ? (assoc?.id ?? null) : null;
   const chaveResumo = JSON.stringify({
     salaIds,
     data,
     periodo,
     condicao,
+    associadoIdCalc,
+    pgRecusado,
     coffee: coffeeIncluir
       ? { coffeeNivelId, coffeeQtd, coffeeAdicionaisCentavos }
       : null,
@@ -228,6 +242,8 @@ export function NovaLocacaoForm({
         data,
         periodo,
         condicao,
+        associadoId: associadoIdCalc,
+        periodoGratuitoRecusado: pgRecusado,
         coffee:
           coffeeIncluir && coffeeNivelId
             ? {
@@ -355,6 +371,7 @@ export function NovaLocacaoForm({
       formaPagamento: formaPagamento || null,
       aprovar,
       filaEsperaId: filaId,
+      periodoGratuitoRecusado: pgRecusado,
     });
     setEnviando(false);
     setEnviandoQual(null);
@@ -795,13 +812,43 @@ export function NovaLocacaoForm({
                     </span>
                   </div>
                 ) : null}
-                <div className="flex justify-between">
-                  <span className="text-ink-muted">
-                    Descontos{" "}
-                    <span className="text-xs">(regras em breve)</span>
-                  </span>
-                  <span className="text-ink">R$ 0,00</span>
-                </div>
+                {resumo.descontos.map((d) => (
+                  <div key={d.rotulo} className="flex justify-between">
+                    <span className="text-emerald-700 dark:text-emerald-400">
+                      {d.rotulo}
+                    </span>
+                    <span className="text-emerald-700 dark:text-emerald-400">
+                      − {centavosParaBRL(d.valorCentavos)}
+                    </span>
+                  </div>
+                ))}
+                {resumo.periodoGratuito &&
+                (resumo.periodoGratuito.elegivel ||
+                  resumo.periodoGratuito.motivo === "esgotado") ? (
+                  <div className="mt-1 rounded-md bg-brand/5 px-2.5 py-2 text-xs">
+                    {resumo.periodoGratuito.motivo === "esgotado" ? (
+                      <span className="text-ink-muted">
+                        Benefício desta sala já utilizado no mês · renova em{" "}
+                        {renovaEm(resumo.periodoGratuito.ciclo)}.
+                      </span>
+                    ) : (
+                      <label className="flex cursor-pointer items-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 size-3.5"
+                          checked={!pgRecusado}
+                          onChange={(e) => setPgRecusado(!e.target.checked)}
+                        />
+                        <span className="text-ink-muted">
+                          Aplicar período gratuito do associado (uso{" "}
+                          {resumo.periodoGratuito.usoAtual + 1} de{" "}
+                          {resumo.periodoGratuito.limite} desta sala no mês).
+                          Desmarque para guardar o uso para outra data.
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                ) : null}
                 <div className="flex justify-between border-t pt-1 font-semibold">
                   <span className="text-ink">Total</span>
                   <span className="text-ink">

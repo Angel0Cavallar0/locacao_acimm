@@ -164,10 +164,16 @@ export async function calcularResumoAction(input: {
   condicao: CriarLocacaoPayload["condicao"];
   coffee: { nivelId: string; qtdPessoas: number; adicionaisCentavos: number } | null;
   adicionais: { quantidade: number; valorUnitarioCentavos: number }[];
+  associadoId?: string | null;
+  periodoGratuitoRecusado?: boolean;
 }): Promise<ResumoValores> {
   await requireColaborador();
 
-  const calc = await calcularValores(input);
+  const calc = await calcularValores({
+    ...input,
+    associadoId: input.condicao === "associado" ? input.associadoId : null,
+    periodoGratuitoRecusado: input.periodoGratuitoRecusado,
+  });
 
   const admin = createAdminClient();
   const { data: salas } = await admin
@@ -188,6 +194,8 @@ export async function calcularResumoAction(input: {
     coffeeCentavos: calc.coffeeCentavos,
     adicionaisCentavos: calc.adicionaisCentavos,
     descontosCentavos: calc.descontosCentavos,
+    descontos: calc.descontos,
+    periodoGratuito: calc.periodoGratuito,
     totalCentavos: calc.totalCentavos,
   };
 }
@@ -270,6 +278,8 @@ export async function criarLocacaoAssistida(
         }
       : null,
     adicionais: v.adicionais,
+    associadoId: v.condicao === "associado" ? v.associadoId : null,
+    periodoGratuitoRecusado: v.periodoGratuitoRecusado,
   });
   if (calc.salasSemPreco.length > 0) {
     const nomes = (salas ?? []).filter((s) =>
@@ -293,6 +303,17 @@ export async function criarLocacaoAssistida(
         valor: calc.coffeeCentavos,
       }
     : null;
+
+  // Período gratuito (Spec 20 §5.3): consumido na MESMA transação da RPC.
+  const pg = calc.periodoGratuito;
+  const gratuitoPayload =
+    pg?.aplicado
+      ? {
+          sala_id: pg.salaId,
+          ciclo: pg.ciclo,
+          horas: (Date.parse(fim) - Date.parse(inicio)) / 3_600_000,
+        }
+      : null;
 
   const { data: novoId, error } = await admin.rpc("criar_locacao_assistida", {
     p_condicao: v.condicao,
@@ -323,10 +344,19 @@ export async function criarLocacaoAssistida(
     })),
     p_autor: user.id,
     p_fila_espera_id: v.filaEsperaId ?? null,
+    p_valor_descontos: calc.descontosCentavos,
+    p_periodo_gratuito_aplicado: Boolean(gratuitoPayload),
+    p_periodo_gratuito: gratuitoPayload,
   });
 
   if (error || !novoId) {
     return { error: "Não foi possível criar a locação." };
+  }
+  if (novoId === "beneficio_indisponivel") {
+    return {
+      error:
+        "O período gratuito desta sala foi utilizado em outra reserva. Confira o total atualizado e envie novamente.",
+    };
   }
   const id = novoId as string;
 

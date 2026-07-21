@@ -81,6 +81,11 @@ export function ChipPeriodoButton({
       <span className="truncate text-xs">
         {rotuloEstado(chip, podeSolicitar)}
       </span>
+      {chip.gratuitoDisponivel && podeSolicitar ? (
+        <span className="mt-0.5 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-medium text-brand">
+          Gratuito disponível
+        </span>
+      ) : null}
     </button>
   );
 }

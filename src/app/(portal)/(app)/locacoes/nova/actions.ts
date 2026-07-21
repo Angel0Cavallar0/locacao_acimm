@@ -10,7 +10,11 @@ import {
   somarDias,
 } from "@/lib/disponibilidade/janela";
 import type { CategoriaHoraAdicional, PeriodoDia } from "@/lib/dominio";
-import { calcularValores } from "@/lib/locacoes/calcular";
+import {
+  calcularValores,
+  type LinhaDesconto,
+  type PeriodoGratuitoInfo,
+} from "@/lib/locacoes/calcular";
 import { dispararEfeitos } from "@/lib/locacoes/efeitos";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
 import type { HorariosPeriodos } from "@/lib/locacoes/horarios";
@@ -36,6 +40,9 @@ export interface ResumoSolicitacao {
   salasSemPreco: string[];
   salasCentavos: number;
   coffeeCentavos: number;
+  descontosCentavos: number;
+  descontos: LinhaDesconto[];
+  periodoGratuito: PeriodoGratuitoInfo | null;
   totalCentavos: number;
   /** Informativo: hora adicional após o período configurado, por sala. */
   horaAdicional: HoraAdicionalInfo[];
@@ -75,6 +82,8 @@ export interface SolicitacaoPayload {
     | "boleto_avulso"
     | "boleto_mensalidade"
     | null;
+  /** Sócio recusou o período gratuito nesta reserva (Spec 20 §5.3). */
+  periodoGratuitoRecusado?: boolean;
 }
 
 interface AgendaItem {
@@ -166,6 +175,7 @@ export async function previewValores(input: {
   data: string;
   periodo: PeriodoDia;
   coffee: { nivelId: string; qtdPessoas: number; adicionaisCentavos: number } | null;
+  periodoGratuitoRecusado?: boolean;
 }): Promise<ResumoSolicitacao> {
   const { associado } = await requireAssociado();
   const vazio: ResumoSolicitacao = {
@@ -173,6 +183,9 @@ export async function previewValores(input: {
     salasSemPreco: [],
     salasCentavos: 0,
     coffeeCentavos: 0,
+    descontosCentavos: 0,
+    descontos: [],
+    periodoGratuito: null,
     totalCentavos: 0,
     horaAdicional: [],
   };
@@ -193,6 +206,8 @@ export async function previewValores(input: {
           }
         : null,
       adicionais: [],
+      associadoId: associado.id,
+      periodoGratuitoRecusado: input.periodoGratuitoRecusado,
     }),
     admin.from("salas").select("id, nome").in("id", input.salaIds),
     infoHoraAdicional(admin, input.salaIds, input.data, input.periodo),
@@ -212,6 +227,9 @@ export async function previewValores(input: {
     salasSemPreco: calc.salasSemPreco,
     salasCentavos: calc.salasCentavos,
     coffeeCentavos: calc.coffeeCentavos,
+    descontosCentavos: calc.descontosCentavos,
+    descontos: calc.descontos,
+    periodoGratuito: calc.periodoGratuito,
     totalCentavos: calc.totalCentavos,
     horaAdicional,
   };
@@ -365,6 +383,8 @@ export async function criarSolicitacao(
         }
       : null,
     adicionais: [],
+    associadoId: associado.id,
+    periodoGratuitoRecusado: v.periodoGratuitoRecusado,
   });
   if (calc.salasSemPreco.length > 0) {
     return {
@@ -408,6 +428,16 @@ export async function criarSolicitacao(
       }
     : null;
 
+  // Período gratuito (Spec 20 §5.3): consumido na MESMA transação da RPC.
+  const pg = calc.periodoGratuito;
+  const gratuitoPayload = pg?.aplicado
+    ? {
+        sala_id: pg.salaId,
+        ciclo: pg.ciclo,
+        horas: (Date.parse(fim) - Date.parse(inicio)) / 3_600_000,
+      }
+    : null;
+
   // (4) Escrita transacional (RPC — status 'solicitada', criado_por = associado).
   const { data: novoId, error } = await admin.rpc("criar_solicitacao_portal", {
     p_associado_id: associado.id,
@@ -430,10 +460,19 @@ export async function criarSolicitacao(
     p_salas: calc.salas.map((s) => ({ sala_id: s.salaId, valor: s.valorCentavos })),
     p_coffee: coffeePayload,
     p_autor: user.id,
+    p_valor_descontos: calc.descontosCentavos,
+    p_periodo_gratuito_aplicado: Boolean(gratuitoPayload),
+    p_periodo_gratuito: gratuitoPayload,
   });
   if (error || !novoId) {
     return {
       error: "Não foi possível registrar sua solicitação. Tente novamente.",
+    };
+  }
+  if (novoId === "beneficio_indisponivel") {
+    return {
+      error:
+        "O período gratuito desta sala foi utilizado em outra reserva. Confira o total atualizado e envie novamente.",
     };
   }
   const id = novoId as string;

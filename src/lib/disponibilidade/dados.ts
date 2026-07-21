@@ -2,6 +2,7 @@ import "server-only";
 import { proximoDiaISO, spWallParaUtc } from "@/lib/calendario/tempo";
 import { PERIODOS, type PeriodoDia } from "@/lib/dominio";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
+import { salasComGratuitoDisponivel } from "@/lib/periodo-gratuito/consumo";
 import { resolverPreco } from "@/lib/precos/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { urlFotoSala } from "@/lib/storage";
@@ -47,6 +48,8 @@ export interface EntradaDisponibilidade {
   capacidadeMin: number | null;
   /** Situação do associado logado — só `ativo` vê preço e pode solicitar. */
   situacao: "ativo" | "suspenso" | "excluido";
+  /** Id do associado — habilita o selo "Gratuito disponível" (§5.4). */
+  associadoId?: string | null;
 }
 
 export async function listarDisponibilidade(
@@ -132,6 +135,26 @@ export async function listarDisponibilidade(
   // Meio-dia SP garante data/dia-da-semana corretos para o preço.
   const dataEvento = new Date(spWallParaUtc(input.data, "12:00"));
 
+  // Período gratuito (§5.4): regra ativa por sala × períodos + saldo do sócio.
+  const gratuitoRegras = new Map<string, Set<string>>();
+  let gratuitoSaldo = new Set<string>();
+  if (podeSolicitar && input.associadoId) {
+    const [{ data: regras }, saldo] = await Promise.all([
+      admin
+        .from("regras_periodo_gratuito")
+        .select("sala_id, periodos")
+        .eq("ativo", true),
+      salasComGratuitoDisponivel(input.associadoId),
+    ]);
+    for (const r of (regras ?? []) as {
+      sala_id: string;
+      periodos: string[];
+    }[]) {
+      gratuitoRegras.set(r.sala_id, new Set(r.periodos));
+    }
+    gratuitoSaldo = saldo;
+  }
+
   const resultado: SalaDisponibilidade[] = [];
   for (const s of salas) {
     const fotos = ((s.fotos as string[] | null) ?? []).map(urlFotoSala);
@@ -160,6 +183,11 @@ export async function listarDisponibilidade(
         }
       }
 
+      const gratuitoDisponivel =
+        estadoFinal === "livre" &&
+        (gratuitoRegras.get(s.id)?.has(p.valor) ?? false) &&
+        gratuitoSaldo.has(s.id);
+
       chips.push({
         periodo: p.valor,
         rotulo: p.rotulo,
@@ -169,6 +197,7 @@ export async function listarDisponibilidade(
         eventoTitulo,
         eventoSymplaId,
         eventoSymplaUrl,
+        gratuitoDisponivel,
       });
     }
 

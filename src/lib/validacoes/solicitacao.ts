@@ -58,6 +58,8 @@ export const criarSolicitacaoSchema = z
       .enum(["pix", "transferencia", "boleto_avulso", "boleto_mensalidade"])
       .nullable()
       .default(null),
+    // Sócio pode recusar o período gratuito, guardando o uso (Spec 20 §5.3).
+    periodoGratuitoRecusado: z.boolean().optional().default(false),
   })
   .superRefine((v, ctx) => {
     if (!v.terceiro) return;

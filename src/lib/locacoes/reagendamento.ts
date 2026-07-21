@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
 import { spWallParaUtc } from "@/lib/calendario/tempo";
 import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
+import { avaliarBeneficioReagendamento } from "@/lib/periodo-gratuito/consumo";
 import { resolverPreco } from "@/lib/precos/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { descreverConflitoAgenda } from "./dados";
@@ -38,7 +39,7 @@ export async function reagendarLocacao(
   const { data: loc } = await admin
     .from("locacoes")
     .select(
-      `id, status, condicao, inicio, fim, periodo,
+      `id, status, condicao, associado_id, inicio, fim, periodo,
        valor_coffee_centavos, valor_adicionais_centavos, valor_descontos_centavos`,
     )
     .eq("id", input.locacaoId)
@@ -89,11 +90,26 @@ export async function reagendarLocacao(
     valorSalas += preco.valorCentavos;
   }
 
+  // Revalida o período gratuito para a nova sala/data/período (Spec 20 §5.3).
+  const beneficio =
+    input.salaIds.length === 1
+      ? await avaliarBeneficioReagendamento({
+          associadoId: (loc.associado_id as string | null) ?? null,
+          condicao,
+          salaIds: input.salaIds,
+          periodo: input.periodo,
+          dataISO: input.data,
+          excluirLocacaoId: input.locacaoId,
+          salaValorCentavos: salasComValor[0]?.valor ?? 0,
+        })
+      : null;
+  const descontos = beneficio ? beneficio.descontoCentavos : 0;
+
   const valorTotal =
     valorSalas +
     (loc.valor_coffee_centavos as number) +
     (loc.valor_adicionais_centavos as number) -
-    (loc.valor_descontos_centavos as number);
+    descontos;
 
   const dados = {
     antes: {
@@ -111,6 +127,14 @@ export async function reagendarLocacao(
     },
   };
 
+  const gratuitoPayload = beneficio
+    ? {
+        sala_id: beneficio.salaId,
+        ciclo: beneficio.ciclo,
+        horas: (Date.parse(fimUtc) - Date.parse(inicioUtc)) / 3_600_000,
+      }
+    : null;
+
   const { data, error } = await admin.rpc("reagendar_locacao", {
     p_locacao_id: input.locacaoId,
     p_de: status,
@@ -122,6 +146,10 @@ export async function reagendarLocacao(
     p_valor_total: valorTotal,
     p_autor: user.id,
     p_dados: dados,
+    p_valor_descontos: descontos,
+    p_periodo_gratuito_aplicado: Boolean(beneficio),
+    p_periodo_gratuito: gratuitoPayload,
+    p_associado_id: (loc.associado_id as string | null) ?? null,
   });
 
   if (error) {
