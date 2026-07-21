@@ -4,7 +4,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarEmailCanal } from "./canais/email";
 import type { ResultadoEnvio } from "./canais/tipos";
 import { enviarWhatsapp, enviarWhatsappDocumento } from "./canais/whatsapp";
-import { type PayloadNotificacao, templates } from "./templates";
+import { renderizarTexto, valorTexto } from "./render-core";
+import {
+  carregarTemplatesConfig,
+  type TemplateConfig,
+} from "./templates-dados";
+import { templatesPadrao } from "./templates-padrao";
+import {
+  botaoPortal,
+  montarEmailHtml,
+  type PayloadNotificacao,
+} from "./templates";
 
 /**
  * Consumo da fila `notificacoes` (Spec 15 §2). É a MESMA função usada pelo
@@ -22,23 +32,26 @@ interface LinhaReservada {
   tentativas: number;
 }
 
-async function enviarLinha(linha: LinhaReservada): Promise<ResultadoEnvio> {
-  const builders = templates[linha.template];
-  if (!builders) {
+async function enviarLinha(
+  linha: LinhaReservada,
+  config: Map<string, TemplateConfig>,
+): Promise<ResultadoEnvio> {
+  const padrao = templatesPadrao[linha.template];
+  if (!padrao) {
     return { ok: false, erro: `Template desconhecido: ${linha.template}`, retryable: false };
   }
+  const cfg = config.get(linha.template);
   const payload = (linha.payload ?? {}) as PayloadNotificacao;
 
   if (linha.canal === "whatsapp") {
-    if (!builders.whatsapp) {
+    if (!padrao.canais.includes("whatsapp")) {
       return { ok: false, erro: "Template sem canal WhatsApp.", retryable: false };
     }
-    let texto: string;
-    try {
-      texto = builders.whatsapp(payload);
-    } catch {
-      return { ok: false, erro: "Falha ao montar a mensagem.", retryable: false };
-    }
+    // Override do banco ?? texto padrão do código.
+    const texto = renderizarTexto(
+      cfg?.whatsappTexto ?? padrao.whatsapp ?? "",
+      payload,
+    );
     // Payload com documento → envia como mídia (PDF de compras, Spec 16).
     const docUrl =
       typeof payload.documentoUrl === "string" ? payload.documentoUrl : "";
@@ -52,16 +65,22 @@ async function enviarLinha(linha: LinhaReservada): Promise<ResultadoEnvio> {
     return enviarWhatsapp(linha.destinatario, texto);
   }
 
-  if (!builders.email) {
+  if (!padrao.canais.includes("email")) {
     return { ok: false, erro: "Template sem canal e-mail.", retryable: false };
   }
-  let email: { assunto: string; html: string };
-  try {
-    email = builders.email(payload);
-  } catch {
-    return { ok: false, erro: "Falha ao montar o e-mail.", retryable: false };
-  }
-  return enviarEmailCanal(linha.destinatario, email.assunto, email.html);
+  const assunto = renderizarTexto(
+    cfg?.emailAssunto ?? padrao.emailAssunto ?? "",
+    payload,
+  );
+  const corpoTexto = renderizarTexto(
+    cfg?.emailCorpo ?? padrao.emailCorpo ?? "",
+    payload,
+  );
+  const botao = padrao.botaoLink
+    ? botaoPortal(valorTexto(payload, padrao.botaoLink), padrao.botaoLabel)
+    : "";
+  const html = montarEmailHtml(corpoTexto, botao);
+  return enviarEmailCanal(linha.destinatario, assunto, html);
 }
 
 export interface ResumoProcessamento {
@@ -83,8 +102,11 @@ export async function processarNotificacoes(
   let enviadas = 0;
   let falhas = 0;
 
+  // Overrides carregados 1× por lote (não por linha).
+  const config = await carregarTemplatesConfig();
+
   for (const linha of linhas) {
-    const res = await enviarLinha(linha);
+    const res = await enviarLinha(linha, config);
     if (res.ok) {
       await admin
         .from("notificacoes")
