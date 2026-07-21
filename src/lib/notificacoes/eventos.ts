@@ -11,6 +11,7 @@ import type { FormaPagamento } from "@/lib/locacoes/tipos";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import { agendarProcessamento } from "./processar";
+import { carregarTemplatesDesativados } from "./templates-dados";
 import type { PayloadNotificacao } from "./templates";
 
 /**
@@ -122,14 +123,20 @@ async function montarBase(
   };
 }
 
-/** Insere as linhas válidas (destinatário não-vazio) e agenda o disparo. */
+/** Insere as linhas válidas (destinatário não-vazio) e agenda o disparo.
+ * Gate liga/desliga (§C): templates desativados não entram na fila. Fail-open —
+ * erro ao ler a config nunca bloqueia o envio. */
 async function enfileirar(
   admin: Admin,
   locacaoId: string | null,
   linhas: LinhaFila[],
 ): Promise<void> {
+  const desativados = await carregarTemplatesDesativados();
   const validas = linhas.filter(
-    (l) => l.destinatario && l.destinatario.trim().length > 0,
+    (l) =>
+      l.destinatario &&
+      l.destinatario.trim().length > 0 &&
+      !desativados.has(l.template),
   );
   if (validas.length === 0) return;
 
@@ -248,9 +255,8 @@ export async function notificarCancelada(
   await enfileirar(
     admin,
     locacaoId,
-    parLocatario(base, "cancelada", {
+    parLocatario(base, peloAssociado ? "cancelada_associado" : "cancelada_acimm", {
       motivo: motivo || base.motivo,
-      peloAssociado,
     }),
   );
 }
@@ -314,7 +320,7 @@ export async function notificarContratoEnviado(
     await enfileirar(
       admin,
       locacaoId,
-      parLocatario(base, "contrato_enviado", { assinaturaLink }),
+      parLocatario(base, "contrato_enviado_autentique", { assinaturaLink }),
     );
     return;
   }
@@ -324,7 +330,7 @@ export async function notificarContratoEnviado(
     {
       canal: "whatsapp",
       destinatario: base.telefone,
-      template: "contrato_enviado",
+      template: "contrato_enviado_email",
       payload: { nome: base.nome, loc: base.loc, link: base.link },
     },
   ]);
