@@ -49,6 +49,8 @@ export interface ResumoValores {
   periodoGratuito: PeriodoGratuitoResumo | null;
   combo: ComboInfo | null;
   totalCentavos: number;
+  /** Aviso de antecedência (§A) — no assistido informa, não bloqueia. */
+  aviso?: string | null;
 }
 
 export interface CoffeePayload {

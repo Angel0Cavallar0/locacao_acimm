@@ -77,7 +77,7 @@ export default async function EditarSalaPage({
     supabase
       .from("salas")
       .select(
-        "id, nome, descricao, capacidade, equipamentos, ativa, fotos, hora_adicional_minutos",
+        "id, nome, descricao, capacidade, equipamentos, ativa, fotos, hora_adicional_minutos, dias_antecedencia_minima",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -170,6 +170,8 @@ export default async function EditarSalaPage({
                 capacidade: sala.capacidade,
                 equipamentos: (sala.equipamentos as string[] | null) ?? [],
                 ativa: sala.ativa,
+                diasAntecedenciaMinima:
+                  (sala.dias_antecedencia_minima as number | null) ?? 0,
               }}
             />
             {colaborador.role === "admin" ? (

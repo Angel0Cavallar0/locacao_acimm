@@ -2,7 +2,9 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { spWallParaUtc, utcParaNaiveSP } from "@/lib/calendario/tempo";
 import { requireColaborador } from "@/lib/auth/guards";
+import { obterAntecedenciaCoffee } from "@/lib/coffee/config";
 import { parsearFaixas, valorPessoaDe } from "@/lib/coffee/faixas-core";
+import { respeitaAntecedencia } from "@/lib/disponibilidade/janela";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CoffeeLocacaoInput } from "@/lib/validacoes/coffee";
 import { totalCoffee } from "./calcular-core";
@@ -16,7 +18,7 @@ import { podeEditarAdicionais, type StatusLocacao } from "./maquina-estados-core
  * auditoria com antes/depois.
  */
 
-export type ResultadoCoffee = { ok: true } | { erro: string };
+export type ResultadoCoffee = { ok: true; aviso?: string } | { erro: string };
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -177,8 +179,14 @@ export async function salvarCoffeeLocacao(
     { coffee: { antes, depois: valorSnapshot, nivel: nivel.nome } },
   );
 
+  // Antecedência do coffee (§A): fluxo do painel — apenas avisa, não bloqueia.
+  const { dias: coffeeDias } = await obterAntecedenciaCoffee();
+  const aviso = respeitaAntecedencia(dataEvento, coffeeDias)
+    ? undefined
+    : `Atenção: pedidos de coffee break costumam exigir ${coffeeDias} dia(s) de antecedência. O coffee foi salvo assim mesmo.`;
+
   revalidatePath(`/admin/locacoes/${input.locacaoId}`);
-  return { ok: true };
+  return { ok: true, aviso };
 }
 
 export async function removerCoffeeLocacao(

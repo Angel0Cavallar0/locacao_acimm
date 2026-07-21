@@ -415,6 +415,7 @@ export function NovaLocacaoForm({
       return;
     }
     toast.success(aprovar ? "Locação criada e aprovada." : "Locação criada.");
+    if (r.aviso) toast.warning(r.aviso);
     if (r.aprovacaoErro) toast.warning(`Aprovação: ${r.aprovacaoErro}`);
     router.push(`/admin/locacoes/${r.id}`);
   }
@@ -960,6 +961,11 @@ export function NovaLocacaoForm({
           {resumo && resumo.salasSemPreco.length > 0 ? (
             <p className="text-sm text-destructive">
               Há sala sem preço cadastrado para este período/condição/data.
+            </p>
+          ) : null}
+          {resumo?.aviso ? (
+            <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+              {resumo.aviso}
             </p>
           ) : null}
           {erro ? (

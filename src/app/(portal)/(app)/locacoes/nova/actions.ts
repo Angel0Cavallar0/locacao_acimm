@@ -7,6 +7,7 @@ import {
   dataMaximaSP,
   dentroDaJanela,
   hojeSP,
+  respeitaAntecedencia,
   somarDias,
 } from "@/lib/disponibilidade/janela";
 import type { CategoriaHoraAdicional, PeriodoDia } from "@/lib/dominio";
@@ -16,6 +17,7 @@ import {
   type LinhaDesconto,
   type PeriodoGratuitoInfo,
 } from "@/lib/locacoes/calcular";
+import { obterAntecedenciaCoffee } from "@/lib/coffee/config";
 import { validarRespostasFormulario } from "@/lib/formulario/validacao";
 import { dispararEfeitos } from "@/lib/locacoes/efeitos";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
@@ -269,6 +271,20 @@ export async function sugerirDatas(input: {
 
   const horarios = await obterHorariosPeriodos();
   const admin = createAdminClient();
+
+  // Não sugerir datas dentro do prazo mínimo de antecedência das salas (§A).
+  const { data: salasAntec } = await admin
+    .from("salas")
+    .select("dias_antecedencia_minima")
+    .in("id", input.salaIds);
+  const maxAntec = Math.max(
+    0,
+    ...(salasAntec ?? []).map(
+      (s) => (s.dias_antecedencia_minima as number | null) ?? 0,
+    ),
+  );
+  const pisoAntec = somarDias(hoje, maxAntec);
+
   const { data: agenda } = await admin.rpc("agenda_no_intervalo", {
     p_inicio: spWallParaUtc(inicioScan, "00:00"),
     p_fim: spWallParaUtc(somarDias(dataMax, 1), "00:00"),
@@ -284,7 +300,7 @@ export async function sugerirDatas(input: {
   }
 
   const datas: string[] = [];
-  let d = inicioScan;
+  let d = inicioScan < pisoAntec ? pisoAntec : inicioScan;
   while (d <= dataMax && datas.length < 5) {
     const range = rangePeriodo(d, input.periodo, horarios);
     const todasLivres = input.salaIds.every((salaId) => {
@@ -347,12 +363,37 @@ export async function criarSolicitacao(
   // (1b) Salas ativas e existentes.
   const { data: salas } = await admin
     .from("salas")
-    .select("id")
+    .select("id, nome, dias_antecedencia_minima")
     .in("id", v.salaIds)
     .eq("ativa", true)
     .is("excluida_em", null);
   if ((salas?.length ?? 0) !== v.salaIds.length) {
     return { error: "Uma das salas selecionadas está indisponível." };
+  }
+
+  // (1c) Antecedência mínima por sala (§A) — no portal, bloqueia de fato.
+  const salaForaPrazo = (salas ?? []).find(
+    (s) =>
+      !respeitaAntecedencia(
+        v.data,
+        (s.dias_antecedencia_minima as number | null) ?? 0,
+      ),
+  );
+  if (salaForaPrazo) {
+    const n = (salaForaPrazo.dias_antecedencia_minima as number) ?? 0;
+    return {
+      error: `A sala ${salaForaPrazo.nome} precisa ser reservada com pelo menos ${n} dia(s) de antecedência. Escolha uma data mais distante.`,
+    };
+  }
+
+  // (1d) Antecedência mínima do coffee break (§A) — bloqueia de fato no portal.
+  if (v.coffee) {
+    const { dias: coffeeDias } = await obterAntecedenciaCoffee();
+    if (!respeitaAntecedencia(v.data, coffeeDias)) {
+      return {
+        error: `Pedidos de coffee break precisam de pelo menos ${coffeeDias} dia(s) de antecedência. Escolha uma data mais distante ou remova o coffee.`,
+      };
+    }
   }
 
   const horarios = await obterHorariosPeriodos();

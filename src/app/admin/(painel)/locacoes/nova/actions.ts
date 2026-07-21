@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
 import { spWallParaUtc, utcParaNaiveSP } from "@/lib/calendario/tempo";
+import { obterAntecedenciaCoffee } from "@/lib/coffee/config";
+import { respeitaAntecedencia } from "@/lib/disponibilidade/janela";
 import { validarRespostasFormulario } from "@/lib/formulario/validacao";
 import { calcularValores } from "@/lib/locacoes/calcular";
 import { transicionarLocacao } from "@/lib/locacoes/maquina-estados";
@@ -28,6 +30,35 @@ interface AgendaItem {
 
 function loc(numero: number | null): string {
   return `LOC-${String(numero ?? 0).padStart(6, "0")}`;
+}
+
+/**
+ * Aviso de antecedência mínima (§A) — no atendimento assistido o colaborador
+ * pode furar a regra; aqui só montamos o texto informativo (não bloqueia).
+ * `null` quando a data respeita todos os prazos.
+ */
+async function montarAvisoAntecedencia(
+  salas: { nome: string; dias_antecedencia_minima: number | null }[],
+  data: string,
+  temCoffee: boolean,
+): Promise<string | null> {
+  const avisos: string[] = [];
+  const salaFora = salas.find(
+    (s) => !respeitaAntecedencia(data, s.dias_antecedencia_minima ?? 0),
+  );
+  if (salaFora) {
+    avisos.push(
+      `a sala ${salaFora.nome} costuma exigir ${salaFora.dias_antecedencia_minima ?? 0} dia(s) de antecedência`,
+    );
+  }
+  if (temCoffee) {
+    const { dias } = await obterAntecedenciaCoffee();
+    if (!respeitaAntecedencia(data, dias)) {
+      avisos.push(`o coffee break costuma exigir ${dias} dia(s) de antecedência`);
+    }
+  }
+  if (avisos.length === 0) return null;
+  return `Atenção: ${avisos.join(" e ")}. A reserva pode ser criada assim mesmo.`;
 }
 
 function estadoDaSala(
@@ -181,9 +212,22 @@ export async function calcularResumoAction(input: {
   const admin = createAdminClient();
   const { data: salas } = await admin
     .from("salas")
-    .select("id, nome")
+    .select("id, nome, dias_antecedencia_minima")
     .in("id", input.salaIds.length > 0 ? input.salaIds : ["00000000-0000-0000-0000-000000000000"]);
   const nome = new Map((salas ?? []).map((s) => [s.id as string, s.nome as string]));
+
+  const aviso =
+    input.salaIds.length > 0
+      ? await montarAvisoAntecedencia(
+          (salas ?? []).map((s) => ({
+            nome: s.nome as string,
+            dias_antecedencia_minima:
+              (s.dias_antecedencia_minima as number | null) ?? 0,
+          })),
+          input.data,
+          input.coffee !== null,
+        )
+      : null;
 
   return {
     salas: calc.salas.map((s) => ({
@@ -201,6 +245,7 @@ export async function calcularResumoAction(input: {
     periodoGratuito: calc.periodoGratuito,
     combo: calc.combo,
     totalCentavos: calc.totalCentavos,
+    aviso,
   };
 }
 
@@ -208,6 +253,8 @@ export interface ResultadoCriar {
   id?: string;
   error?: string;
   aprovacaoErro?: string;
+  /** Aviso de antecedência (§A) — reserva criada apesar do prazo mínimo. */
+  aviso?: string;
 }
 
 /** Submit da criação assistida (§5): revalida tudo no servidor e grava. */
@@ -226,13 +273,23 @@ export async function criarLocacaoAssistida(
   // (1) Salas ativas e existentes.
   const { data: salas } = await admin
     .from("salas")
-    .select("id")
+    .select("id, nome, dias_antecedencia_minima")
     .in("id", v.salaIds)
     .eq("ativa", true)
     .is("excluida_em", null);
   if ((salas?.length ?? 0) !== v.salaIds.length) {
     return { error: "Uma das salas selecionadas está inativa ou não existe." };
   }
+
+  // (1b) Antecedência mínima (§A): no assistido apenas avisa, nunca bloqueia.
+  const aviso = await montarAvisoAntecedencia(
+    (salas ?? []).map((s) => ({
+      nome: s.nome as string,
+      dias_antecedencia_minima: (s.dias_antecedencia_minima as number | null) ?? 0,
+    })),
+    v.data,
+    v.coffee !== null,
+  );
 
   // (2) Condição associado exige associado ativo (consulta fresca).
   if (v.condicao === "associado") {
@@ -401,5 +458,5 @@ export async function criarLocacaoAssistida(
   revalidatePath("/admin/locacoes");
   revalidatePath("/admin/calendario");
   revalidatePath("/admin");
-  return { id, aprovacaoErro };
+  return { id, aprovacaoErro, aviso: aviso ?? undefined };
 }

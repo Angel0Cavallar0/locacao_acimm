@@ -1,10 +1,12 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireColaborador } from "@/lib/auth/guards";
 import { carregarPedidosCoffee } from "@/lib/coffee/dados";
 import { intervaloDeDatas } from "@/lib/coffee/periodo";
 import { gerarPdfCompras } from "@/lib/coffee/pdf-compras";
 import type { ConsolidadoCompras, PedidoCoffee } from "@/lib/coffee/tipos";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { intervaloCoffeeSchema } from "@/lib/validacoes/coffee";
 
 export interface PedidosResposta {
@@ -59,4 +61,29 @@ export async function gerarPdfComprasAction(input: {
     base64: buffer.toString("base64"),
     nome: `compras-coffee-${intervalo.inicioData}_a_${intervalo.fimData}.pdf`,
   };
+}
+
+/** Salva a antecedência mínima (dias) para pedidos de coffee (§A2). */
+export async function salvarAntecedenciaCoffeeAction(
+  dias: number,
+): Promise<{ ok?: true; error?: string }> {
+  const { user } = await requireColaborador();
+  if (!Number.isInteger(dias) || dias < 0 || dias > 365) {
+    return { error: "Informe um número de dias entre 0 e 365." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("configuracoes").upsert(
+    {
+      chave: "antecedencia_coffee",
+      valor: { dias },
+      atualizado_por: user.id,
+      atualizado_em: new Date().toISOString(),
+    },
+    { onConflict: "chave" },
+  );
+  if (error) return { error: "Não foi possível salvar a configuração." };
+
+  revalidatePath("/admin/coffee");
+  return { ok: true };
 }

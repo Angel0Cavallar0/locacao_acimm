@@ -1,12 +1,13 @@
 "use client";
 
-import { Download, Settings2, SlidersHorizontal } from "lucide-react";
+import { Clock, Download, Settings2, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
 import { dataSP, horaSP } from "@/lib/calendario/tempo";
 import { adicionarDiasISO, segundaDaSemana } from "@/lib/coffee/periodo";
 import { formatarQuantidade } from "@/lib/coffee/tipos";
@@ -18,14 +19,17 @@ import {
   gerarPdfComprasAction,
   listarPedidosAction,
   type PedidosResposta,
+  salvarAntecedenciaCoffeeAction,
 } from "./actions";
 
 export function CoffeeClient({
   inicial,
   hojeISO,
+  antecedenciaDias,
 }: {
   inicial: PedidosResposta;
   hojeISO: string;
+  antecedenciaDias: number;
 }) {
   const [inicioData, setInicioData] = useState(inicial.intervalo.inicioData);
   const [fimData, setFimData] = useState(inicial.intervalo.fimData);
@@ -35,7 +39,25 @@ export function CoffeeClient({
   const [dados, setDados] = useState<PedidosResposta>(inicial);
   const [carregando, setCarregando] = useState(false);
   const [baixando, setBaixando] = useState(false);
+  const [antecedencia, setAntecedencia] = useState(String(antecedenciaDias));
+  const [salvandoAntec, setSalvandoAntec] = useState(false);
   const primeira = useRef(true);
+
+  async function salvarAntecedencia() {
+    const dias = Number(antecedencia);
+    if (!Number.isInteger(dias) || dias < 0 || dias > 365) {
+      toast.error("Informe um número de dias entre 0 e 365.");
+      return;
+    }
+    setSalvandoAntec(true);
+    const r = await salvarAntecedenciaCoffeeAction(dias);
+    setSalvandoAntec(false);
+    if (r.error) {
+      toast.error(r.error);
+      return;
+    }
+    toast.success("Antecedência do coffee atualizada.");
+  }
 
   useEffect(() => {
     if (primeira.current) {
@@ -152,6 +174,42 @@ export function CoffeeClient({
               />
               <span className="text-ink">Incluir pendentes</span>
             </label>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Antecedência mínima do coffee */}
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+              <Clock className="size-4" />
+              Antecedência mínima do coffee
+            </h3>
+            <p className="text-xs text-ink-muted">
+              Dias de antecedência exigidos para pedir coffee break. 0 = sem
+              restrição. Vale para o portal e o atendimento assistido.
+            </p>
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-ink-muted">Dias</span>
+              <Input
+                type="number"
+                min={0}
+                max={365}
+                value={antecedencia}
+                onChange={(e) => setAntecedencia(e.target.value)}
+                className="w-24"
+              />
+            </div>
+            <Button
+              size="sm"
+              loading={salvandoAntec}
+              onClick={salvarAntecedencia}
+            >
+              Salvar
+            </Button>
           </div>
         </CardContent>
       </Card>
