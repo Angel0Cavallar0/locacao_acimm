@@ -5,6 +5,7 @@ import {
   FileSignature,
   FormInput,
   Gift,
+  MessageCircle,
   MessageSquare,
   Users,
   Webhook,
@@ -130,6 +131,24 @@ export default async function ConfiguracoesPage() {
               <p className="text-xs text-ink-muted">
                 Texto das mensagens automáticas (WhatsApp e e-mail) e ativar ou
                 desativar cada uma.
+              </p>
+            </div>
+            <ChevronRight className="ml-auto size-5 shrink-0 text-ink-muted" />
+          </CardContent>
+        </Card>
+      </Link>
+
+      <Link href="/admin/configuracoes/whatsapp" className="block">
+        <Card className="transition-colors hover:bg-surface-muted">
+          <CardContent className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-md bg-brand/10 text-brand">
+              <MessageCircle className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-ink">WhatsApp</h3>
+              <p className="text-xs text-ink-muted">
+                Conexão do número que envia as mensagens (status, QR code e
+                reconexão).
               </p>
             </div>
             <ChevronRight className="ml-auto size-5 shrink-0 text-ink-muted" />
