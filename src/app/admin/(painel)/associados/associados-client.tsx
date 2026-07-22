@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import {
   desvincularConta,
   liberarAcessoManual,
   reenviarConvite,
+  sincronizarAssociadosAction,
 } from "./actions";
 
 const SITUACAO: Record<string, string> = {
@@ -183,8 +184,30 @@ export function AssociadosClient() {
   const [carregando, setCarregando] = useState(false);
   const [buscou, setBuscou] = useState(false);
   const [pendente, iniciar] = useTransition();
+  const [sincronizando, setSincronizando] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const termoRef = useRef(termo);
   termoRef.current = termo;
+
+  // Cooldown de 10s após disparar a sincronização (evita disparos repetidos).
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function sincronizar() {
+    if (sincronizando || cooldown > 0) return;
+    setSincronizando(true);
+    const r = await sincronizarAssociadosAction();
+    setSincronizando(false);
+    if (r.error) {
+      toast.error(r.error);
+      return;
+    }
+    toast.success(r.success ?? "Sincronização iniciada.");
+    setCooldown(10);
+  }
 
   const buscar = useCallback(async (t: string) => {
     if (t.trim().length < 2) {
@@ -216,14 +239,28 @@ export function AssociadosClient() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="mb-4">
-        <h2 className="font-display text-lg font-semibold text-ink">
-          Associados
-        </h2>
-        <p className="text-sm text-ink-muted">
-          Gestão de acesso ao portal. Os dados cadastrais são somente leitura
-          (fonte: Sophus).
-        </p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-ink">
+            Associados
+          </h2>
+          <p className="text-sm text-ink-muted">
+            Gestão de acesso ao portal. Os dados cadastrais são somente leitura
+            (fonte: Sophus).
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          loading={sincronizando}
+          disabled={sincronizando || cooldown > 0}
+          onClick={sincronizar}
+        >
+          {cooldown > 0 ? null : <RefreshCw className="size-4" />}
+          {cooldown > 0
+            ? `Aguarde ${cooldown}s`
+            : "Sincronizar associados"}
+        </Button>
       </div>
 
       <div className="relative mb-4">

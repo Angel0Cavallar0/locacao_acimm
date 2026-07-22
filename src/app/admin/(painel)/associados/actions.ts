@@ -1,5 +1,6 @@
 "use server";
 
+import { dispararWebhookAssociados } from "@/lib/associados/webhook";
 import { requireColaborador } from "@/lib/auth/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emailSchema } from "@/lib/validacoes/auth";
@@ -27,6 +28,21 @@ export interface ResultadoGestao {
 }
 
 const appUrl = () => process.env.APP_URL ?? "http://localhost:3000";
+
+/**
+ * Aciona o webhook que dispara a sincronização de associados (Spec 27). Só
+ * gatilho — a atualização da base roda em background no serviço externo.
+ */
+export async function sincronizarAssociadosAction(): Promise<ResultadoGestao> {
+  await requireColaborador();
+  const r = await dispararWebhookAssociados();
+  if ("erro" in r) return { error: r.erro };
+  console.info("[associados] sync webhook disparado");
+  return {
+    success:
+      "Sincronização iniciada. Os dados podem levar alguns instantes para atualizar.",
+  };
+}
 
 export async function buscarAssociadosGestao(
   termo: string,

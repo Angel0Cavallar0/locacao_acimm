@@ -7,6 +7,7 @@ import {
   Gift,
   MessageSquare,
   Users,
+  Webhook,
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -146,6 +147,23 @@ export default async function ConfiguracoesPage() {
               <h3 className="text-sm font-medium text-ink">Integrações</h3>
               <p className="text-xs text-ink-muted">
                 Conta do Google Agenda (espelho e convites de agenda).
+              </p>
+            </div>
+            <ChevronRight className="ml-auto size-5 shrink-0 text-ink-muted" />
+          </CardContent>
+        </Card>
+      </Link>
+
+      <Link href="/admin/configuracoes/webhooks" className="block">
+        <Card className="transition-colors hover:bg-surface-muted">
+          <CardContent className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-md bg-brand/10 text-brand">
+              <Webhook className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-ink">Webhooks</h3>
+              <p className="text-xs text-ink-muted">
+                Disparo de automações externas (sincronização de associados).
               </p>
             </div>
             <ChevronRight className="ml-auto size-5 shrink-0 text-ink-muted" />
