@@ -72,7 +72,13 @@ export async function desconectarWhatsappAction(): Promise<{
   try {
     await desconectarInstancia();
   } catch {
-    return { error: "Não foi possível desconectar." };
+    // A Evolution costuma derrubar a conexão durante o logout, e a resposta
+    // HTTP volta com erro mesmo tendo deslogado o número. Confirmamos pelo
+    // estado real: se não está mais "open", o logout de fato ocorreu.
+    const estado = await obterEstadoInstancia();
+    if (estado === "open") {
+      return { error: "Não foi possível desconectar." };
+    }
   }
   revalidatePath("/admin/configuracoes/whatsapp");
   return { ok: true };

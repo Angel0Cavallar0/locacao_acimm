@@ -118,7 +118,15 @@ export function WhatsappConexao({
     setDesconectando(true);
     const r = await desconectarWhatsappAction();
     setDesconectando(false);
-    if (r.error) return toast.error(r.error);
+    if (r.error) {
+      toast.error(r.error);
+      // Reconcilia a UI com o estado real — o logout pode ter caído mesmo com erro.
+      const s = await atualizarStatusWhatsappAction();
+      setEstado(s.estado);
+      setNumero(s.numero);
+      setPerfil(s.perfil);
+      return;
+    }
     setEstado("close");
     setNumero(null);
     setPerfil(null);
