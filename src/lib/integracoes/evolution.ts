@@ -149,11 +149,11 @@ function normalizarDataUri(base64: string): string {
     : `data:image/png;base64,${base64}`;
 }
 
-/** Encerra a sessão do número (`POST /instance/logout`), mantendo a instância. */
+/** Encerra a sessão do número (`DELETE /instance/logout`), mantendo a instância. */
 export async function desconectarInstancia(): Promise<void> {
   const { root, apiKey, instance } = baseInstancia();
   const resp = await fetch(`${root}/instance/logout/${instance}`, {
-    method: "POST",
+    method: "DELETE",
     headers: { apikey: apiKey },
   });
   if (!resp.ok) {
@@ -164,11 +164,11 @@ export async function desconectarInstancia(): Promise<void> {
   }
 }
 
-/** Reinicia a instância (`POST /instance/restart`) sem deslogar o número. */
+/** Reinicia a instância (`PUT /instance/restart`) sem deslogar o número. */
 export async function reiniciarInstancia(): Promise<void> {
   const { root, apiKey, instance } = baseInstancia();
   const resp = await fetch(`${root}/instance/restart/${instance}`, {
-    method: "POST",
+    method: "PUT",
     headers: { apikey: apiKey },
   });
   if (!resp.ok) {
