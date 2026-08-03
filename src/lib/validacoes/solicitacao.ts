@@ -53,6 +53,17 @@ export const criarSolicitacaoSchema = z
     observacoes: z.string().trim().max(2000).optional().default(""),
     respostasFormulario: z.record(z.string(), z.unknown()).default({}),
     coffee: coffeeSolicitacaoSchema.nullable().default(null),
+    // Serviços adicionais do catálogo (Ciclo 2/Spec 30) — sem sob consulta no
+    // portal; o valor é recalculado no servidor a partir do catálogo.
+    adicionais: z
+      .array(
+        z.object({
+          servicoAdicionalId: z.string().uuid(),
+          quantidade: z.coerce.number().positive().default(1),
+        }),
+      )
+      .max(20)
+      .default([]),
     // "isento" fica FORA do enum de propósito — isenção é decisão da ACIMM.
     formaPagamento: z
       .enum(["pix", "transferencia", "boleto_avulso", "boleto_mensalidade"])

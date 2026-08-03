@@ -24,6 +24,12 @@ import type { HorariosPeriodos } from "@/lib/locacoes/horarios";
 import { DatePicker } from "@/components/ui/date-picker";
 import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
 import type { FormaPagamento } from "@/lib/locacoes/tipos";
+import {
+  exigeValorManual,
+  servicoDisponivelPara,
+  usaQuantidade,
+} from "@/lib/servicos-adicionais/core";
+import type { ServicoAdicional } from "@/lib/servicos-adicionais/tipos";
 import { mascararDocumento, mascararTelefone } from "@/lib/utils/mascaras";
 import { brlParaCentavos, centavosParaBRL } from "@/lib/utils/moeda";
 import { AssociadoAutocomplete } from "./associado-autocomplete";
@@ -92,6 +98,7 @@ export function NovaLocacaoForm({
   horarios,
   prefill,
   combos,
+  servicos,
 }: {
   salas: { id: string; nome: string; capacidade: number }[];
   niveis: {
@@ -102,6 +109,7 @@ export function NovaLocacaoForm({
   campos: CampoDinamico[];
   horarios: HorariosPeriodos;
   combos: ComboAplicavel[];
+  servicos: ServicoAdicional[];
   prefill: {
     salaId: string | null;
     data: string | null;
@@ -160,9 +168,14 @@ export function NovaLocacaoForm({
     { descricao: string; valor: string }[]
   >([]);
 
-  // Adicionais da locação
+  // Adicionais da locação (servicoAdicionalId vazio = texto livre)
   const [adicionais, setAdicionais] = useState<
-    { descricao: string; quantidade: string; valor: string }[]
+    {
+      servicoAdicionalId: string;
+      descricao: string;
+      quantidade: string;
+      valor: string;
+    }[]
   >([]);
 
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento | "">("");
@@ -410,8 +423,9 @@ export function NovaLocacaoForm({
             }
           : null,
       adicionais: adicionais
-        .filter((a) => a.descricao.trim())
+        .filter((a) => a.servicoAdicionalId || a.descricao.trim())
         .map((a) => ({
+          servicoAdicionalId: a.servicoAdicionalId || null,
           descricao: a.descricao.trim(),
           quantidade: Number(a.quantidade.replace(",", ".")) || 1,
           valorUnitarioCentavos: brlParaCentavos(a.valor),
@@ -855,7 +869,13 @@ export function NovaLocacaoForm({
       <Card>
         <CardContent className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-ink">Adicionais da locação</h3>
-          <LinhasAdicional itens={adicionais} aoMudar={setAdicionais} />
+          <LinhasAdicional
+            itens={adicionais}
+            aoMudar={setAdicionais}
+            servicos={servicos.filter((s) =>
+              servicoDisponivelPara(s.salaId, salaIds),
+            )}
+          />
         </CardContent>
       </Card>
 
@@ -1084,66 +1104,123 @@ function LinhasValor({
   );
 }
 
-/** Linhas descrição + quantidade + valor unitário (adicionais da locação). */
+/** Linhas de adicional: catálogo (auto-preenche) ou texto livre. */
+type LinhaAdicional = {
+  servicoAdicionalId: string;
+  descricao: string;
+  quantidade: string;
+  valor: string;
+};
+
 function LinhasAdicional({
   itens,
   aoMudar,
+  servicos,
 }: {
-  itens: { descricao: string; quantidade: string; valor: string }[];
-  aoMudar: (v: { descricao: string; quantidade: string; valor: string }[]) => void;
+  itens: LinhaAdicional[];
+  aoMudar: (v: LinhaAdicional[]) => void;
+  servicos: ServicoAdicional[];
 }) {
+  const porId = new Map(servicos.map((s) => [s.id, s]));
+
+  function atualizar(i: number, patch: Partial<LinhaAdicional>) {
+    const c = [...itens];
+    c[i] = { ...c[i], ...patch };
+    aoMudar(c);
+  }
+  function escolher(i: number, id: string) {
+    const s = porId.get(id);
+    if (!s) {
+      atualizar(i, { servicoAdicionalId: "", descricao: "", valor: "", quantidade: "1" });
+      return;
+    }
+    atualizar(i, {
+      servicoAdicionalId: s.id,
+      descricao: s.nome,
+      quantidade: "1",
+      valor:
+        s.valorUnitarioCentavos != null
+          ? (s.valorUnitarioCentavos / 100).toFixed(2).replace(".", ",")
+          : "",
+    });
+  }
+
+  const sel =
+    "h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
   return (
     <div className="flex flex-col gap-2">
-      {itens.map((it, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras de formulário
-        <div key={i} className="flex gap-2">
-          <Input
-            value={it.descricao}
-            onChange={(e) => {
-              const c = [...itens];
-              c[i] = { ...c[i], descricao: e.target.value };
-              aoMudar(c);
-            }}
-            placeholder="Descrição (ex.: hora extra)"
-          />
-          <Input
-            value={it.quantidade}
-            inputMode="decimal"
-            onChange={(e) => {
-              const c = [...itens];
-              c[i] = { ...c[i], quantidade: e.target.value };
-              aoMudar(c);
-            }}
-            placeholder="Qtd"
-            className="w-20"
-          />
-          <Input
-            value={it.valor}
-            inputMode="decimal"
-            onChange={(e) => {
-              const c = [...itens];
-              c[i] = { ...c[i], valor: e.target.value };
-              aoMudar(c);
-            }}
-            placeholder="Unit. 0,00"
-            className="w-28"
-          />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Remover"
-            onClick={() => aoMudar(itens.filter((_, j) => j !== i))}
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
-      ))}
+      {itens.map((it, i) => {
+        const sv = it.servicoAdicionalId
+          ? (porId.get(it.servicoAdicionalId) ?? null)
+          : null;
+        const valorTravado = sv != null && !exigeValorManual(sv.modeloCobranca);
+        const mostraQtd = !sv || usaQuantidade(sv.modeloCobranca);
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras de formulário
+          <div key={i} className="flex flex-col gap-1.5 rounded-lg border p-2">
+            {servicos.length > 0 ? (
+              <select
+                className={sel}
+                value={it.servicoAdicionalId}
+                onChange={(e) => escolher(i, e.target.value)}
+              >
+                <option value="">Texto livre</option>
+                {servicos.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                    {s.valorUnitarioCentavos != null
+                      ? ` — ${centavosParaBRL(s.valorUnitarioCentavos)}`
+                      : " — sob consulta"}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <div className="flex gap-2">
+              <Input
+                value={it.descricao}
+                onChange={(e) => atualizar(i, { descricao: e.target.value })}
+                placeholder="Descrição (ex.: hora extra)"
+                readOnly={sv != null}
+              />
+              {mostraQtd ? (
+                <Input
+                  value={it.quantidade}
+                  inputMode="decimal"
+                  onChange={(e) => atualizar(i, { quantidade: e.target.value })}
+                  placeholder="Qtd"
+                  className="w-20"
+                />
+              ) : null}
+              <Input
+                value={it.valor}
+                inputMode="decimal"
+                onChange={(e) => atualizar(i, { valor: e.target.value })}
+                placeholder={sv && !valorTravado ? "cotação" : "Unit. 0,00"}
+                readOnly={valorTravado}
+                className="w-28"
+              />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Remover"
+                onClick={() => aoMudar(itens.filter((_, j) => j !== i))}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+          </div>
+        );
+      })}
       <div>
         <Button
           variant="outline"
           size="sm"
           onClick={() =>
-            aoMudar([...itens, { descricao: "", quantidade: "1", valor: "" }])
+            aoMudar([
+              ...itens,
+              { servicoAdicionalId: "", descricao: "", quantidade: "1", valor: "" },
+            ])
           }
         >
           <Plus className="size-4" />

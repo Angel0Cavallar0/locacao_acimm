@@ -8,6 +8,7 @@ import { respeitaAntecedencia } from "@/lib/disponibilidade/janela";
 import { validarRespostasFormulario } from "@/lib/formulario/validacao";
 import { calcularValores } from "@/lib/locacoes/calcular";
 import { transicionarLocacao } from "@/lib/locacoes/maquina-estados";
+import { resolverAdicionais } from "@/lib/servicos-adicionais/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { criarLocacaoSchema } from "@/lib/validacoes/locacao-assistida";
 import type {
@@ -323,7 +324,15 @@ export async function criarLocacaoAssistida(
     }
   }
 
-  // (4) Recalcula do zero — valores do client são descartados.
+  // (4) Adicionais: valores do catálogo recalculados no servidor (Spec 30).
+  const resolvido = await resolverAdicionais(v.salaIds, v.adicionais, {
+    permitirTextoLivre: true,
+    permitirSobConsulta: true,
+  });
+  if (!resolvido.ok) return { error: resolvido.erro };
+  const adicionaisResolvidos = resolvido.itens;
+
+  // (4b) Recalcula do zero — valores do client são descartados.
   const coffeeAdicionaisCentavos =
     v.coffee?.adicionais.reduce((s, a) => s + a.valorCentavos, 0) ?? 0;
   const calc = await calcularValores({
@@ -338,7 +347,10 @@ export async function criarLocacaoAssistida(
           adicionaisCentavos: coffeeAdicionaisCentavos,
         }
       : null,
-    adicionais: v.adicionais,
+    adicionais: adicionaisResolvidos.map((a) => ({
+      quantidade: a.quantidade,
+      valorUnitarioCentavos: a.valorUnitarioCentavos,
+    })),
     associadoId: v.condicao === "associado" ? v.associadoId : null,
     periodoGratuitoRecusado: v.periodoGratuitoRecusado,
     comboId: v.condicao === "associado" ? v.comboId : null,
@@ -420,7 +432,8 @@ export async function criarLocacaoAssistida(
     p_valor_total: calc.totalCentavos,
     p_salas: calc.salas.map((s) => ({ sala_id: s.salaId, valor: s.valorCentavos })),
     p_coffee: coffeePayload,
-    p_adicionais: v.adicionais.map((a) => ({
+    p_adicionais: adicionaisResolvidos.map((a) => ({
+      servico_adicional_id: a.servicoAdicionalId,
       descricao: a.descricao,
       quantidade: a.quantidade,
       valor_unitario: a.valorUnitarioCentavos,

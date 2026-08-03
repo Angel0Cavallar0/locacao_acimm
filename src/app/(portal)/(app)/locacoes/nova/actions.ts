@@ -22,6 +22,7 @@ import { validarRespostasFormulario } from "@/lib/formulario/validacao";
 import { dispararEfeitos } from "@/lib/locacoes/efeitos";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
 import type { HorariosPeriodos } from "@/lib/locacoes/horarios";
+import { resolverAdicionais } from "@/lib/servicos-adicionais/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apenasDigitos, documentoValido } from "@/lib/utils/documento";
 import { criarSolicitacaoSchema } from "@/lib/validacoes/solicitacao";
@@ -44,6 +45,7 @@ export interface ResumoSolicitacao {
   salasSemPreco: string[];
   salasCentavos: number;
   coffeeCentavos: number;
+  adicionaisCentavos: number;
   descontosCentavos: number;
   descontos: LinhaDesconto[];
   periodoGratuito: PeriodoGratuitoInfo | null;
@@ -91,6 +93,8 @@ export interface SolicitacaoPayload {
   periodoGratuitoRecusado?: boolean;
   /** Combo selecionado (Spec 20 §3). */
   comboId?: string | null;
+  /** Serviços adicionais do catálogo (Ciclo 2/Spec 30). */
+  adicionais?: { servicoAdicionalId: string; quantidade: number }[];
 }
 
 interface AgendaItem {
@@ -182,6 +186,7 @@ export async function previewValores(input: {
   data: string;
   periodo: PeriodoDia;
   coffee: { nivelId: string; qtdPessoas: number; adicionaisCentavos: number } | null;
+  adicionais?: { servicoAdicionalId: string; quantidade: number }[];
   periodoGratuitoRecusado?: boolean;
   comboId?: string | null;
 }): Promise<ResumoSolicitacao> {
@@ -191,6 +196,7 @@ export async function previewValores(input: {
     salasSemPreco: [],
     salasCentavos: 0,
     coffeeCentavos: 0,
+    adicionaisCentavos: 0,
     descontosCentavos: 0,
     descontos: [],
     periodoGratuito: null,
@@ -199,6 +205,12 @@ export async function previewValores(input: {
     horaAdicional: [],
   };
   if (associado.situacao !== "ativo" || input.salaIds.length === 0) return vazio;
+
+  const res = await resolverAdicionais(input.salaIds, input.adicionais ?? [], {
+    permitirTextoLivre: false,
+    permitirSobConsulta: false,
+  });
+  const adicionaisResolvidos = res.ok ? res.itens : [];
 
   const admin = createAdminClient();
   const [calc, salasRows, horaAdicional] = await Promise.all([
@@ -214,7 +226,10 @@ export async function previewValores(input: {
             adicionaisCentavos: input.coffee.adicionaisCentavos,
           }
         : null,
-      adicionais: [],
+      adicionais: adicionaisResolvidos.map((a) => ({
+        quantidade: a.quantidade,
+        valorUnitarioCentavos: a.valorUnitarioCentavos,
+      })),
       associadoId: associado.id,
       periodoGratuitoRecusado: input.periodoGratuitoRecusado,
       comboId: input.comboId,
@@ -237,6 +252,7 @@ export async function previewValores(input: {
     salasSemPreco: calc.salasSemPreco,
     salasCentavos: calc.salasCentavos,
     coffeeCentavos: calc.coffeeCentavos,
+    adicionaisCentavos: calc.adicionaisCentavos,
     descontosCentavos: calc.descontosCentavos,
     descontos: calc.descontos,
     periodoGratuito: calc.periodoGratuito,
@@ -425,7 +441,15 @@ export async function criarSolicitacao(
     };
   }
 
-  // (3) Recalcula do zero — valores do client são descartados.
+  // (3a) Adicionais do catálogo — valores recalculados no servidor (Spec 30).
+  const resolvido = await resolverAdicionais(v.salaIds, v.adicionais, {
+    permitirTextoLivre: false,
+    permitirSobConsulta: false,
+  });
+  if (!resolvido.ok) return { error: resolvido.erro };
+  const adicionaisResolvidos = resolvido.itens;
+
+  // (3b) Recalcula do zero — valores do client são descartados.
   const coffeeAdicionaisCentavos =
     v.coffee?.adicionais.reduce((s, a) => s + a.valorCentavos, 0) ?? 0;
   const calc = await calcularValores({
@@ -440,7 +464,10 @@ export async function criarSolicitacao(
           adicionaisCentavos: coffeeAdicionaisCentavos,
         }
       : null,
-    adicionais: [],
+    adicionais: adicionaisResolvidos.map((a) => ({
+      quantidade: a.quantidade,
+      valorUnitarioCentavos: a.valorUnitarioCentavos,
+    })),
     associadoId: associado.id,
     periodoGratuitoRecusado: v.periodoGratuitoRecusado,
     comboId: v.comboId,
@@ -530,6 +557,13 @@ export async function criarSolicitacao(
     p_valor_descontos: calc.descontosCentavos,
     p_periodo_gratuito_aplicado: Boolean(gratuitoPayload),
     p_periodo_gratuito: gratuitoPayload,
+    p_valor_adicionais: calc.adicionaisCentavos,
+    p_adicionais: adicionaisResolvidos.map((a) => ({
+      servico_adicional_id: a.servicoAdicionalId,
+      descricao: a.descricao,
+      quantidade: a.quantidade,
+      valor_unitario: a.valorUnitarioCentavos,
+    })),
   });
   if (error || !novoId) {
     return {

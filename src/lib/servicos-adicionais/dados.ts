@@ -41,6 +41,21 @@ export async function listarServicos(): Promise<ServicoAdicional[]> {
   return ((data ?? []) as Record<string, unknown>[]).map(mapear);
 }
 
+/**
+ * Serviços ATIVOS (qualquer sala). Para os formulários de criação, onde as salas
+ * mudam dinamicamente — o client filtra por sala com `servicoDisponivelPara`.
+ */
+export async function listarServicosAtivos(): Promise<ServicoAdicional[]> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("servicos_adicionais")
+    .select(SELECT)
+    .is("excluido_em", null)
+    .eq("ativo", true)
+    .order("nome", { ascending: true });
+  return ((data ?? []) as Record<string, unknown>[]).map(mapear);
+}
+
 export async function obterServico(
   id: string,
 ): Promise<ServicoAdicional | null> {

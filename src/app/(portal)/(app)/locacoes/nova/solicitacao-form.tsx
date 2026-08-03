@@ -44,6 +44,11 @@ import type { ComboAplicavel } from "@/lib/locacoes/combos-dados";
 import { descreverCombo } from "@/lib/locacoes/combo-descricao";
 import { somarDias } from "@/lib/disponibilidade/janela";
 import { FORMAS_PAGAMENTO } from "@/lib/locacoes/tipos";
+import {
+  servicoDisponivelPara,
+  usaQuantidade,
+} from "@/lib/servicos-adicionais/core";
+import type { ServicoAdicional } from "@/lib/servicos-adicionais/tipos";
 import { cn } from "@/lib/utils";
 import { apenasDigitos, documentoValido } from "@/lib/utils/documento";
 import { mascararDocumento, mascararTelefone } from "@/lib/utils/mascaras";
@@ -117,6 +122,7 @@ export function SolicitacaoForm({
   associado,
   contato,
   combos,
+  servicos,
   prefill,
   hoje,
   dataMax,
@@ -132,6 +138,7 @@ export function SolicitacaoForm({
   associado: AssociadoView;
   contato: ContatoAcimm;
   combos: ComboAplicavel[];
+  servicos: ServicoAdicional[];
   prefill: {
     salaId: string | null;
     data: string | null;
@@ -296,6 +303,26 @@ export function SolicitacaoForm({
   // Período gratuito do sócio: pode recusar (guarda o uso para outra data).
   const [pgRecusado, setPgRecusado] = useState(false);
 
+  // Serviços adicionais do catálogo (Ciclo 2/Spec 30) — sem sob consulta no portal.
+  const [adicionaisSel, setAdicionaisSel] = useState<
+    { servicoAdicionalId: string; quantidade: string }[]
+  >([]);
+  const servicosDisponiveis = useMemo(
+    () =>
+      servicos.filter(
+        (s) =>
+          s.modeloCobranca !== "sob_consulta" &&
+          servicoDisponivelPara(s.salaId, salaIds),
+      ),
+    [servicos, salaIds],
+  );
+  const adicionaisPayload = adicionaisSel
+    .filter((a) => a.servicoAdicionalId)
+    .map((a) => ({
+      servicoAdicionalId: a.servicoAdicionalId,
+      quantidade: Number(a.quantidade) || 1,
+    }));
+
   // Resumo (etapa 5) — server recalcula, client só exibe.
   const chaveResumo = JSON.stringify({
     salaIds,
@@ -307,6 +334,7 @@ export function SolicitacaoForm({
       coffeeIncluir && coffeeNivelId
         ? { coffeeNivelId, coffeeQtd, coffeeAdicionaisCentavos }
         : null,
+    adicionais: adicionaisPayload,
   });
   useEffect(() => {
     if (etapa !== 4 || salaIds.length === 0) return;
@@ -325,6 +353,7 @@ export function SolicitacaoForm({
               adicionaisCentavos: coffeeAdicionaisCentavos,
             }
           : null,
+      adicionais: adicionaisPayload,
     }).then((r) => {
       if (ativo) setResumo(r);
     });
@@ -445,6 +474,7 @@ export function SolicitacaoForm({
           | "boleto_mensalidade") || null,
       periodoGratuitoRecusado: pgRecusado,
       comboId,
+      adicionais: adicionaisPayload,
     });
     setEnviando(false);
     if (r.error) {
@@ -1082,6 +1112,26 @@ export function SolicitacaoForm({
         </Card>
       ) : null}
 
+      {/* ---------- Etapa 4 — Serviços adicionais ---------- */}
+      {etapa === 3 && servicosDisponiveis.length > 0 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold text-ink">
+              Serviços adicionais
+            </h3>
+            <p className="text-xs text-ink-muted">
+              Opcionais para o seu evento. Alguns dependem de aprovação prévia ou
+              disponibilidade — a equipe confirma.
+            </p>
+            <AdicionaisPortal
+              itens={adicionaisSel}
+              aoMudar={setAdicionaisSel}
+              servicos={servicosDisponiveis}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* ---------- Etapa 5 — Pagamento e revisão ---------- */}
       {etapa === 4 ? (
         <Card>
@@ -1143,6 +1193,14 @@ export function SolicitacaoForm({
                       <span className="text-ink-muted">Coffee break</span>
                       <span className="text-ink">
                         {centavosParaBRL(resumo.coffeeCentavos)}
+                      </span>
+                    </div>
+                  ) : null}
+                  {resumo.adicionaisCentavos > 0 ? (
+                    <div className="flex justify-between">
+                      <span className="text-ink-muted">Serviços adicionais</span>
+                      <span className="text-ink">
+                        {centavosParaBRL(resumo.adicionaisCentavos)}
                       </span>
                     </div>
                   ) : null}
@@ -1259,6 +1317,97 @@ export function SolicitacaoForm({
           aoFechar={() => setSel(null)}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** Seletor de serviços adicionais do catálogo no portal (sem sob consulta). */
+function AdicionaisPortal({
+  itens,
+  aoMudar,
+  servicos,
+}: {
+  itens: { servicoAdicionalId: string; quantidade: string }[];
+  aoMudar: (v: { servicoAdicionalId: string; quantidade: string }[]) => void;
+  servicos: ServicoAdicional[];
+}) {
+  const porId = new Map(servicos.map((s) => [s.id, s]));
+  const sel =
+    "h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+  function atualizar(
+    i: number,
+    patch: Partial<{ servicoAdicionalId: string; quantidade: string }>,
+  ) {
+    const c = [...itens];
+    c[i] = { ...c[i], ...patch };
+    aoMudar(c);
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {itens.map((it, i) => {
+        const sv = it.servicoAdicionalId
+          ? (porId.get(it.servicoAdicionalId) ?? null)
+          : null;
+        const mostraQtd = sv != null && usaQuantidade(sv.modeloCobranca);
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: linhas efêmeras de formulário
+          <div key={i} className="flex gap-2">
+            <select
+              className={sel}
+              value={it.servicoAdicionalId}
+              onChange={(e) =>
+                atualizar(i, {
+                  servicoAdicionalId: e.target.value,
+                  quantidade: "1",
+                })
+              }
+            >
+              <option value="">Selecione um serviço…</option>
+              {servicos.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                  {s.valorUnitarioCentavos != null
+                    ? ` — ${centavosParaBRL(s.valorUnitarioCentavos)}${
+                        s.modeloCobranca === "por_unidade" ? "/un." : ""
+                      }`
+                    : ""}
+                </option>
+              ))}
+            </select>
+            {mostraQtd ? (
+              <Input
+                value={it.quantidade}
+                inputMode="numeric"
+                onChange={(e) => atualizar(i, { quantidade: e.target.value })}
+                className="w-20"
+                placeholder="Qtd"
+              />
+            ) : null}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Remover"
+              onClick={() => aoMudar(itens.filter((_, j) => j !== i))}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        );
+      })}
+      <div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            aoMudar([...itens, { servicoAdicionalId: "", quantidade: "1" }])
+          }
+        >
+          <Plus className="size-4" />
+          Adicionar serviço
+        </Button>
+      </div>
     </div>
   );
 }

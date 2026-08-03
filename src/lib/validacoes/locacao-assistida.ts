@@ -26,9 +26,11 @@ const coffeeSchema = z.object({
 });
 
 const adicionalSchema = z.object({
-  descricao: z.string().trim().min(1, "Informe a descrição").max(200),
+  descricao: z.string().trim().max(200).default(""),
   quantidade: z.coerce.number().positive(),
   valorUnitarioCentavos: z.number().int().min(0),
+  // Item do catálogo (Ciclo 2/Spec 30); ausente = texto livre.
+  servicoAdicionalId: z.string().uuid().nullable().optional(),
 });
 
 export const criarLocacaoSchema = z

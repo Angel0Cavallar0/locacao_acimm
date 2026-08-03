@@ -65,6 +65,8 @@ export interface AdicionalPayload {
   descricao: string;
   quantidade: number;
   valorUnitarioCentavos: number;
+  /** Item do catálogo (Ciclo 2/Spec 30); null = texto livre. */
+  servicoAdicionalId?: string | null;
 }
 
 export interface CriarLocacaoPayload {
