@@ -23,6 +23,8 @@ export const TEMPLATE_ROTULO: Record<string, string> = {
   recusada: "Solicitação recusada",
   contrato_enviado_autentique: "Contrato enviado (assinatura online)",
   contrato_enviado_email: "Contrato enviado (por e-mail)",
+  contrato_whatsapp: "Contrato enviado (WhatsApp)",
+  interna_contrato_assinado: "Via assinada recebida (interno)",
   instrucoes_pagamento: "Instruções de pagamento",
   confirmada: "Locação confirmada",
   cancelada_associado: "Cancelamento pelo associado",

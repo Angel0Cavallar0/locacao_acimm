@@ -352,8 +352,11 @@ export async function confirmarContratoAssinado(input: {
     dados: { tipo: "contrato_assinado_enviado" },
   });
 
-  // Hook de notificação ao colaborador — no-op até o Spec 15.
-  console.info(`[contrato-assinado] locacao=${input.locacaoId} enviado`);
+  // Aviso interno à equipe (Ciclo 2 / Spec 30 §4.2): WhatsApp + e-mail.
+  const { notificarContratoAssinadoRecebido } = await import(
+    "@/lib/notificacoes/eventos"
+  );
+  await notificarContratoAssinadoRecebido(input.locacaoId);
 
   revalidatePath(`/locacoes/${input.locacaoId}`);
   revalidatePath(`/admin/locacoes/${input.locacaoId}`);

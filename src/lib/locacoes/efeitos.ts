@@ -158,7 +158,9 @@ const sincronizarContratoAssinado: EfeitoFn = async (ctx) => {
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   solicitada: [logar("solicitada"), notif.solicitada],
   aprovada: [logar("aprovada"), notif.aprovada, gerarEEnviarContrato, marcarGoogle],
-  contrato_enviado: [logar("contrato_enviado"), notif.contratoEnviado],
+  // Ciclo 2: o próprio documento (PDF por WhatsApp, enviado em enviar.ts) é a
+  // notificação — sem texto adicional para não duplicar.
+  contrato_enviado: [logar("contrato_enviado")],
   contrato_assinado: [logar("contrato_assinado"), sincronizarContratoAssinado],
   aguardando_pagamento: [logar("aguardando_pagamento"), criarPagamentos],
   confirmada: [logar("confirmada"), notif.confirmada, marcarGoogle, gerarComissoes],

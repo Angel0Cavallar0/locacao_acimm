@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireColaborador } from "@/lib/auth/guards";
-import { dataSP, horaSP } from "@/lib/calendario/tempo";
-import { parsearModoEnvio } from "@/lib/contratos/tipos";
+import { dataSP, horaSP, spWallParaUtc } from "@/lib/calendario/tempo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cn } from "@/lib/utils";
 import { ContratosClient, type ContratoLinha } from "./contratos-client";
+import { ContratosFiltros } from "./contratos-filtros";
 
 export const metadata: Metadata = { title: "Contratos" };
+export const dynamic = "force-dynamic";
 
 const FILTROS = [
   { valor: "", rotulo: "Todos" },
@@ -18,14 +19,13 @@ const FILTROS = [
   { valor: "recusado", rotulo: "Recusados" },
 ] as const;
 
-const MODO_ROTULO: Record<string, string> = {
-  email: "E-mail",
-  autentique: "Assinatura digital (Autentique)",
-};
-
 function um<T>(v: T | T[] | null | undefined): T | null {
   if (Array.isArray(v)) return v[0] ?? null;
   return v ?? null;
+}
+
+function texto(v: string | string[] | undefined): string {
+  return typeof v === "string" ? v.trim() : "";
 }
 
 export default async function ContratosPage({
@@ -35,9 +35,36 @@ export default async function ContratosPage({
 }) {
   await requireColaborador();
   const sp = await searchParams;
-  const status = typeof sp.status === "string" ? sp.status : "";
+  const status = texto(sp.status);
+  const busca = texto(sp.q);
+  const de = texto(sp.de);
+  const ate = texto(sp.ate);
 
   const admin = createAdminClient();
+
+  // Filtro por associado/nº e período resolve ids de locação (embedding não
+  // filtra bem por campos do relacionado).
+  let idsFiltro: string[] | null = null;
+  if (busca || de || ate) {
+    let lq = admin.from("locacoes").select("id");
+    if (busca) {
+      const b = busca.replace(/[,()]/g, " ");
+      const ors = [
+        `locatario_nome.ilike.%${b}%`,
+        `locatario_documento.ilike.%${b}%`,
+      ];
+      const num = Number.parseInt(b.replace(/\D/g, ""), 10);
+      if (!Number.isNaN(num)) ors.push(`numero.eq.${num}`);
+      lq = lq.or(ors.join(","));
+    }
+    if (de) lq = lq.gte("inicio", spWallParaUtc(de, "00:00"));
+    if (ate) lq = lq.lte("inicio", spWallParaUtc(ate, "23:59"));
+    const { data: locs } = await lq.limit(1000);
+    idsFiltro = ((locs ?? []) as { id: string }[]).map((r) => r.id);
+    if (idsFiltro.length === 0) {
+      idsFiltro = ["00000000-0000-0000-0000-000000000000"];
+    }
+  }
 
   let q = admin
     .from("contratos")
@@ -47,16 +74,9 @@ export default async function ContratosPage({
     .order("criado_em", { ascending: false })
     .limit(200);
   if (status) q = q.eq("status", status);
+  if (idsFiltro) q = q.in("locacao_id", idsFiltro);
 
-  const [{ data: rows }, { data: cfg }] = await Promise.all([
-    q,
-    admin
-      .from("configuracoes")
-      .select("valor")
-      .eq("chave", "modo_envio_contrato")
-      .maybeSingle(),
-  ]);
-  const modo = parsearModoEnvio(cfg?.valor);
+  const { data: rows } = await q;
 
   const contratos: ContratoLinha[] = (
     (rows ?? []) as Array<{
@@ -84,6 +104,18 @@ export default async function ContratosPage({
     };
   });
 
+  const paramsAtuais: Record<string, string> = {};
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === "string" && v.length > 0) paramsAtuais[k] = v;
+  }
+  function hrefStatus(valor: string): string {
+    const p = new URLSearchParams(paramsAtuais);
+    if (valor) p.set("status", valor);
+    else p.delete("status");
+    const qs = p.toString();
+    return qs ? `/admin/contratos?${qs}` : "/admin/contratos";
+  }
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -92,8 +124,8 @@ export default async function ContratosPage({
             Contratos
           </h2>
           <p className="text-sm text-ink-muted">
-            Modo de envio atual: <strong>{MODO_ROTULO[modo]}</strong>. Altere em
-            Configurações.
+            Enviados por WhatsApp ao locatário; a via assinada volta pela
+            plataforma.
           </p>
         </div>
       </div>
@@ -102,7 +134,7 @@ export default async function ContratosPage({
         {FILTROS.map((f) => (
           <Link
             key={f.valor || "todos"}
-            href={f.valor ? `/admin/contratos?status=${f.valor}` : "/admin/contratos"}
+            href={hrefStatus(f.valor)}
             className={cn(
               "shrink-0 rounded-full border px-3 py-1.5 text-sm transition-colors",
               status === f.valor
@@ -114,6 +146,8 @@ export default async function ContratosPage({
           </Link>
         ))}
       </div>
+
+      <ContratosFiltros params={paramsAtuais} />
 
       {contratos.length === 0 ? (
         <Card>

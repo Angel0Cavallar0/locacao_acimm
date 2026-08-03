@@ -46,6 +46,8 @@ export const adicionalSchema = z.object({
     .number()
     .int()
     .min(0, "Valor não pode ser negativo"),
+  // Item do catálogo de serviços (Ciclo 2/Spec 30); ausente = texto livre.
+  servicoAdicionalId: z.string().uuid().nullable().optional(),
 });
 
 export type TransicaoInput = z.infer<typeof transicaoSchema>;

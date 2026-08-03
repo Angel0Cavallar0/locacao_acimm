@@ -78,6 +78,8 @@ export async function adicionarAdicional(input: {
   descricao: string;
   quantidade: number;
   valorUnitarioCentavos: number;
+  /** Item do catálogo (Ciclo 2/Spec 30); null = texto livre. */
+  servicoAdicionalId?: string | null;
 }): Promise<ResultadoAdicional> {
   const { user } = await requireColaborador();
   const admin = createAdminClient();
@@ -85,11 +87,29 @@ export async function adicionarAdicional(input: {
   const erro = await garantirEditavel(admin, input.locacaoId);
   if (erro) return { erro };
 
+  // Flags de checklist derivadas do catálogo (fonte da verdade).
+  let aprovacaoStatus: string | null = null;
+  let disponibilidadeStatus: string | null = null;
+  if (input.servicoAdicionalId) {
+    const { data: sv } = await admin
+      .from("servicos_adicionais")
+      .select("requer_aprovacao, sujeito_disponibilidade")
+      .eq("id", input.servicoAdicionalId)
+      .maybeSingle();
+    if (sv) {
+      aprovacaoStatus = sv.requer_aprovacao ? "pendente" : null;
+      disponibilidadeStatus = sv.sujeito_disponibilidade ? "pendente" : null;
+    }
+  }
+
   const { error } = await admin.from("locacao_adicionais").insert({
     locacao_id: input.locacaoId,
+    servico_adicional_id: input.servicoAdicionalId ?? null,
     descricao: input.descricao,
     quantidade: input.quantidade,
     valor_unitario_centavos: input.valorUnitarioCentavos,
+    aprovacao_status: aprovacaoStatus,
+    disponibilidade_status: disponibilidadeStatus,
   });
   if (error) return { erro: "Não foi possível incluir o adicional." };
 

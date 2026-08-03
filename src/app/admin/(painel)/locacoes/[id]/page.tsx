@@ -16,6 +16,7 @@ import {
   formatarDocumento,
   rotuloLocacao,
 } from "@/lib/locacoes/tipos";
+import { listarServicosDisponiveis } from "@/lib/servicos-adicionais/dados";
 import { createClient } from "@/lib/supabase/server";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import { AcoesLocacao } from "../acoes-locacao";
@@ -100,6 +101,12 @@ export default async function LocacaoDetalhePage({
     ? (PERIODOS.find((p) => p.valor === loc.periodo)?.rotulo ?? loc.periodo)
     : null;
   const editavelAdicionais = podeEditarAdicionais(loc.status);
+  const servicosAdicionais = editavelAdicionais
+    ? await listarServicosDisponiveis(
+        loc.salas.map((s) => s.salaId),
+        true,
+      )
+    : [];
   // Respostas chaveadas por id → rótulo ATUAL do campo (Spec 22 §3).
   const respostas =
     Object.keys(loc.respostasFormulario).length > 0
@@ -284,6 +291,7 @@ export default async function LocacaoDetalhePage({
             <AdicionaisEditor
               locacaoId={loc.id}
               adicionais={loc.adicionais}
+              servicos={servicosAdicionais}
               editavel={editavelAdicionais}
             />
           </Secao>

@@ -48,10 +48,10 @@ export const templatesPadrao: Record<string, TemplatePadrao> = {
     canais: ["whatsapp", "email"],
     destino: "locatario",
     whatsapp:
-      "Boa notícia, {{nome|tudo bem}}! Sua locação {{loc}} ({{data}} {{horario}}) foi aprovada. Em seguida enviaremos o contrato.{{#link}}\n\nAcompanhe pelo portal: {{link}}{{/link}}",
+      "Boa notícia, {{nome|tudo bem}}! Sua locação {{loc}} ({{data}} {{horario}}) foi aprovada.{{#resumo}}\n\nResumo do pedido:\n{{resumo}}{{/resumo}}\n\nEm seguida enviaremos o contrato.{{#link}}\n\nAcompanhe pelo portal: {{link}}{{/link}}",
     emailAssunto: "Locação aprovada — {{loc}}",
     emailCorpo:
-      "Olá, {{nome|tudo bem}}!\n\nSua locação {{loc}} ({{salas|sala}}, {{data}} · {{horario}}) foi aprovada.\n\nO próximo passo é o contrato — você o receberá em seguida, junto das instruções de pagamento.",
+      "Olá, {{nome|tudo bem}}!\n\nSua locação {{loc}} ({{salas|sala}}, {{data}} · {{horario}}) foi aprovada.{{#resumo}}\n\nResumo do pedido:\n{{resumo}}{{/resumo}}\n\nO próximo passo é o contrato — você o receberá em seguida, junto das instruções de pagamento.",
     botaoLink: "link",
     botaoLabel: "Acompanhar no portal",
   },
@@ -85,6 +85,14 @@ export const templatesPadrao: Record<string, TemplatePadrao> = {
     critico: true,
     whatsapp:
       "Olá, {{nome|tudo bem}}! Enviamos o contrato da locação {{loc}} para o seu e-mail. Confira, assine e devolva à ACIMM.",
+  },
+
+  contrato_whatsapp: {
+    canais: ["whatsapp"],
+    destino: "locatario",
+    critico: true,
+    whatsapp:
+      "Olá, {{nome|tudo bem}}! Segue o contrato da locação {{loc}}. Confira, assine e envie a via assinada pela plataforma.{{#link}}\n\nAcompanhe em: {{link}}{{/link}}",
   },
 
   instrucoes_pagamento: {
@@ -164,11 +172,25 @@ export const templatesPadrao: Record<string, TemplatePadrao> = {
   },
 
   interna_comprovante_recebido: {
-    canais: ["email"],
+    canais: ["email", "whatsapp"],
     destino: "interno",
+    whatsapp:
+      "Comprovante de pagamento recebido na locação {{loc}} ({{nome|—}}). Confira no painel: {{linkAdmin}}",
     emailAssunto: "Comprovante recebido — {{loc}}",
     emailCorpo:
       "Comprovante de pagamento recebido na locação {{loc}}.\n\nLocatário: {{nome|—}}.",
+    botaoLink: "linkAdmin",
+    botaoLabel: "Conferir no painel",
+  },
+
+  interna_contrato_assinado: {
+    canais: ["email", "whatsapp"],
+    destino: "interno",
+    whatsapp:
+      "Via assinada do contrato recebida na locação {{loc}} ({{nome|—}}). Confira no painel: {{linkAdmin}}",
+    emailAssunto: "Via assinada recebida — {{loc}}",
+    emailCorpo:
+      "O locatário enviou a via assinada do contrato da locação {{loc}}.\n\nLocatário: {{nome|—}}. Confira e marque como assinado.",
     botaoLink: "linkAdmin",
     botaoLabel: "Conferir no painel",
   },

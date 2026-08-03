@@ -61,6 +61,7 @@ export async function adicionarAdicionalAction(input: {
   descricao: string;
   quantidade: number;
   valorUnitarioCentavos: number;
+  servicoAdicionalId?: string | null;
 }): Promise<ResultadoAcao> {
   const parsed = adicionalSchema.safeParse(input);
   if (!parsed.success) {
