@@ -72,6 +72,11 @@ export const criarLocacaoSchema = z
     filaEsperaId: z.uuid().nullable().default(null),
     periodoGratuitoRecusado: z.boolean().optional().default(false),
     comboId: z.uuid().nullable().default(null),
+    // Sobreposição autorizada por colaborador (Spec 31 §7): permite gravar
+    // sobre uma sala/horário já ocupado por outra locação.
+    sobreposicaoAutorizada: z.boolean().optional().default(false),
+    // Lançamento retroativo (Spec 31 §6): evento passado, sem automações.
+    retroativa: z.boolean().optional().default(false),
   })
   .refine((v) => v.horaFim > v.horaInicio, {
     message: "A hora de fim deve ser maior que a de início.",

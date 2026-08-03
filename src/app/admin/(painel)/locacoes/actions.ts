@@ -47,13 +47,18 @@ export async function reagendar(input: {
   horaFim: string;
   periodo: PeriodoDia;
   salaIds: string[];
-}): Promise<ResultadoAcao & { aviso?: string }> {
+  sobreposicaoAutorizada?: boolean;
+}): Promise<ResultadoAcao & { aviso?: string; conflitoSobreposicao?: string }> {
   const parsed = reagendarSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
   const r = await reagendarLocacao(parsed.data);
-  return "ok" in r ? { aviso: r.aviso } : { error: r.erro };
+  if ("ok" in r) return { aviso: r.aviso };
+  if ("conflitoSobreposicao" in r) {
+    return { conflitoSobreposicao: r.conflitoSobreposicao };
+  }
+  return { error: r.erro };
 }
 
 export async function adicionarAdicionalAction(input: {

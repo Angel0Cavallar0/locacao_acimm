@@ -96,4 +96,14 @@ export interface CriarLocacaoPayload {
   periodoGratuitoRecusado?: boolean;
   /** Combo selecionado (Spec 20 §3). */
   comboId?: string | null;
+  /** Colaborador confirmou a sobreposição no pop-up (Spec 31 §7). */
+  sobreposicaoAutorizada?: boolean;
+  /** Lançamento retroativo — evento passado, sem automações (Spec 31 §6). */
+  retroativa?: boolean;
+}
+
+/** Ocupante bloqueante que o colaborador precisa confirmar sobrepor (Spec 31 §7). */
+export interface ConflitoSobreposicao {
+  salaNome: string;
+  ocupante: string;
 }

@@ -113,6 +113,40 @@ const BLOQUEANTES: StatusLocacao[] = [
 ];
 const liberarVaga: EfeitoFn = async (ctx) => {
   if (!ctx.de || !BLOQUEANTES.includes(ctx.de)) return;
+
+  // Spec 31 §7: com sobreposição autorizada, o slot pode CONTINUAR ocupado por
+  // outra bloqueante — só avisa a fila se a vaga abriu de fato. Neste ponto a
+  // agenda desta locação já foi removida (rebuild em recusada/cancelada).
+  const admin = createAdminClient();
+  const { data: loc } = await admin
+    .from("locacoes")
+    .select("inicio, fim")
+    .eq("id", ctx.locacaoId)
+    .maybeSingle();
+  if (loc?.inicio && loc?.fim) {
+    const { data: ls } = await admin
+      .from("locacao_salas")
+      .select("sala_id")
+      .eq("locacao_id", ctx.locacaoId);
+    const salaIds = new Set((ls ?? []).map((r) => r.sala_id as string));
+    const { data: itens } = await admin.rpc("agenda_no_intervalo", {
+      p_inicio: loc.inicio as string,
+      p_fim: loc.fim as string,
+    });
+    type OcupItem = {
+      sala_id: string;
+      bloqueante: boolean;
+      locacao_id: string | null;
+    };
+    const aindaOcupado = ((itens ?? []) as OcupItem[]).some(
+      (i) =>
+        salaIds.has(i.sala_id) &&
+        i.bloqueante &&
+        i.locacao_id !== ctx.locacaoId,
+    );
+    if (aindaOcupado) return;
+  }
+
   const { notificarVagasLocacao } = await import("@/lib/notificacoes/eventos");
   await notificarVagasLocacao(ctx.locacaoId);
 };
@@ -155,6 +189,24 @@ const sincronizarContratoAssinado: EfeitoFn = async (ctx) => {
     .eq("locacao_id", ctx.locacaoId);
 };
 
+/**
+ * Efeitos EXTERNOS suprimidos em lançamentos retroativos (Spec 31 §6.3): o
+ * evento já ocorreu, então nada de mensagem ao associado, contrato, instruções
+ * de pagamento ou espelho no Google. A comissão (gerarComissoes) e a auditoria
+ * são MANTIDAS — é o objetivo do lançamento.
+ */
+const SUPRIMIVEIS_RETROATIVA = new Set<EfeitoFn>([
+  notif.solicitada,
+  notif.aprovada,
+  notif.contratoEnviado,
+  notif.recusada,
+  notif.confirmada,
+  notif.cancelada,
+  marcarGoogle,
+  gerarEEnviarContrato,
+  criarPagamentos,
+]);
+
 export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
   solicitada: [logar("solicitada"), notif.solicitada],
   aprovada: [logar("aprovada"), notif.aprovada, gerarEEnviarContrato, marcarGoogle],
@@ -183,7 +235,25 @@ export const efeitosPosTransicao: Partial<Record<StatusLocacao, EfeitoFn[]>> = {
 
 /** Executa os efeitos do estado destino; isola falhas (não propaga). */
 export async function dispararEfeitos(ctx: ContextoEfeito): Promise<void> {
-  for (const fn of efeitosPosTransicao[ctx.para] ?? []) {
+  const lista = efeitosPosTransicao[ctx.para] ?? [];
+
+  // Retroativa (Spec 31 §6.3): filtra os efeitos externos. Só consulta o banco
+  // quando o estado tem algum efeito suprimível (evita custo nas demais
+  // transições).
+  let efeitos = lista;
+  if (lista.some((fn) => SUPRIMIVEIS_RETROATIVA.has(fn))) {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("locacoes")
+      .select("retroativa")
+      .eq("id", ctx.locacaoId)
+      .maybeSingle();
+    if (data?.retroativa) {
+      efeitos = lista.filter((fn) => !SUPRIMIVEIS_RETROATIVA.has(fn));
+    }
+  }
+
+  for (const fn of efeitos) {
     try {
       await fn(ctx);
     } catch (e) {

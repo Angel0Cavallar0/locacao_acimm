@@ -570,6 +570,14 @@ export async function criarSolicitacao(
       error: "Não foi possível registrar sua solicitação. Tente novamente.",
     };
   }
+  // Spec 31 §7: associado nunca sobrepõe. Qualquer overlap bloqueante (inclusive
+  // uma locação já autorizada, que sai da constraint) é indisponibilidade.
+  if (novoId === "conflito_agenda") {
+    return {
+      error:
+        "Este horário acabou de ficar indisponível. Escolha outro horário ou entre na fila de espera.",
+    };
+  }
   if (novoId === "beneficio_indisponivel") {
     return {
       error:

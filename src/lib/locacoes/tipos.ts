@@ -164,6 +164,10 @@ export interface LocacaoDetalhe {
   valorDescontosCentavos: number;
   valorTotalCentavos: number;
   periodoGratuitoAplicado: boolean;
+  /** Lançamento retroativo — evento passado, exibido como "Concluída" (Spec 31 §6). */
+  retroativa: boolean;
+  /** Locação criada sobrepondo outra no mesmo slot (Spec 31 §7). */
+  sobreposicaoAutorizada: boolean;
   combo: { id: string; nome: string; tipo: string } | null;
   salas: SalaLinha[];
   adicionais: AdicionalLinha[];

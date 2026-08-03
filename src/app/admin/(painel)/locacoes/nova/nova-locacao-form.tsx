@@ -4,6 +4,16 @@ import { AlertTriangle, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -41,6 +51,7 @@ import {
 } from "./actions";
 import type {
   AssociadoBusca,
+  ConflitoSobreposicao,
   DisponibilidadeSala,
   ResumoValores,
 } from "./tipos";
@@ -187,6 +198,11 @@ export function NovaLocacaoForm({
     null,
   );
   const [erro, setErro] = useState<string | null>(null);
+  // Sobreposição (Spec 31 §7): pop-up de confirmação + intenção pendente.
+  const [conflito, setConflito] = useState<ConflitoSobreposicao[] | null>(null);
+  const [conflitoAprovar, setConflitoAprovar] = useState(false);
+  // Lançamento retroativo (Spec 31 §6): evento passado, sem automações.
+  const [retroativa, setRetroativa] = useState(false);
 
   function trocarPeriodo(p: PeriodoDia) {
     setPeriodo(p);
@@ -374,7 +390,7 @@ export function NovaLocacaoForm({
     [salas],
   );
 
-  async function enviar(aprovar: boolean) {
+  async function enviar(aprovar: boolean, sobrepor = false) {
     setErro(null);
     if (!nome.trim() || !documento.trim() || !email.trim()) {
       setErro("Preencha nome, documento e e-mail do locatário.");
@@ -386,6 +402,10 @@ export function NovaLocacaoForm({
     }
     if (salaIds.length === 0 || !data) {
       setErro("Selecione sala(s) e data.");
+      return;
+    }
+    if (retroativa && !formaPagamento && (resumo?.totalCentavos ?? 0) > 0) {
+      setErro("Escolha a forma de pagamento do lançamento retroativo.");
       return;
     }
     setEnviando(true);
@@ -435,15 +455,27 @@ export function NovaLocacaoForm({
       filaEsperaId: filaId,
       periodoGratuitoRecusado: pgRecusado,
       comboId,
+      sobreposicaoAutorizada: sobrepor,
+      retroativa,
     });
     setEnviando(false);
     setEnviandoQual(null);
 
+    // Sobreposição (Spec 31 §7): a locação NÃO foi criada; abre o pop-up.
+    if (r.conflitoSobreposicao) {
+      setConflito(r.conflitoSobreposicao);
+      setConflitoAprovar(aprovar);
+      return;
+    }
     if (r.error) {
       setErro(r.error);
       return;
     }
-    toast.success(aprovar ? "Locação criada e aprovada." : "Locação criada.");
+    if (r.concluida) {
+      toast.success("Lançamento retroativo registrado (Concluída).");
+    } else {
+      toast.success(aprovar ? "Locação criada e aprovada." : "Locação criada.");
+    }
     if (r.aviso) toast.warning(r.aviso);
     if (r.aprovacaoErro) toast.warning(`Aprovação: ${r.aprovacaoErro}`);
     router.push(`/admin/locacoes/${r.id}`);
@@ -1001,8 +1033,9 @@ export function NovaLocacaoForm({
           </div>
 
           {bloqueado ? (
-            <p className="text-sm text-destructive">
-              Uma das salas está indisponível no horário — ajuste antes de criar.
+            <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+              Uma das salas está ocupada nesse horário. Ao criar, será solicitada
+              a confirmação de sobreposição.
             </p>
           ) : null}
           {resumo && resumo.salasSemPreco.length > 0 ? (
@@ -1021,25 +1054,94 @@ export function NovaLocacaoForm({
             </p>
           ) : null}
 
+          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-dashed px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-3.5"
+              checked={retroativa}
+              onChange={(e) => setRetroativa(e.target.checked)}
+            />
+            <span className="text-ink-muted">
+              <span className="font-medium text-ink">Lançamento retroativo</span>{" "}
+              — evento que já aconteceu. Registra como <b>Concluída</b> com o
+              pagamento já quitado, sem enviar mensagens, contrato ou convite de
+              agenda ao associado.
+            </span>
+          </label>
+
           <div className="flex flex-wrap gap-2">
-            <Button
-              loading={enviandoQual === "criar"}
-              disabled={enviando || bloqueado}
-              onClick={() => enviar(false)}
-            >
-              Criar solicitação
-            </Button>
-            <Button
-              variant="outline"
-              loading={enviandoQual === "aprovar"}
-              disabled={enviando || bloqueado}
-              onClick={() => enviar(true)}
-            >
-              Criar e aprovar
-            </Button>
+            {retroativa ? (
+              <Button
+                loading={enviando}
+                disabled={enviando}
+                onClick={() => enviar(false)}
+              >
+                Registrar lançamento retroativo
+              </Button>
+            ) : (
+              <>
+                <Button
+                  loading={enviandoQual === "criar"}
+                  disabled={enviando}
+                  onClick={() => enviar(false)}
+                >
+                  Criar solicitação
+                </Button>
+                <Button
+                  variant="outline"
+                  loading={enviandoQual === "aprovar"}
+                  disabled={enviando}
+                  onClick={() => enviar(true)}
+                >
+                  Criar e aprovar
+                </Button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={conflito !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) setConflito(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sobreposição de horário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este horário já está ocupado. Confirmar cria uma segunda locação no
+              mesmo período (sobreposição autorizada), registrando você como
+              responsável pela decisão.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {conflito && conflito.length > 0 ? (
+            <ul className="flex flex-col gap-1 rounded-md bg-surface-muted p-3 text-sm">
+              {conflito.map((c, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: lista efêmera de conflito
+                <li key={i} className="flex justify-between gap-2">
+                  {c.salaNome ? (
+                    <span className="text-ink-muted">{c.salaNome}</span>
+                  ) : null}
+                  <span className="text-ink">{c.ocupante}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConflito(null);
+                enviar(conflitoAprovar, true);
+              }}
+            >
+              Confirmar sobreposição
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

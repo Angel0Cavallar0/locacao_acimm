@@ -33,6 +33,9 @@ export interface AgendaItem {
   origem: OrigemOcupacao;
   /** true = ocupa de fato (última linha de defesa da disponibilidade). */
   bloqueante: boolean;
+  /** Sobreposição autorizada por colaborador (Spec 31 §7): sai do índice de
+   * exclusão e pode coexistir com outra bloqueante no mesmo slot. */
+  sobreposicaoAutorizada?: boolean;
   /** auth.users id de quem criou a origem (locação/evento/bloqueio). */
   responsavelId: string | null;
   /** Nome do colaborador responsável, quando `responsavelId` é colaborador. */
@@ -63,14 +66,22 @@ export interface EnvolvidoSobreposicao {
   locacaoId: string | null;
   /** true quando é uma solicitação ainda pendente (não-bloqueante). */
   pendente: boolean;
+  /** true quando é uma locação com sobreposição autorizada (Spec 31 §7). */
+  autorizada: boolean;
 }
 
-/** Um par de ocupações que se sobrepõem envolvendo ao menos uma pendência. */
+/**
+ * Um par de ocupações que se sobrepõem. `pendente` = envolve uma solicitação
+ * ainda não aprovada (alerta a administrar). `autorizada` = duas bloqueantes
+ * coexistindo por sobreposição autorizada (Spec 31 §7): conflito aceito, exibido
+ * lado a lado.
+ */
 export interface Sobreposicao {
   salaNome: string;
   /** Janela sobreposta (interseção) em UTC. */
   inicioUtc: string;
   fimUtc: string;
+  categoria: "pendente" | "autorizada";
   envolvidos: EnvolvidoSobreposicao[];
 }
 

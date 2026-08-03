@@ -383,6 +383,8 @@ export async function carregarLocacao(
     valorDescontosCentavos: loc.valor_descontos_centavos,
     valorTotalCentavos: loc.valor_total_centavos,
     periodoGratuitoAplicado: loc.periodo_gratuito_aplicado,
+    retroativa: Boolean(loc.retroativa),
+    sobreposicaoAutorizada: Boolean(loc.sobreposicao_autorizada),
     combo,
     salas,
     adicionais,

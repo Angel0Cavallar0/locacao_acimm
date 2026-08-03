@@ -142,6 +142,16 @@ export default async function LocacaoDetalhePage({
                     {rotuloLocacao(loc.numero)}
                   </h2>
                   <StatusBadge status={loc.status} />
+                  {loc.retroativa ? (
+                    <span className="inline-flex items-center rounded-full bg-ink/10 px-2 py-0.5 text-xs font-medium text-ink">
+                      Concluída · retroativa
+                    </span>
+                  ) : null}
+                  {loc.sobreposicaoAutorizada ? (
+                    <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                      Sobreposição autorizada
+                    </span>
+                  ) : null}
                   {loc.combo ? (
                     <span className="inline-flex items-center rounded-full bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
                       Combo · {loc.combo.nome}

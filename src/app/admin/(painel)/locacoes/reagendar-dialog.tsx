@@ -48,6 +48,8 @@ export function ReagendarDialog({
   const [salaIds, setSalaIds] = useState<string[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  // Sobreposição (Spec 31 §7): mensagem do ocupante a confirmar.
+  const [conflito, setConflito] = useState<string | null>(null);
 
   useEffect(() => {
     if (!aberto) return;
@@ -59,6 +61,7 @@ export function ReagendarDialog({
     setPeriodo(locacao.periodo ?? "manha");
     setSalaIds(locacao.salaIds);
     setErro(null);
+    setConflito(null);
   }, [aberto, locacao]);
 
   function toggleSala(id: string) {
@@ -67,8 +70,7 @@ export function ReagendarDialog({
     );
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function salvar(sobrepor: boolean) {
     setErro(null);
     setSalvando(true);
     const r = await reagendar({
@@ -78,8 +80,13 @@ export function ReagendarDialog({
       horaFim,
       periodo,
       salaIds,
+      sobreposicaoAutorizada: sobrepor,
     });
     setSalvando(false);
+    if (r.conflitoSobreposicao) {
+      setConflito(r.conflitoSobreposicao);
+      return;
+    }
     if (r.error) {
       setErro(r.error);
       return;
@@ -88,6 +95,11 @@ export function ReagendarDialog({
     if (r.aviso) toast.warning(r.aviso);
     aoAbrir(false);
     router.refresh();
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await salvar(false);
   }
 
   return (
@@ -170,17 +182,39 @@ export function ReagendarDialog({
             </p>
           ) : null}
 
+          {conflito ? (
+            <div className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+              <p className="font-medium">Horário ocupado</p>
+              <p>{conflito}</p>
+              <p className="mt-1 text-ink-muted">
+                Confirme para reagendar sobrepondo esse horário (sobreposição
+                autorizada).
+              </p>
+            </div>
+          ) : null}
+
           <DialogFooter>
             <DialogClose render={<Button variant="outline" type="button" />}>
               Cancelar
             </DialogClose>
-            <Button
-              type="submit"
-              loading={salvando}
-              disabled={salaIds.length === 0}
-            >
-              Reagendar
-            </Button>
+            {conflito ? (
+              <Button
+                type="button"
+                loading={salvando}
+                disabled={salaIds.length === 0}
+                onClick={() => salvar(true)}
+              >
+                Confirmar sobreposição
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                loading={salvando}
+                disabled={salaIds.length === 0}
+              >
+                Reagendar
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

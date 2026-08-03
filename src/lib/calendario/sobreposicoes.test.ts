@@ -37,6 +37,24 @@ test("bloqueante × bloqueante não é falso positivo", () => {
   assert.equal(detectarSobreposicoes([a, b]).length, 0);
 });
 
+test("bloqueante × bloqueante autorizada gera sobreposição (Spec 31)", () => {
+  // Uma locação autorizada coexiste com outra bloqueante no mesmo slot.
+  const autorizada = item({
+    id: "a",
+    bloqueante: true,
+    sobreposicaoAutorizada: true,
+    locacaoNumero: 1,
+  });
+  const evento = item({ id: "b", bloqueante: true, origem: "evento_interno" });
+  const r = detectarSobreposicoes([autorizada, evento]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].categoria, "autorizada");
+  assert.equal(
+    r[0].envolvidos.find((e) => e.agendaId === "a")?.autorizada,
+    true,
+  );
+});
+
 test("sem interseção temporal não gera conflito", () => {
   const a = item({ id: "a", bloqueante: false });
   const b = item({

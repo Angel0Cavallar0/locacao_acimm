@@ -36,6 +36,7 @@ interface LinhaRpc {
   prioridade: PrioridadeEvento | null;
   qtd_inscritos: number | null;
   sympla_event_id: string | null;
+  sobreposicao_autorizada: boolean | null;
 }
 
 export async function carregarAgenda(
@@ -78,6 +79,7 @@ export async function carregarAgenda(
     fimUtc: l.fim,
     origem: l.origem,
     bloqueante: l.bloqueante,
+    sobreposicaoAutorizada: l.sobreposicao_autorizada ?? false,
     responsavelId: l.responsavel_id,
     responsavelNome: l.responsavel_id
       ? (nomes.get(l.responsavel_id) ?? null)

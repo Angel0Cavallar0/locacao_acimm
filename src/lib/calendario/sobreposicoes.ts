@@ -1,12 +1,15 @@
 /**
- * Detecção PURA de sobreposições da agenda (Spec 05 §5, regra CLAUDE.md §8.3).
+ * Detecção PURA de sobreposições da agenda (Spec 05 §5, regra CLAUDE.md §8.3;
+ * Spec 31 §7).
  *
- * Só interessam conflitos que envolvem uma PENDÊNCIA (solicitação de locação
- * ainda não aprovada = não-bloqueante). Dois pares são flagrados:
+ * Pares flagrados:
  *   - pendente × pendente
  *   - pendente × bloqueante (locação confirmada, evento ACIMM ou bloqueio)
- * bloqueante × bloqueante é impossível na mesma sala (constraint de exclusão),
- * então nunca gera falso positivo.
+ *   - bloqueante × bloqueante QUANDO ao menos uma é sobreposição autorizada
+ *     (Spec 31: a linha autorizada sai da constraint parcial, então duas
+ *     bloqueantes podem coexistir — conflito aceito, exibido lado a lado).
+ * bloqueante × bloqueante SEM autorização segue impossível (constraint de
+ * exclusão), então nunca gera falso positivo.
  */
 
 import type {
@@ -18,6 +21,11 @@ import type {
 /** Uma pendência = locação ainda sem efeito bloqueante (aguardando aprovação). */
 function ehPendente(it: AgendaItem): boolean {
   return it.origem === "locacao" && !it.bloqueante;
+}
+
+/** Locação bloqueante com sobreposição autorizada (Spec 31 §7). */
+function ehAutorizada(it: AgendaItem): boolean {
+  return it.origem === "locacao" && Boolean(it.sobreposicaoAutorizada);
 }
 
 function envolvido(it: AgendaItem): EnvolvidoSobreposicao {
@@ -35,6 +43,7 @@ function envolvido(it: AgendaItem): EnvolvidoSobreposicao {
     rotulo,
     locacaoId: it.locacaoId ?? null,
     pendente: ehPendente(it),
+    autorizada: ehAutorizada(it),
   };
 }
 
@@ -60,7 +69,10 @@ export function detectarSobreposicoes(itens: AgendaItem[]): Sobreposicao[] {
       for (let j = i + 1; j < arr.length; j++) {
         const a = arr[i];
         const b = arr[j];
-        if (!ehPendente(a) && !ehPendente(b)) continue; // precisa envolver pendência
+        const envolvePendencia = ehPendente(a) || ehPendente(b);
+        const envolveAutorizada = ehAutorizada(a) || ehAutorizada(b);
+        // bloqueante × bloqueante só é possível quando ao menos uma é autorizada.
+        if (!envolvePendencia && !envolveAutorizada) continue;
         if (!seSobrepoem(a, b)) continue;
         const inicio = Math.max(Date.parse(a.inicioUtc), Date.parse(b.inicioUtc));
         const fim = Math.min(Date.parse(a.fimUtc), Date.parse(b.fimUtc));
@@ -68,6 +80,8 @@ export function detectarSobreposicoes(itens: AgendaItem[]): Sobreposicao[] {
           salaNome: a.salaNome,
           inicioUtc: new Date(inicio).toISOString(),
           fimUtc: new Date(fim).toISOString(),
+          // Autorizada tem precedência de rótulo (conflito aceito, não pendência).
+          categoria: envolveAutorizada ? "autorizada" : "pendente",
           envolvidos: [envolvido(a), envolvido(b)],
         });
       }
