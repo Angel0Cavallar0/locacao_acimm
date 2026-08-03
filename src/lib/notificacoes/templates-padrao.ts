@@ -186,11 +186,11 @@ export const templatesPadrao: Record<string, TemplatePadrao> = {
   interna_comissao_estornada: {
     canais: ["email"],
     destino: "interno",
-    emailAssunto: "Comissão estornada após exportação — {{loc}}",
+    emailAssunto: "Comissão estornada após pagamento — {{loc}}",
     emailCorpo:
-      "Uma locação já exportada foi cancelada e {{qtd|1}} comissão(ões) da {{loc}} foram estornadas.\n\nLocatário: {{nome|—}}.\nComo já constavam em um CSV exportado, lance o ajuste de volta no seu controle.",
+      "Uma locação com {{qtd|1}} comissão(ões) já paga(s) ao colaborador foi cancelada ({{loc}}).\n\nLocatário: {{nome|—}}.\nComo já haviam sido pagas, lance o ajuste de volta no seu controle.",
     botaoLink: "linkAdmin",
-    botaoLabel: "Ver comissões estornadas",
+    botaoLabel: "Ver comissões",
   },
 };
 

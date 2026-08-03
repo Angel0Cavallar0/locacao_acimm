@@ -7,6 +7,8 @@ import type { StatusLocacao } from "./maquina-estados-core";
 export type FormaPagamento =
   | "pix"
   | "transferencia"
+  | "cartao"
+  | "dinheiro"
   | "boleto_avulso"
   | "boleto_mensalidade"
   | "isento";
@@ -14,6 +16,8 @@ export type FormaPagamento =
 export const FORMAS_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
   { valor: "pix", rotulo: "Pix" },
   { valor: "transferencia", rotulo: "Transferência bancária" },
+  { valor: "cartao", rotulo: "Cartão" },
+  { valor: "dinheiro", rotulo: "Dinheiro" },
   { valor: "boleto_avulso", rotulo: "Boleto avulso" },
   { valor: "boleto_mensalidade", rotulo: "Boleto - Mensalidade" },
   { valor: "isento", rotulo: "Isento" },
@@ -22,6 +26,8 @@ export const FORMAS_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
 export const FORMA_PAGAMENTO_ROTULO: Record<FormaPagamento, string> = {
   pix: "Pix",
   transferencia: "Transferência bancária",
+  cartao: "Cartão",
+  dinheiro: "Dinheiro",
   boleto_avulso: "Boleto avulso",
   boleto_mensalidade: "Boleto - Mensalidade",
   isento: "Isento",

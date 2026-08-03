@@ -29,8 +29,6 @@ export interface CardsIndicadores {
   ocupacaoPct: number;
   ocupacaoBloqueados: number;
   ocupacaoDisponiveis: number;
-  comissoesMesCentavos: number;
-  comissoesAExportarCentavos: number;
 }
 
 export interface LocacaoResumo {

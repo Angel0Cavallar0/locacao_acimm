@@ -71,8 +71,11 @@ interface AssociadoView {
 const inputClasses =
   "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-// Formas aceitas no portal — "isento" é decisão da ACIMM, não aparece aqui.
-const FORMAS_PORTAL = FORMAS_PAGAMENTO.filter((f) => f.valor !== "isento");
+// Formas aceitas no portal — "isento" é decisão da ACIMM; cartão/dinheiro são
+// recebimentos presenciais registrados pela equipe (não são preferência online).
+const FORMAS_PORTAL = FORMAS_PAGAMENTO.filter(
+  (f) => !["isento", "cartao", "dinheiro"].includes(f.valor),
+);
 
 const ETAPAS = [
   "Sala e data",

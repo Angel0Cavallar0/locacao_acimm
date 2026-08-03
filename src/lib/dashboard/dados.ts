@@ -137,7 +137,6 @@ export async function carregarDashboard(): Promise<DashboardData> {
       : `${ano}-${String(mes + 1).padStart(2, "0")}-01`;
   const inicioMesUtc = spWallParaUtc(inicioMesISO, "00:00");
   const fimMesUtc = spWallParaUtc(proxMesISO, "00:00");
-  const competencia = inicioMesISO; // 'YYYY-MM-01'
 
   const fimSemanaISO = somarDias(hoje, 7);
   const inicioSemanaUtc = spWallParaUtc(hoje, "00:00");
@@ -155,7 +154,6 @@ export async function carregarDashboard(): Promise<DashboardData> {
     pendentesRes,
     semanaRes,
     mesRes,
-    comissoesRes,
     salasRes,
     regrasRes,
     pagamentosRes,
@@ -185,11 +183,6 @@ export async function carregarDashboard(): Promise<DashboardData> {
       .select("valor_total_centavos, status")
       .gte("inicio", inicioMesUtc)
       .lt("inicio", fimMesUtc),
-    admin
-      .from("comissoes")
-      .select("valor_centavos, exportada")
-      .eq("competencia", competencia)
-      .is("estornada_em", null),
     admin
       .from("salas")
       .select("id, nome")
@@ -409,16 +402,6 @@ export async function carregarDashboard(): Promise<DashboardData> {
     else if (PIPELINE.includes(r.status)) pipeline += r.valor_total_centavos;
   }
 
-  let comMes = 0;
-  let comExportar = 0;
-  for (const c of (comissoesRes.data ?? []) as {
-    valor_centavos: number;
-    exportada: boolean;
-  }[]) {
-    comMes += c.valor_centavos;
-    if (!c.exportada) comExportar += c.valor_centavos;
-  }
-
   // --- Ocupação ------------------------------------------------------------
   const salas = (salasRes.data ?? []) as { id: string; nome: string }[];
   const comGratuito = new Set(
@@ -498,8 +481,6 @@ export async function carregarDashboard(): Promise<DashboardData> {
       ocupacaoPct: percentualOcupacao(totalOc.bloqueados, totalOc.total),
       ocupacaoBloqueados: totalOc.bloqueados,
       ocupacaoDisponiveis: totalOc.total,
-      comissoesMesCentavos: comMes,
-      comissoesAExportarCentavos: comExportar,
     },
     proximas,
     ocupacaoSalas,

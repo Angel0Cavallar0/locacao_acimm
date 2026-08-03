@@ -29,18 +29,20 @@ test("montarCsvComissoes: cabeçalho correto e centavos crus", () => {
       locNumero: "LOC-000123",
       locatario: "Empresa X",
       documento: "12345678000199",
-      dataEvento: "10/09/2026",
       salas: "Sala Cinza, Espaço Gourmet",
       origem: "Locação",
+      recebidoEm: "10/09/2026",
+      formaPagamento: "Pix",
       baseCentavos: 50000,
       valorCentavos: 5000,
+      pago: "Sim",
     },
   ]);
   const linhas = csv.slice(BOM.length).trimEnd().split("\r\n");
   assert.equal(linhas[0], CABECALHO_COMISSOES.join(";"));
   assert.equal(
     linhas[1],
-    "2026-09;LOC-000123;Empresa X;12345678000199;10/09/2026;Sala Cinza, Espaço Gourmet;Locação;50000;5000",
+    "2026-09;LOC-000123;Empresa X;12345678000199;Sala Cinza, Espaço Gourmet;Locação;10/09/2026;Pix;50000;5000;Sim",
   );
 });
 
@@ -51,11 +53,13 @@ test("montarCsvComissoes: locatário com ; é aspeado", () => {
       locNumero: "LOC-000001",
       locatario: "Fulano; Cia",
       documento: "11122233344",
-      dataEvento: "01/07/2026",
       salas: "Sala",
       origem: "Coffee",
+      recebidoEm: "",
+      formaPagamento: "",
       baseCentavos: 2000,
       valorCentavos: 100,
+      pago: "",
     },
   ]);
   assert.ok(csv.includes('"Fulano; Cia"'));

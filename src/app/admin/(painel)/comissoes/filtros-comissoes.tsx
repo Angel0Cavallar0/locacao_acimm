@@ -8,24 +8,13 @@ import { Input } from "@/components/ui/input";
 const selectClasses =
   "h-8 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
-const STATUS_OPCOES: { valor: string; rotulo: string }[] = [
-  { valor: "pendentes", rotulo: "A exportar" },
-  { valor: "exportadas", rotulo: "Exportadas" },
-  { valor: "estornadas", rotulo: "Estornadas" },
-  { valor: "estornadas_exportadas", rotulo: "Estornadas após exportação" },
-];
-
-/** Rótulo 'YYYY-MM' → 'mm/aaaa'. */
-function rotuloCompetencia(c: string): string {
-  const [ano, mes] = c.split("-");
-  return `${mes}/${ano}`;
-}
-
+/**
+ * Filtros da tela de comissões (Ciclo 2): origem + busca. A visão (a pagar /
+ * previsões) é escolhida nas abas; a competência é derivada da visão.
+ */
 export function FiltrosComissoes({
-  competencias,
   params,
 }: {
-  competencias: string[];
   params: Record<string, string>;
 }) {
   const router = useRouter();
@@ -55,7 +44,7 @@ export function FiltrosComissoes({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busca]);
 
-  const temFiltro = params.comp || params.origem || params.status || params.q;
+  const temFiltro = params.origem || params.q;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -64,23 +53,10 @@ export function FiltrosComissoes({
         <Input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar nº ou locatário"
-          className="h-8 w-52 pl-7 text-xs"
+          placeholder="Buscar nº, locatário ou código"
+          className="h-8 w-56 pl-7 text-xs"
         />
       </div>
-
-      <select
-        className={selectClasses}
-        value={params.comp ?? ""}
-        onChange={(e) => aplicar({ comp: e.target.value || null })}
-      >
-        <option value="">Todas as competências</option>
-        {competencias.map((c) => (
-          <option key={c} value={c}>
-            {rotuloCompetencia(c)}
-          </option>
-        ))}
-      </select>
 
       <select
         className={selectClasses}
@@ -92,25 +68,12 @@ export function FiltrosComissoes({
         <option value="coffee">Coffee break</option>
       </select>
 
-      <select
-        className={selectClasses}
-        value={params.status ?? ""}
-        onChange={(e) => aplicar({ status: e.target.value || null })}
-      >
-        <option value="">Todos os status</option>
-        {STATUS_OPCOES.map((s) => (
-          <option key={s.valor} value={s.valor}>
-            {s.rotulo}
-          </option>
-        ))}
-      </select>
-
       {temFiltro ? (
         <button
           type="button"
           onClick={() => {
             setBusca("");
-            aplicar({ comp: null, origem: null, status: null, q: null });
+            aplicar({ origem: null, q: null });
           }}
           className="inline-flex items-center gap-1 text-xs text-ink-muted hover:text-ink"
         >

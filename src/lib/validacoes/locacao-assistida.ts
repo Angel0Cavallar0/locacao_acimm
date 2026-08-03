@@ -58,6 +58,8 @@ export const criarLocacaoSchema = z
       .enum([
         "pix",
         "transferencia",
+        "cartao",
+        "dinheiro",
         "boleto_avulso",
         "boleto_mensalidade",
         "isento",

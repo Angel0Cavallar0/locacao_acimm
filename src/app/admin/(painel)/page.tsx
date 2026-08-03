@@ -109,7 +109,7 @@ function Indicador({
 
 function CardsGrid({ cards }: { cards: CardsIndicadores }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       <Indicador
         titulo="Pendentes"
         valor={String(cards.pendentesAprovacao)}
@@ -140,17 +140,6 @@ function CardsGrid({ cards }: { cards: CardsIndicadores }) {
         subtexto={`${cards.ocupacaoBloqueados}/${cards.ocupacaoDisponiveis} períodos`}
         icone={<PieChart className="size-4" />}
         tooltip="Períodos bloqueados ÷ disponíveis (salas ativas × dias do mês × 3 períodos). Dia inteiro conta 3; bloqueios manuais contam como ocupação."
-      />
-      <Indicador
-        titulo="Comissões do mês"
-        valor={centavosParaBRL(cards.comissoesMesCentavos)}
-        subtexto={
-          cards.comissoesAExportarCentavos > 0
-            ? `${centavosParaBRL(cards.comissoesAExportarCentavos)} a exportar`
-            : "nada a exportar"
-        }
-        icone={<DollarSign className="size-4" />}
-        href="/admin/comissoes"
       />
     </div>
   );

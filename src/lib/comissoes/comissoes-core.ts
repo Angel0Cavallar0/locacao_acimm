@@ -67,17 +67,31 @@ export function valorComissao(baseCentavos: number, percentual: number): number 
 }
 
 /**
- * Base da locação: valor das salas LÍQUIDO de descontos de sala + adicionais
- * (§3). Todos os descontos do sistema são de sala (multi-sala/período gratuito),
- * então `valor_descontos_centavos` é a dedução correta. Nunca negativa.
+ * Base da locação: valor das salas LÍQUIDO de descontos de sala (Ciclo 2 / Spec
+ * 29). Os adicionais NÃO entram mais na base (0% — fora da comissão); o subtotal
+ * de adicionais fica isolado em `valor_adicionais_centavos` justamente para ser
+ * excluído. Todos os descontos do sistema são de sala (multi-sala/período
+ * gratuito), então `valor_descontos_centavos` é a dedução correta. Nunca negativa.
  */
 export function baseLocacao(bases: BasesLocacao): number {
-  return Math.max(
-    0,
-    bases.valorSalasCentavos -
-      bases.valorDescontosCentavos +
-      bases.valorAdicionaisCentavos,
-  );
+  return Math.max(0, bases.valorSalasCentavos - bases.valorDescontosCentavos);
+}
+
+/**
+ * Aritmética de mês 'YYYY-MM' (puro): desloca `delta` meses. Ex.:
+ * mesRelativo('2026-01', -1) = '2025-12'. Usado nas três visões da tela.
+ */
+export function mesRelativo(mes: string, delta: number): string {
+  const [ano, m] = mes.split("-").map((n) => Number.parseInt(n, 10));
+  const total = ano * 12 + (m - 1) + delta;
+  const novoAno = Math.floor(total / 12);
+  const novoMes = (total % 12) + 1;
+  return `${novoAno}-${String(novoMes).padStart(2, "0")}`;
+}
+
+/** Competência a partir do mês 'YYYY-MM' → '1º dia do mês' 'YYYY-MM-01'. */
+export function competenciaDoMes(mes: string): string {
+  return `${mes}-01`;
 }
 
 /**

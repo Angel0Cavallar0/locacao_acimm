@@ -488,8 +488,9 @@ export async function notificarVagasLocacao(locacaoId: string): Promise<void> {
 }
 
 /**
- * Comissão já exportada foi estornada (Spec 21 §4). Só e-mail interno à ACIMM —
- * é ajuste para a equipe lançar de volta no controle dela. Config vazia → skip.
+ * Comissão já paga ao colaborador foi estornada por cancelamento (Ciclo 2 / Spec
+ * 29 §4.2). Só e-mail interno à ACIMM — é ajuste para a equipe lançar de volta no
+ * controle dela. Config vazia → skip.
  */
 export async function notificarComissaoEstornada(
   locacaoId: string,
@@ -515,7 +516,7 @@ export async function notificarComissaoEstornada(
         loc: rot(loc.numero as number),
         nome: (loc.locatario_nome as string) ?? "—",
         qtd: String(qtd),
-        linkAdmin: `${envCore.APP_URL}/admin/comissoes?status=estornadas_exportadas`,
+        linkAdmin: `${envCore.APP_URL}/admin/comissoes`,
       },
     },
   ]);

@@ -25,17 +25,19 @@ export function montarCsv(cabecalho: string[], linhas: string[][]): string {
   return `${BOM}${corpo}${EOL}`;
 }
 
-/** Uma linha de comissão já resolvida para exportação (§5). */
+/** Uma linha de comissão já resolvida para exportação (Ciclo 2 / §5). */
 export interface LinhaCsvComissao {
-  competencia: string; // 'YYYY-MM'
+  competencia: string; // 'YYYY-MM' (mês da quitação)
   locNumero: string; // 'LOC-000123'
   locatario: string;
   documento: string;
-  dataEvento: string; // 'dd/MM/yyyy'
   salas: string; // nomes separados por ', '
   origem: string; // rótulo pt-BR
+  recebidoEm: string; // 'dd/MM/yyyy' ou '' (previsão)
+  formaPagamento: string; // rótulo pt-BR ou ''
   baseCentavos: number;
   valorCentavos: number;
+  pago: string; // 'Sim' | 'Não' | '' (previsão)
 }
 
 export const CABECALHO_COMISSOES = [
@@ -43,11 +45,13 @@ export const CABECALHO_COMISSOES = [
   "loc_numero",
   "locatario",
   "documento",
-  "data_evento",
   "salas",
   "origem",
+  "recebido_em",
+  "forma_pagamento",
   "base_centavos",
   "valor_centavos",
+  "pago",
 ];
 
 export function montarCsvComissoes(linhas: LinhaCsvComissao[]): string {
@@ -56,11 +60,13 @@ export function montarCsvComissoes(linhas: LinhaCsvComissao[]): string {
     l.locNumero,
     l.locatario,
     l.documento,
-    l.dataEvento,
     l.salas,
     l.origem,
+    l.recebidoEm,
+    l.formaPagamento,
     String(l.baseCentavos),
     String(l.valorCentavos),
+    l.pago,
   ]);
   return montarCsv(CABECALHO_COMISSOES, corpo);
 }

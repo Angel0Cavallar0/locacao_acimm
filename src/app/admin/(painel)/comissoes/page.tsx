@@ -1,44 +1,32 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { requireColaborador } from "@/lib/auth/guards";
-import { dataSP } from "@/lib/calendario/tempo";
-import {
-  calcularTotais,
-  carregarComissoes,
-  competenciasDisponiveis,
-  type FiltrosComissoes,
-  lerConfigComissoes,
-  type StatusFiltroComissao,
-} from "@/lib/comissoes/dados";
 import type { OrigemComissao } from "@/lib/comissoes/comissoes-core";
-import { rotuloLocacao } from "@/lib/locacoes/tipos";
-import { centavosParaBRL } from "@/lib/utils/moeda";
 import {
-  ORIGENS_COMISSAO,
-  STATUS_COMISSAO,
-} from "@/lib/validacoes/comissoes";
+  carregarReconciliacao,
+  carregarVisaoComissoes,
+  lerConfigComissoes,
+} from "@/lib/comissoes/dados";
+import { VISAO_ROTULO, VISOES_COMISSAO } from "@/lib/comissoes/tipos";
+import type { VisaoComissao } from "@/lib/comissoes/tipos";
+import { centavosParaBRL } from "@/lib/utils/moeda";
+import { ORIGENS_COMISSAO } from "@/lib/validacoes/comissoes";
+import { ComissoesTabela } from "./comissoes-tabela";
 import { ConfigComissoes } from "./config-comissoes";
 import { ExportarBotao } from "./exportar-botao";
 import { FiltrosComissoes as FiltrosBar } from "./filtros-comissoes";
+import { ReconciliacaoBanner } from "./reconciliacao-banner";
 
 export const metadata: Metadata = { title: "Comissões" };
-
-const ORIGEM_ROTULO: Record<OrigemComissao, string> = {
-  locacao: "Locação",
-  coffee: "Coffee break",
-};
+export const dynamic = "force-dynamic";
 
 function texto(v: string | string[] | undefined): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
+}
+
+function mesBR(mes: string): string {
+  const [ano, m] = mes.split("-");
+  return `${m}/${ano}`;
 }
 
 export default async function ComissoesPage({
@@ -50,35 +38,37 @@ export default async function ComissoesPage({
   const ehAdmin = colaborador.role === "admin";
   const sp = await searchParams;
 
-  const compParam = texto(sp.comp);
+  const visaoParam = texto(sp.visao);
+  const visao: VisaoComissao = VISOES_COMISSAO.includes(
+    visaoParam as VisaoComissao,
+  )
+    ? (visaoParam as VisaoComissao)
+    : "a_pagar";
+
   const origemParam = texto(sp.origem);
-  const statusParam = texto(sp.status);
+  const origem = ORIGENS_COMISSAO.includes(origemParam as OrigemComissao)
+    ? (origemParam as OrigemComissao)
+    : null;
+  const busca = texto(sp.q);
 
-  const filtros: FiltrosComissoes = {
-    competencia: compParam && /^\d{4}-\d{2}$/.test(compParam) ? compParam : null,
-    origem: ORIGENS_COMISSAO.includes(origemParam as OrigemComissao)
-      ? (origemParam as OrigemComissao)
-      : null,
-    status: STATUS_COMISSAO.includes(statusParam as StatusFiltroComissao)
-      ? (statusParam as StatusFiltroComissao)
-      : null,
-    busca: texto(sp.q),
-  };
-
-  const [linhas, competencias, config] = await Promise.all([
-    carregarComissoes(filtros),
-    competenciasDisponiveis(),
+  const [dados, reconc, config] = await Promise.all([
+    carregarVisaoComissoes(visao, { origem, busca }),
+    carregarReconciliacao(),
     lerConfigComissoes(),
   ]);
-  const totais = calcularTotais(linhas);
 
   const paramsAtuais: Record<string, string> = {};
   for (const [k, v] of Object.entries(sp)) {
     if (typeof v === "string" && v.length > 0) paramsAtuais[k] = v;
   }
 
-  const nadaConfigurado =
-    !config.locacao.ativo && !config.coffee.ativo;
+  const nadaConfigurado = !config.locacao.ativo && !config.coffee.ativo;
+
+  function hrefVisao(v: VisaoComissao): string {
+    const p = new URLSearchParams(paramsAtuais);
+    p.set("visao", v);
+    return `/admin/comissoes?${p.toString()}`;
+  }
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4">
@@ -88,18 +78,13 @@ export default async function ComissoesPage({
             Comissões
           </h2>
           <p className="text-sm text-ink-muted">
-            Geradas na confirmação de cada locação. Exporte o CSV para o seu
-            controle.
+            Geradas no recebimento do pagamento. Pagas ao colaborador no mês
+            seguinte à quitação.
           </p>
         </div>
         <ExportarBotao
-          filtros={{
-            competencia: filtros.competencia,
-            origem: filtros.origem,
-            status: filtros.status,
-            busca: filtros.busca,
-          }}
-          vazio={linhas.length === 0}
+          filtros={{ visao, origem, busca }}
+          vazio={dados.linhas.length === 0}
         />
       </div>
 
@@ -107,109 +92,75 @@ export default async function ComissoesPage({
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           Nenhuma origem de comissão está ativa
           {ehAdmin
-            ? " — defina os percentuais abaixo para que novas confirmações passem a gerar comissões."
+            ? " — defina os percentuais abaixo para que novas quitações passem a gerar comissões."
             : " — peça a um administrador para definir os percentuais."}
         </div>
       ) : null}
 
-      <FiltrosBar competencias={competencias} params={paramsAtuais} />
+      <ReconciliacaoBanner
+        pendentes={reconc.pendentes.length}
+        revisaoParcial={reconc.revisaoParcial.length}
+      />
 
-      {/* Totais do recorte */}
+      {/* Abas de visão */}
+      <div className="flex flex-wrap gap-1 border-b">
+        {VISOES_COMISSAO.map((v) => (
+          <Link
+            key={v}
+            href={hrefVisao(v)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm ${
+              v === visao
+                ? "border-brand font-medium text-ink"
+                : "border-transparent text-ink-muted hover:text-ink"
+            }`}
+          >
+            {VISAO_ROTULO[v]}
+          </Link>
+        ))}
+      </div>
+
+      <FiltrosBar params={paramsAtuais} />
+
+      {/* Totais da visão */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <TotalCard
-          titulo="A exportar"
-          geral={totais.pendentes.geral}
-          locacao={totais.pendentes.locacao}
-          coffee={totais.pendentes.coffee}
-        />
-        <TotalCard
-          titulo="Exportadas"
-          geral={totais.exportadas.geral}
-          locacao={totais.exportadas.locacao}
-          coffee={totais.exportadas.coffee}
-        />
-        <div className="rounded-lg border p-3">
-          <p className="text-xs text-ink-muted">Estornadas</p>
-          <p className="mt-1 text-lg font-semibold text-ink">
-            {centavosParaBRL(totais.estornadasCentavos)}
-          </p>
-          <p className="mt-1 text-xs text-ink-muted">
-            {totais.estornadasExportadasQtd > 0
-              ? `${totais.estornadasExportadasQtd} após exportação`
-              : "nenhuma após exportação"}
-          </p>
-        </div>
+        {dados.ehPrevisao ? (
+          <>
+            <TotalCard
+              titulo="Previsto (total)"
+              valor={dados.totais.geral}
+              sub={`Locação ${centavosParaBRL(dados.totais.locacao)} · Coffee ${centavosParaBRL(dados.totais.coffee)}`}
+            />
+            <TotalCard
+              titulo="Pagamento previsto"
+              valor={null}
+              sub={`Em ${mesBR(dados.mesPagamento)} · estimativa (não gravada)`}
+            />
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-ink-muted">Observação</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                Valores projetados dos pagamentos previstos; confirmam-se na
+                quitação.
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <TotalCard titulo="A pagar" valor={dados.totais.naoPagoCentavos} />
+            <TotalCard titulo="Já pagas" valor={dados.totais.pagoCentavos} />
+            <TotalCard
+              titulo="Total do recorte"
+              valor={dados.totais.geral}
+              sub={`Pagamento em ${mesBR(dados.mesPagamento)}`}
+            />
+          </>
+        )}
       </div>
 
-      {/* Tabela */}
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Locação</TableHead>
-              <TableHead>Locatário</TableHead>
-              <TableHead>Data do evento</TableHead>
-              <TableHead>Origem</TableHead>
-              <TableHead className="text-right">Base</TableHead>
-              <TableHead className="text-right">Comissão</TableHead>
-              <TableHead>Competência</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {linhas.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="py-8 text-center text-sm text-ink-muted"
-                >
-                  Nenhuma comissão neste recorte.
-                </TableCell>
-              </TableRow>
-            ) : (
-              linhas.map((l) => (
-                <TableRow key={l.id}>
-                  <TableCell>
-                    <Link
-                      href={`/admin/locacoes/${l.locacaoId}`}
-                      className="font-medium text-brand hover:underline"
-                    >
-                      {rotuloLocacao(l.numero)}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="max-w-40 truncate" title={l.locatario}>
-                    {l.locatario}
-                  </TableCell>
-                  <TableCell className="text-ink-muted">
-                    {l.dataEventoUtc ? dataSP(l.dataEventoUtc) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{ORIGEM_ROTULO[l.origem]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-ink-muted">
-                    {centavosParaBRL(l.baseCentavos)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium text-ink">
-                    {centavosParaBRL(l.valorCentavos)}
-                  </TableCell>
-                  <TableCell className="text-ink-muted">
-                    {l.competencia.split("-").reverse().join("/")}
-                  </TableCell>
-                  <TableCell>
-                    <StatusComissao
-                      exportada={l.exportada}
-                      estornadaEmUtc={l.estornadaEmUtc}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <ComissoesTabela linhas={dados.linhas} ehPrevisao={dados.ehPrevisao} />
 
       <p className="text-xs text-ink-muted">
-        {totais.qtd} {totais.qtd === 1 ? "linha" : "linhas"} no recorte atual.
+        {dados.totais.qtd} {dados.totais.qtd === 1 ? "linha" : "linhas"} nesta
+        visão.
       </p>
 
       {ehAdmin ? <ConfigComissoes configInicial={config} /> : null}
@@ -219,50 +170,20 @@ export default async function ComissoesPage({
 
 function TotalCard({
   titulo,
-  geral,
-  locacao,
-  coffee,
+  valor,
+  sub,
 }: {
   titulo: string;
-  geral: number;
-  locacao: number;
-  coffee: number;
+  valor: number | null;
+  sub?: string;
 }) {
   return (
     <div className="rounded-lg border p-3">
       <p className="text-xs text-ink-muted">{titulo}</p>
       <p className="mt-1 text-lg font-semibold text-ink">
-        {centavosParaBRL(geral)}
+        {valor === null ? "—" : centavosParaBRL(valor)}
       </p>
-      <p className="mt-1 text-xs text-ink-muted">
-        Locação {centavosParaBRL(locacao)} · Coffee {centavosParaBRL(coffee)}
-      </p>
+      {sub ? <p className="mt-1 text-xs text-ink-muted">{sub}</p> : null}
     </div>
-  );
-}
-
-function StatusComissao({
-  exportada,
-  estornadaEmUtc,
-}: {
-  exportada: boolean;
-  estornadaEmUtc: string | null;
-}) {
-  if (estornadaEmUtc) {
-    return (
-      <div className="flex flex-col gap-0.5">
-        <Badge variant="destructive">
-          {exportada ? "Estornada (exportada)" : "Estornada"}
-        </Badge>
-        <span className="text-[11px] text-ink-muted">
-          {dataSP(estornadaEmUtc)}
-        </span>
-      </div>
-    );
-  }
-  return exportada ? (
-    <Badge variant="secondary">Exportada</Badge>
-  ) : (
-    <Badge variant="outline">A exportar</Badge>
   );
 }
