@@ -9,7 +9,6 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireColaborador } from "@/lib/auth/guards";
 import { dataSP, horaSP } from "@/lib/calendario/tempo";
@@ -24,6 +23,7 @@ import { rotuloLocacao } from "@/lib/locacoes/tipos";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import { AcaoNecessaria } from "./acao-necessaria";
 import { ExportarMesButton } from "./exportar-mes-button";
+import { ReceitaPeriodoForm } from "./receita-periodo-form";
 import { StatusBadge } from "./locacoes/status-badge";
 import { RefreshOnFocus } from "./refresh-on-focus";
 
@@ -113,35 +113,10 @@ function ReceitaPanel({ d }: { d: DashboardData }) {
           </div>
         </div>
 
-        <form method="get" className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="rde" className="text-xs text-ink-muted">
-              De
-            </label>
-            <input
-              id="rde"
-              type="date"
-              name="rde"
-              defaultValue={d.receitaDeISO}
-              className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="rate" className="text-xs text-ink-muted">
-              Até
-            </label>
-            <input
-              id="rate"
-              type="date"
-              name="rate"
-              defaultValue={d.receitaAteISO}
-              className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            />
-          </div>
-          <Button type="submit" size="sm" variant="outline">
-            Aplicar
-          </Button>
-        </form>
+        <ReceitaPeriodoForm
+          deInicial={d.receitaDeISO}
+          ateInicial={d.receitaAteISO}
+        />
 
         <div className="grid grid-cols-3 gap-3">
           <ValorBloco rotulo="Salas" valor={c.receitaSalasCentavos} />
