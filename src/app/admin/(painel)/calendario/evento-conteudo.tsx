@@ -6,7 +6,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { intervaloSP } from "@/lib/calendario/tempo";
+import { horaSP, intervaloSP } from "@/lib/calendario/tempo";
 import {
   type AgendaItem,
   PRIORIDADE_ROTULO,
@@ -42,6 +42,12 @@ function ResumoHover({ item }: { item: AgendaItem }) {
           />
           {item.qtdPessoas != null ? (
             <Linha rotulo="Pessoas" valor={String(item.qtdPessoas)} />
+          ) : null}
+          {item.coffeeHorarioServirUtc ? (
+            <Linha
+              rotulo="Coffee às"
+              valor={horaSP(item.coffeeHorarioServirUtc)}
+            />
           ) : null}
         </>
       ) : null}

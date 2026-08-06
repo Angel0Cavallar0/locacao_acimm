@@ -11,6 +11,7 @@ import {
   ListOrdered,
   type LucideIcon,
   Megaphone,
+  PlusSquare,
   Settings,
 } from "lucide-react";
 
@@ -32,7 +33,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/admin/coffee", label: "Coffee Break", icon: Coffee },
   { href: "/admin/contratos", label: "Contratos", icon: FileText },
   { href: "/admin/comissoes", label: "Comissões", icon: DollarSign },
-  { href: "/admin/lista-espera", label: "Lista de Espera", icon: ListOrdered },
+  { href: "/admin/lista-espera", label: "Pendentes", icon: ListOrdered },
+  {
+    href: "/admin/configuracoes/servicos",
+    label: "Serviços adicionais",
+    icon: PlusSquare,
+  },
   {
     href: "/admin/configuracoes/formulario",
     label: "Formulário",

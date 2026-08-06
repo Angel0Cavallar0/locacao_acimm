@@ -3,7 +3,9 @@ import { test } from "node:test";
 import {
   baseLocacao,
   comissoesDevidas,
+  competenciaDoMes,
   type ConfigComissoes,
+  mesRelativo,
   parsearConfigComissoes,
   valorComissao,
 } from "./comissoes-core.ts";
@@ -59,17 +61,17 @@ test("valor: percentual decimal", () => {
   assert.equal(valorComissao(100000, 2.5), 2500);
 });
 
-// --- baseLocacao (líquida de descontos + adicionais) -----------------------
+// --- baseLocacao (líquida de descontos; Ciclo 2: SEM adicionais) -----------
 
-test("base locação: salas - descontos + adicionais", () => {
+test("base locação: salas - descontos, ignorando adicionais (0%)", () => {
   assert.equal(
     baseLocacao({
       valorSalasCentavos: 50000,
       valorDescontosCentavos: 20000,
-      valorAdicionaisCentavos: 4500,
+      valorAdicionaisCentavos: 4500, // fora da base (Ciclo 2)
       valorCoffeeCentavos: 0,
     }),
-    34500,
+    30000,
   );
 });
 
@@ -165,4 +167,30 @@ test("devidas: valor arredondado a 0 não gera linha", () => {
     valorCoffeeCentavos: 0,
   });
   assert.equal(linhas.length, 0);
+});
+
+test("devidas: adicionais NÃO entram na comissão (Ciclo 2)", () => {
+  // Só sala e coffee geram; os 100000 de adicionais são ignorados na base.
+  const linhas = comissoesDevidas(CFG_ATIVAS, {
+    valorSalasCentavos: 40000,
+    valorDescontosCentavos: 0,
+    valorAdicionaisCentavos: 100000,
+    valorCoffeeCentavos: 0,
+  });
+  assert.equal(linhas.length, 1);
+  assert.equal(linhas[0].origem, "locacao");
+  assert.equal(linhas[0].baseCentavos, 40000);
+});
+
+// --- helpers de mês (visões da tela) ---------------------------------------
+
+test("mesRelativo: desloca meses cruzando o ano", () => {
+  assert.equal(mesRelativo("2026-01", -1), "2025-12");
+  assert.equal(mesRelativo("2026-12", 1), "2027-01");
+  assert.equal(mesRelativo("2026-08", 2), "2026-10");
+  assert.equal(mesRelativo("2026-08", 0), "2026-08");
+});
+
+test("competenciaDoMes: 1º dia do mês", () => {
+  assert.equal(competenciaDoMes("2026-08"), "2026-08-01");
 });

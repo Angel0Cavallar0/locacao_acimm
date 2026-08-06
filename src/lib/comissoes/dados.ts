@@ -1,66 +1,58 @@
 import "server-only";
+import { utcParaNaiveSP } from "@/lib/calendario/tempo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  comissoesDevidas,
+  competenciaDoMes,
   type ConfigComissoes,
+  mesRelativo,
   type OrigemComissao,
   parsearConfigComissoes,
 } from "./comissoes-core";
+import type {
+  ComissaoLinha,
+  TotaisVisao,
+  VisaoComissao,
+} from "./tipos";
+
+export type { ComissaoLinha, TotaisVisao, VisaoComissao } from "./tipos";
+export { VISOES_COMISSAO } from "./tipos";
 
 /**
- * Leitura das comissões para a tela `/admin/comissoes` (Spec 21 §5). Uma função
- * de carregamento única alimenta tanto a tabela/totais quanto o CSV (gestao.ts),
- * garantindo que "os totais da tela batem com o CSV do mesmo filtro" (§6).
+ * Leitura das comissões para a tela `/admin/comissoes` (Ciclo 2 / Spec 29 §5).
+ * A régua é temporal: a competência é o mês da QUITAÇÃO e o pagamento ao
+ * colaborador é no mês seguinte. Daí as três visões:
+ *  - a_pagar     → linhas reais a pagar neste mês (quitadas até o mês anterior);
+ *  - proximo_mes → quitadas neste mês (reais) + previsões de quitação neste mês;
+ *  - dois_meses  → previsões de quitação no próximo mês (boleto de mensalidade).
+ * As previsões são calculadas na hora dos pagamentos pendentes + config atual e
+ * NUNCA gravam em `comissoes`.
  */
 
-export type StatusFiltroComissao =
-  | "pendentes"
-  | "exportadas"
-  | "estornadas"
-  | "estornadas_exportadas";
-
 export interface FiltrosComissoes {
-  /** 'YYYY-MM' ou null (todas as competências). */
-  competencia: string | null;
   origem: OrigemComissao | null;
-  status: StatusFiltroComissao | null;
   busca: string | null;
 }
 
-export interface ComissaoLinha {
-  id: string;
-  locacaoId: string;
-  numero: number;
-  locatario: string;
-  documento: string;
-  dataEventoUtc: string;
-  salas: string[];
-  origem: OrigemComissao;
-  baseCentavos: number;
-  valorCentavos: number;
-  percentual: number;
-  /** 'YYYY-MM'. */
-  competencia: string;
-  exportada: boolean;
-  estornadaEmUtc: string | null;
+export interface VisaoComissoesDados {
+  visao: VisaoComissao;
+  linhas: ComissaoLinha[];
+  totais: TotaisVisao;
+  /** Mês em que estas comissões são pagas ao colaborador ('YYYY-MM'). */
+  mesPagamento: string;
+  /** true nas visões de previsão (linhas são estimativas). */
+  ehPrevisao: boolean;
 }
 
-export interface TotalPorOrigem {
-  locacao: number;
-  coffee: number;
-  geral: number;
+export interface ReconciliacaoComissoes {
+  /** Locações com recebimento real e sem comissão viva para origem ativa. */
+  pendentes: { locacaoId: string; numero: number }[];
+  /** Locações com comissão gerada e algum pagamento isento (revisão manual). */
+  revisaoParcial: { locacaoId: string; numero: number }[];
 }
 
-export interface TotaisComissoes {
-  pendentes: TotalPorOrigem;
-  exportadas: TotalPorOrigem;
-  estornadasCentavos: number;
-  estornadasExportadasQtd: number;
-  qtd: number;
-}
-
-// Backstop de volume (comissões são ~2 por locação confirmada). Um mês real
-// fica muito abaixo disso; "Todas" com histórico grande é o único risco.
-const LIMITE = 2000;
+// Backstop de volume (comissões são ~2 por locação confirmada).
+const LIMITE = 4000;
 
 function um<T>(v: T | T[] | null | undefined): T | null {
   if (Array.isArray(v)) return v[0] ?? null;
@@ -80,7 +72,12 @@ function nomesDeSalas(rel: unknown): string[] {
   return nomes;
 }
 
-/** Resolve ids de locação por LOC-nº / nome / documento (null = sem busca). */
+/** Mês corrente 'YYYY-MM' em São Paulo. */
+export function mesCorrenteSP(): string {
+  return utcParaNaiveSP(new Date().toISOString()).slice(0, 7);
+}
+
+/** Resolve ids de locação por LOC-nº / nome / documento / código do associado. */
 async function idsPorBusca(busca: string): Promise<string[]> {
   const admin = createAdminClient();
   const b = busca.trim().replace(/[,()]/g, " ");
@@ -94,46 +91,38 @@ async function idsPorBusca(busca: string): Promise<string[]> {
   return ((data ?? []) as { id: string }[]).map((r) => r.id);
 }
 
-export async function carregarComissoes(
-  f: FiltrosComissoes,
+const SELECT_LOC =
+  `numero, locatario_nome, locatario_documento,
+   locacao_salas ( salas ( nome ) )`;
+
+interface LocRel {
+  numero?: number;
+  locatario_nome?: string;
+  locatario_documento?: string;
+  locacao_salas?: unknown;
+}
+
+/** Linhas reais (gravadas) num intervalo de competência [de, ate] inclusive. */
+async function carregarReais(
+  competenciaDe: string | null,
+  competenciaAte: string | null,
+  origem: OrigemComissao | null,
+  idsBusca: string[] | null,
 ): Promise<ComissaoLinha[]> {
   const admin = createAdminClient();
-
-  let idsBusca: string[] | null = null;
-  if (f.busca && f.busca.trim().length > 0) {
-    idsBusca = await idsPorBusca(f.busca);
-    if (idsBusca.length === 0) return [];
-  }
 
   let q = admin
     .from("comissoes")
     .select(
       `id, locacao_id, origem, base_centavos, valor_centavos, percentual,
-       competencia, exportada, estornada_em,
-       locacoes ( numero, locatario_nome, locatario_documento, inicio,
-                  locacao_salas ( salas ( nome ) ) )`,
-    );
+       competencia, recebido_em, forma_pagamento, pago,
+       locacoes ( ${SELECT_LOC} )`,
+    )
+    .is("estornada_em", null);
 
-  if (f.competencia) q = q.eq("competencia", `${f.competencia}-01`);
-  if (f.origem) q = q.eq("origem", f.origem);
-
-  switch (f.status) {
-    case "pendentes":
-      q = q.eq("exportada", false).is("estornada_em", null);
-      break;
-    case "exportadas":
-      q = q.eq("exportada", true).is("estornada_em", null);
-      break;
-    case "estornadas":
-      q = q.not("estornada_em", "is", null);
-      break;
-    case "estornadas_exportadas":
-      q = q.not("estornada_em", "is", null).eq("exportada", true);
-      break;
-    default:
-      break; // todos
-  }
-
+  if (competenciaDe) q = q.gte("competencia", competenciaDoMes(competenciaDe));
+  if (competenciaAte) q = q.lte("competencia", competenciaDoMes(competenciaAte));
+  if (origem) q = q.eq("origem", origem);
   if (idsBusca) q = q.in("locacao_id", idsBusca);
 
   q = q
@@ -144,54 +133,247 @@ export async function carregarComissoes(
   const { data } = await q;
 
   return ((data ?? []) as Record<string, unknown>[]).map((r) => {
-    const loc = um(r.locacoes as unknown) as {
-      numero?: number;
-      locatario_nome?: string;
-      locatario_documento?: string;
-      inicio?: string;
-      locacao_salas?: unknown;
-    } | null;
+    const loc = um(r.locacoes as unknown) as LocRel | null;
     return {
+      tipo: "real" as const,
       id: r.id as string,
       locacaoId: r.locacao_id as string,
       numero: loc?.numero ?? 0,
       locatario: loc?.locatario_nome ?? "—",
       documento: loc?.locatario_documento ?? "",
-      dataEventoUtc: loc?.inicio ?? "",
       salas: nomesDeSalas(loc?.locacao_salas),
       origem: r.origem as OrigemComissao,
       baseCentavos: (r.base_centavos as number) ?? 0,
       valorCentavos: (r.valor_centavos as number) ?? 0,
       percentual: Number(r.percentual ?? 0),
       competencia: String(r.competencia).slice(0, 7),
-      exportada: r.exportada === true,
-      estornadaEmUtc: (r.estornada_em as string | null) ?? null,
+      recebidoEmUtc: (r.recebido_em as string | null) ?? null,
+      formaPagamento: (r.forma_pagamento as string | null) ?? null,
+      pago: r.pago === true,
     };
   });
 }
 
-/** Totais do recorte: pendentes vs exportadas (não estornadas), por origem. */
-export function calcularTotais(linhas: ComissaoLinha[]): TotaisComissoes {
-  const zero = (): TotalPorOrigem => ({ locacao: 0, coffee: 0, geral: 0 });
-  const t: TotaisComissoes = {
-    pendentes: zero(),
-    exportadas: zero(),
-    estornadasCentavos: 0,
-    estornadasExportadasQtd: 0,
+/**
+ * Projeções de comissão para `mesAlvo`: pagamentos pendentes com
+ * `previsao_recebimento` no mês, agrupados por locação, exceto locações que já
+ * têm comissão viva (essas viram linha real). Calculadas com a config ATUAL.
+ */
+async function projetarComissoes(
+  mesAlvo: string,
+  cfg: ConfigComissoes,
+  origem: OrigemComissao | null,
+  idsBusca: string[] | null,
+): Promise<ComissaoLinha[]> {
+  const admin = createAdminClient();
+
+  const inicio = competenciaDoMes(mesAlvo);
+  const fimExcl = competenciaDoMes(mesRelativo(mesAlvo, 1));
+
+  const { data: comRows } = await admin
+    .from("comissoes")
+    .select("locacao_id")
+    .is("estornada_em", null);
+  const jaTemComissao = new Set(
+    ((comRows ?? []) as { locacao_id: string }[]).map((r) => r.locacao_id),
+  );
+
+  let q = admin
+    .from("pagamentos")
+    .select(
+      `locacao_id, forma, previsao_recebimento,
+       locacoes ( ${SELECT_LOC}, valor_salas_centavos, valor_descontos_centavos,
+                  valor_coffee_centavos, valor_total_centavos )`,
+    )
+    .eq("status", "pendente")
+    .gte("previsao_recebimento", inicio)
+    .lt("previsao_recebimento", fimExcl)
+    .limit(LIMITE);
+  if (idsBusca) q = q.in("locacao_id", idsBusca);
+
+  const { data } = await q;
+
+  // Uma projeção por locação (a comissão nasce na quitação total, não por item).
+  const porLocacao = new Map<string, Record<string, unknown>>();
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const locId = r.locacao_id as string;
+    if (jaTemComissao.has(locId)) continue;
+    if (!porLocacao.has(locId)) porLocacao.set(locId, r);
+  }
+
+  const linhas: ComissaoLinha[] = [];
+  for (const [locId, r] of porLocacao) {
+    const loc = um(r.locacoes as unknown) as
+      | (LocRel & {
+          valor_salas_centavos?: number;
+          valor_descontos_centavos?: number;
+          valor_coffee_centavos?: number;
+          valor_total_centavos?: number;
+        })
+      | null;
+    if (!loc || (loc.valor_total_centavos ?? 0) === 0) continue;
+
+    const devidas = comissoesDevidas(cfg, {
+      valorSalasCentavos: loc.valor_salas_centavos ?? 0,
+      valorDescontosCentavos: loc.valor_descontos_centavos ?? 0,
+      valorAdicionaisCentavos: 0,
+      valorCoffeeCentavos: loc.valor_coffee_centavos ?? 0,
+    });
+
+    for (const d of devidas) {
+      if (origem && d.origem !== origem) continue;
+      linhas.push({
+        tipo: "previsao",
+        id: `${locId}:${d.origem}`,
+        locacaoId: locId,
+        numero: loc.numero ?? 0,
+        locatario: loc.locatario_nome ?? "—",
+        documento: loc.locatario_documento ?? "",
+        salas: nomesDeSalas(loc.locacao_salas),
+        origem: d.origem,
+        baseCentavos: d.baseCentavos,
+        valorCentavos: d.valorCentavos,
+        percentual: d.percentual,
+        competencia: mesAlvo,
+        recebidoEmUtc: null,
+        formaPagamento: (r.forma as string | null) ?? null,
+        pago: false,
+      });
+    }
+  }
+  return linhas;
+}
+
+function totalizar(linhas: ComissaoLinha[]): TotaisVisao {
+  const t: TotaisVisao = {
+    geral: 0,
+    locacao: 0,
+    coffee: 0,
+    naoPagoCentavos: 0,
+    pagoCentavos: 0,
     qtd: linhas.length,
   };
-
   for (const l of linhas) {
-    if (l.estornadaEmUtc) {
-      t.estornadasCentavos += l.valorCentavos;
-      if (l.exportada) t.estornadasExportadasQtd += 1;
-      continue;
-    }
-    const alvo = l.exportada ? t.exportadas : t.pendentes;
-    alvo[l.origem] += l.valorCentavos;
-    alvo.geral += l.valorCentavos;
+    t.geral += l.valorCentavos;
+    t[l.origem] += l.valorCentavos;
+    if (l.pago) t.pagoCentavos += l.valorCentavos;
+    else t.naoPagoCentavos += l.valorCentavos;
   }
   return t;
+}
+
+/** Carrega uma das três visões, montando reais + previsões conforme o caso. */
+export async function carregarVisaoComissoes(
+  visao: VisaoComissao,
+  filtros: FiltrosComissoes,
+): Promise<VisaoComissoesDados> {
+  let idsBusca: string[] | null = null;
+  if (filtros.busca && filtros.busca.trim().length > 0) {
+    idsBusca = await idsPorBusca(filtros.busca);
+    if (idsBusca.length === 0) {
+      return {
+        visao,
+        linhas: [],
+        totais: totalizar([]),
+        mesPagamento: mesRelativo(mesCorrenteSP(), 1),
+        ehPrevisao: visao !== "a_pagar",
+      };
+    }
+  }
+
+  const mesAtual = mesCorrenteSP();
+  const mesAnterior = mesRelativo(mesAtual, -1);
+  const mesProximo = mesRelativo(mesAtual, 1);
+
+  let linhas: ComissaoLinha[] = [];
+  let ehPrevisao = false;
+  let mesPagamento = mesAtual;
+
+  if (visao === "a_pagar") {
+    // Quitadas até o mês anterior (inclui atrasadas/retroativas). Pagas neste mês.
+    linhas = await carregarReais(null, mesAnterior, filtros.origem, idsBusca);
+    mesPagamento = mesAtual;
+  } else if (visao === "proximo_mes") {
+    const cfg = await lerConfigComissoes();
+    const [reais, previstas] = await Promise.all([
+      carregarReais(mesAtual, mesAtual, filtros.origem, idsBusca),
+      projetarComissoes(mesAtual, cfg, filtros.origem, idsBusca),
+    ]);
+    linhas = [...reais, ...previstas];
+    ehPrevisao = true;
+    mesPagamento = mesProximo;
+  } else {
+    const cfg = await lerConfigComissoes();
+    linhas = await projetarComissoes(
+      mesProximo,
+      cfg,
+      filtros.origem,
+      idsBusca,
+    );
+    ehPrevisao = true;
+    mesPagamento = mesRelativo(mesAtual, 2);
+  }
+
+  return { visao, linhas, totais: totalizar(linhas), mesPagamento, ehPrevisao };
+}
+
+/**
+ * Reconciliação (§4.3): comissões que deveriam existir mas não existem
+ * (efeito best-effort falhou) e locações com isenção parcial a revisar.
+ */
+export async function carregarReconciliacao(): Promise<ReconciliacaoComissoes> {
+  const admin = createAdminClient();
+  const cfg = await lerConfigComissoes();
+  if (!cfg.locacao.ativo && !cfg.coffee.ativo) {
+    return { pendentes: [], revisaoParcial: [] };
+  }
+
+  const CONFIRMADAS = ["confirmada", "realizada", "finalizada"];
+
+  const [{ data: confirmadas }, { data: comRows }, { data: pagos }] =
+    await Promise.all([
+      admin
+        .from("locacoes")
+        .select("id, numero, valor_total_centavos")
+        .in("status", CONFIRMADAS)
+        .limit(LIMITE),
+      admin.from("comissoes").select("locacao_id").is("estornada_em", null),
+      admin
+        .from("pagamentos")
+        .select("locacao_id, status")
+        .in("status", ["pago", "isento"]),
+    ]);
+
+  const comComissao = new Set(
+    ((comRows ?? []) as { locacao_id: string }[]).map((r) => r.locacao_id),
+  );
+  const comRecebimento = new Set(
+    ((pagos ?? []) as { locacao_id: string; status: string }[])
+      .filter((p) => p.status === "pago")
+      .map((p) => p.locacao_id),
+  );
+  const comIsento = new Set(
+    ((pagos ?? []) as { locacao_id: string; status: string }[])
+      .filter((p) => p.status === "isento")
+      .map((p) => p.locacao_id),
+  );
+
+  const pendentes: { locacaoId: string; numero: number }[] = [];
+  const revisaoParcial: { locacaoId: string; numero: number }[] = [];
+  for (const l of (confirmadas ?? []) as {
+    id: string;
+    numero: number;
+    valor_total_centavos: number;
+  }[]) {
+    if ((l.valor_total_centavos ?? 0) === 0) continue;
+    if (comRecebimento.has(l.id) && !comComissao.has(l.id)) {
+      pendentes.push({ locacaoId: l.id, numero: l.numero });
+    }
+    if (comComissao.has(l.id) && comIsento.has(l.id)) {
+      revisaoParcial.push({ locacaoId: l.id, numero: l.numero });
+    }
+  }
+  return { pendentes, revisaoParcial };
 }
 
 export async function lerConfigComissoes(): Promise<ConfigComissoes> {
@@ -202,19 +384,4 @@ export async function lerConfigComissoes(): Promise<ConfigComissoes> {
     .eq("chave", "comissoes")
     .maybeSingle();
   return parsearConfigComissoes(data?.valor);
-}
-
-/** Competências com comissões (para o seletor de mês). 'YYYY-MM' desc. */
-export async function competenciasDisponiveis(): Promise<string[]> {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("comissoes")
-    .select("competencia")
-    .order("competencia", { ascending: false })
-    .limit(LIMITE);
-  const vistos = new Set<string>();
-  for (const r of (data ?? []) as { competencia: string }[]) {
-    vistos.add(String(r.competencia).slice(0, 7));
-  }
-  return [...vistos];
 }

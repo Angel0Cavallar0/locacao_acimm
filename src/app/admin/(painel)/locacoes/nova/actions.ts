@@ -7,11 +7,18 @@ import { obterAntecedenciaCoffee } from "@/lib/coffee/config";
 import { respeitaAntecedencia } from "@/lib/disponibilidade/janela";
 import { validarRespostasFormulario } from "@/lib/formulario/validacao";
 import { calcularValores } from "@/lib/locacoes/calcular";
-import { transicionarLocacao } from "@/lib/locacoes/maquina-estados";
+import {
+  aplicarTransicao,
+  transicionarLocacao,
+} from "@/lib/locacoes/maquina-estados";
+import type { StatusLocacao } from "@/lib/locacoes/maquina-estados-core";
+import type { FormaPagamento } from "@/lib/locacoes/tipos";
+import { resolverAdicionais } from "@/lib/servicos-adicionais/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { criarLocacaoSchema } from "@/lib/validacoes/locacao-assistida";
 import type {
   AssociadoBusca,
+  ConflitoSobreposicao,
   CriarLocacaoPayload,
   DisponibilidadeSala,
   ResumoValores,
@@ -118,6 +125,7 @@ export async function buscarAssociadosAction(
     celular: string | null;
     whatsapp: string | null;
     situacao: "ativo" | "suspenso" | "excluido";
+    codigo_sophus: number | null;
   };
 
   return ((data ?? []) as Row[]).map((a) => ({
@@ -128,6 +136,7 @@ export async function buscarAssociadosAction(
     emails: a.emails ?? [],
     telefone: a.whatsapp ?? a.celular ?? a.telefone ?? null,
     situacao: a.situacao,
+    codigoSophus: a.codigo_sophus ?? null,
   }));
 }
 
@@ -255,6 +264,61 @@ export interface ResultadoCriar {
   aprovacaoErro?: string;
   /** Aviso de antecedência (§A) — reserva criada apesar do prazo mínimo. */
   aviso?: string;
+  /** Conflito de sala/horário a confirmar no pop-up (Spec 31 §7). Presente =
+   * a locação NÃO foi criada; reenviar com `sobreposicaoAutorizada: true`. */
+  conflitoSobreposicao?: ConflitoSobreposicao[];
+  /** Lançamento retroativo levado a "Concluída" (Spec 31 §6). */
+  concluida?: boolean;
+}
+
+/**
+ * Lançamento retroativo (Spec 31 §6): registra o pagamento passado já quitado
+ * (competência = data do evento) e caminha a máquina até "Concluída"
+ * (finalizada). Os efeitos externos são suprimidos pela flag `retroativa`
+ * (efeitos.ts); a comissão nasce na confirmação, pela data de quitação passada.
+ * Devolve a mensagem de erro se algum passo falhar (ex.: conflito na aprovação).
+ */
+async function completarRetroativa(
+  admin: ReturnType<typeof createAdminClient>,
+  id: string,
+  opts: {
+    forma: FormaPagamento;
+    totalCentavos: number;
+    baixaEmUtc: string;
+    autorUserId: string;
+  },
+): Promise<string | undefined> {
+  if (opts.totalCentavos > 0) {
+    await admin.from("pagamentos").insert({
+      locacao_id: id,
+      descricao: "Lançamento retroativo",
+      forma: opts.forma,
+      valor_centavos: opts.totalCentavos,
+      status: "pago",
+      baixa_por: opts.autorUserId,
+      baixa_em: opts.baixaEmUtc,
+    });
+  }
+
+  const passos: StatusLocacao[] = [
+    "em_analise",
+    "aprovada",
+    "contrato_enviado",
+    "contrato_assinado",
+    "aguardando_pagamento",
+    "confirmada",
+    "realizada",
+    "finalizada",
+  ];
+  for (const para of passos) {
+    const r = await aplicarTransicao({
+      locacaoId: id,
+      para,
+      autorUserId: opts.autorUserId,
+    });
+    if ("erro" in r) return r.erro;
+  }
+  return undefined;
 }
 
 /** Submit da criação assistida (§5): revalida tudo no servidor e grava. */
@@ -308,22 +372,35 @@ export async function criarLocacaoAssistida(
   const inicio = spWallParaUtc(v.data, v.horaInicio);
   const fim = spWallParaUtc(v.data, v.horaFim);
 
-  // (3) Conflito: bloqueante sobreposto rejeita; pendente permite (assistido).
+  // (3) Conflito bloqueante (Spec 31 §7): sem autorização explícita, devolve o
+  // conflito para o pop-up; pendente permite (assistido); autorizado prossegue e
+  // grava a sobreposição. A RPC revalida com advisory lock (backstop de corrida).
   const { data: agenda } = await admin.rpc("agenda_no_intervalo", {
     p_inicio: inicio,
     p_fim: fim,
   });
   const itens = (agenda ?? []) as AgendaItem[];
+  const conflitos: ConflitoSobreposicao[] = [];
   for (const salaId of v.salaIds) {
     const est = estadoDaSala(itens, salaId);
     if (est.estado !== "livre" && est.estado !== "solicitado") {
-      return {
-        error: `Horário indisponível — já ocupado por ${est.ocupante}. Ajuste sala/horário.`,
-      };
+      const nome = (salas ?? []).find((s) => s.id === salaId)?.nome ?? "Sala";
+      conflitos.push({ salaNome: nome, ocupante: est.ocupante ?? "ocupado" });
     }
   }
+  if (conflitos.length > 0 && !v.sobreposicaoAutorizada) {
+    return { conflitoSobreposicao: conflitos };
+  }
 
-  // (4) Recalcula do zero — valores do client são descartados.
+  // (4) Adicionais: valores do catálogo recalculados no servidor (Spec 30).
+  const resolvido = await resolverAdicionais(v.salaIds, v.adicionais, {
+    permitirTextoLivre: true,
+    permitirSobConsulta: true,
+  });
+  if (!resolvido.ok) return { error: resolvido.erro };
+  const adicionaisResolvidos = resolvido.itens;
+
+  // (4b) Recalcula do zero — valores do client são descartados.
   const coffeeAdicionaisCentavos =
     v.coffee?.adicionais.reduce((s, a) => s + a.valorCentavos, 0) ?? 0;
   const calc = await calcularValores({
@@ -338,7 +415,10 @@ export async function criarLocacaoAssistida(
           adicionaisCentavos: coffeeAdicionaisCentavos,
         }
       : null,
-    adicionais: v.adicionais,
+    adicionais: adicionaisResolvidos.map((a) => ({
+      quantidade: a.quantidade,
+      valorUnitarioCentavos: a.valorUnitarioCentavos,
+    })),
     associadoId: v.condicao === "associado" ? v.associadoId : null,
     periodoGratuitoRecusado: v.periodoGratuitoRecusado,
     comboId: v.condicao === "associado" ? v.comboId : null,
@@ -420,7 +500,8 @@ export async function criarLocacaoAssistida(
     p_valor_total: calc.totalCentavos,
     p_salas: calc.salas.map((s) => ({ sala_id: s.salaId, valor: s.valorCentavos })),
     p_coffee: coffeePayload,
-    p_adicionais: v.adicionais.map((a) => ({
+    p_adicionais: adicionaisResolvidos.map((a) => ({
+      servico_adicional_id: a.servicoAdicionalId,
       descricao: a.descricao,
       quantidade: a.quantidade,
       valor_unitario: a.valorUnitarioCentavos,
@@ -430,10 +511,26 @@ export async function criarLocacaoAssistida(
     p_valor_descontos: calc.descontosCentavos,
     p_periodo_gratuito_aplicado: Boolean(gratuitoPayload),
     p_periodo_gratuito: gratuitoPayload,
+    p_sobreposicao_autorizada: v.sobreposicaoAutorizada,
+    p_retroativa: v.retroativa,
   });
 
   if (error || !novoId) {
     return { error: "Não foi possível criar a locação." };
+  }
+  // Corrida (Spec 31 §7): o slot foi ocupado entre a checagem e a gravação.
+  if (novoId === "conflito_agenda") {
+    return {
+      conflitoSobreposicao:
+        conflitos.length > 0
+          ? conflitos
+          : [
+              {
+                salaNome: "",
+                ocupante: "o horário acabou de ser ocupado",
+              },
+            ],
+    };
   }
   if (novoId === "beneficio_indisponivel") {
     return {
@@ -448,7 +545,27 @@ export async function criarLocacaoAssistida(
     await admin.from("locacoes").update({ combo_id: calc.combo.id }).eq("id", id);
   }
 
-  // (6) Criar e aprovar: falha de aprovação NÃO desfaz a criação.
+  // (6a) Lançamento retroativo (Spec 31 §6): registra o pagamento passado e leva
+  // a locação a "Concluída", sem automações (efeitos suprimidos pela flag).
+  if (v.retroativa) {
+    const erroRetro = await completarRetroativa(admin, id, {
+      forma: v.formaPagamento ?? "dinheiro",
+      totalCentavos: calc.totalCentavos,
+      baixaEmUtc: fim,
+      autorUserId: user.id,
+    });
+    revalidatePath("/admin/locacoes");
+    revalidatePath("/admin/calendario");
+    revalidatePath("/admin");
+    return {
+      id,
+      concluida: true,
+      aprovacaoErro: erroRetro,
+      aviso: aviso ?? undefined,
+    };
+  }
+
+  // (6b) Criar e aprovar: falha de aprovação NÃO desfaz a criação.
   let aprovacaoErro: string | undefined;
   if (v.aprovar) {
     const r = await transicionarLocacao({ locacaoId: id, para: "aprovada" });

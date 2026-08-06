@@ -5,7 +5,7 @@ import type { VisaoFila } from "@/lib/lista-espera/tipos";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ListaEsperaClient } from "./lista-espera-client";
 
-export const metadata: Metadata = { title: "Lista de Espera" };
+export const metadata: Metadata = { title: "Pendentes" };
 
 const VISOES: VisaoFila[] = ["aguardando", "vencidas", "encerradas"];
 

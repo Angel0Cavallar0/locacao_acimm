@@ -24,13 +24,16 @@ export interface CardsIndicadores {
   pendentesAprovacao: number;
   locacoesSemana: number;
   receitaMesCentavos: number;
+  /** Receita do período separada (Spec 32 §1.1) — salas × coffee. */
+  receitaSalasCentavos: number;
+  receitaCoffeeCentavos: number;
+  /** Nº de locações que compõem a receita do período. */
+  receitaQuantidade: number;
   /** Pipeline do mês (aprovada→aguardando_pagamento): não é receita ainda. */
   pipelineMesCentavos: number;
   ocupacaoPct: number;
   ocupacaoBloqueados: number;
   ocupacaoDisponiveis: number;
-  comissoesMesCentavos: number;
-  comissoesAExportarCentavos: number;
 }
 
 export interface LocacaoResumo {
@@ -49,6 +52,8 @@ export interface OcupacaoSala {
   bloqueados: number;
   total: number;
   pct: number;
+  /** Quantas vezes a sala foi locada no mês (locações distintas bloqueantes). */
+  locacoesQtd: number;
   /** Sala com regra de período gratuito ativa (marcador discreto — §5). */
   temPeriodoGratuito: boolean;
 }
@@ -60,4 +65,9 @@ export interface DashboardData {
   ocupacaoSalas: OcupacaoSala[];
   /** "julho de 2026" — subtítulo dos indicadores. */
   mesRotulo: string;
+  /** Período efetivo da receita (Spec 32 §1.1), 'YYYY-MM-DD' inclusivos. */
+  receitaDeISO: string;
+  receitaAteISO: string;
+  /** Rótulo do período da receita ("julho de 2026" ou "01/07 – 30/07/2026"). */
+  receitaPeriodoRotulo: string;
 }

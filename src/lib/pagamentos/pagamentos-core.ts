@@ -8,6 +8,8 @@ export type StatusPagamento = "pendente" | "pago" | "isento" | "estornado";
 export type FormaPagamento =
   | "pix"
   | "transferencia"
+  | "cartao"
+  | "dinheiro"
   | "boleto_avulso"
   | "boleto_mensalidade"
   | "isento";

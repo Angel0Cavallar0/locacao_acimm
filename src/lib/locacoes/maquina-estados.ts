@@ -73,6 +73,17 @@ export async function aplicarTransicao(input: {
       erro: "O estado da locação mudou. Recarregue a página e tente de novo.",
     };
   }
+  // Guarda de aprovação (Spec 31 §7): a constraint parcial não pega overlap com
+  // uma locação já autorizada — a RPC recusa o flip para 'aprovada' aqui.
+  if (data === "conflito_agenda") {
+    return {
+      erro: await descreverConflitoAgenda(
+        input.locacaoId,
+        loc.inicio as string,
+        loc.fim as string,
+      ),
+    };
+  }
 
   await dispararEfeitos({
     locacaoId: input.locacaoId,

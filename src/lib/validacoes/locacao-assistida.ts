@@ -26,9 +26,11 @@ const coffeeSchema = z.object({
 });
 
 const adicionalSchema = z.object({
-  descricao: z.string().trim().min(1, "Informe a descrição").max(200),
+  descricao: z.string().trim().max(200).default(""),
   quantidade: z.coerce.number().positive(),
   valorUnitarioCentavos: z.number().int().min(0),
+  // Item do catálogo (Ciclo 2/Spec 30); ausente = texto livre.
+  servicoAdicionalId: z.string().uuid().nullable().optional(),
 });
 
 export const criarLocacaoSchema = z
@@ -58,6 +60,8 @@ export const criarLocacaoSchema = z
       .enum([
         "pix",
         "transferencia",
+        "cartao",
+        "dinheiro",
         "boleto_avulso",
         "boleto_mensalidade",
         "isento",
@@ -68,6 +72,11 @@ export const criarLocacaoSchema = z
     filaEsperaId: z.uuid().nullable().default(null),
     periodoGratuitoRecusado: z.boolean().optional().default(false),
     comboId: z.uuid().nullable().default(null),
+    // Sobreposição autorizada por colaborador (Spec 31 §7): permite gravar
+    // sobre uma sala/horário já ocupado por outra locação.
+    sobreposicaoAutorizada: z.boolean().optional().default(false),
+    // Lançamento retroativo (Spec 31 §6): evento passado, sem automações.
+    retroativa: z.boolean().optional().default(false),
   })
   .refine((v) => v.horaFim > v.horaInicio, {
     message: "A hora de fim deve ser maior que a de início.",

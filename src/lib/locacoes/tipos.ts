@@ -7,6 +7,8 @@ import type { StatusLocacao } from "./maquina-estados-core";
 export type FormaPagamento =
   | "pix"
   | "transferencia"
+  | "cartao"
+  | "dinheiro"
   | "boleto_avulso"
   | "boleto_mensalidade"
   | "isento";
@@ -14,6 +16,8 @@ export type FormaPagamento =
 export const FORMAS_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
   { valor: "pix", rotulo: "Pix" },
   { valor: "transferencia", rotulo: "Transferência bancária" },
+  { valor: "cartao", rotulo: "Cartão" },
+  { valor: "dinheiro", rotulo: "Dinheiro" },
   { valor: "boleto_avulso", rotulo: "Boleto avulso" },
   { valor: "boleto_mensalidade", rotulo: "Boleto - Mensalidade" },
   { valor: "isento", rotulo: "Isento" },
@@ -22,6 +26,8 @@ export const FORMAS_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
 export const FORMA_PAGAMENTO_ROTULO: Record<FormaPagamento, string> = {
   pix: "Pix",
   transferencia: "Transferência bancária",
+  cartao: "Cartão",
+  dinheiro: "Dinheiro",
   boleto_avulso: "Boleto avulso",
   boleto_mensalidade: "Boleto - Mensalidade",
   isento: "Isento",
@@ -70,6 +76,9 @@ export interface AdicionalLinha {
   descricao: string;
   quantidade: number;
   valorUnitarioCentavos: number;
+  /** Fluxo de aprovação/disponibilidade (Spec 30) — alimenta o checklist (§3.3). */
+  aprovacaoStatus: string | null;
+  disponibilidadeStatus: string | null;
 }
 
 export interface EventoTimeline {
@@ -140,6 +149,8 @@ export interface LocacaoDetalhe {
   qtdPessoas: number;
   tipoEvento: string | null;
   observacoes: string | null;
+  /** Anotações internas da equipe (Spec 32 §3.4) — nunca expostas ao portal. */
+  observacoesInternas: string | null;
   respostasFormulario: Record<string, unknown>;
   locatarioNome: string;
   locatarioDocumento: string;
@@ -158,6 +169,10 @@ export interface LocacaoDetalhe {
   valorDescontosCentavos: number;
   valorTotalCentavos: number;
   periodoGratuitoAplicado: boolean;
+  /** Lançamento retroativo — evento passado, exibido como "Concluída" (Spec 31 §6). */
+  retroativa: boolean;
+  /** Locação criada sobrepondo outra no mesmo slot (Spec 31 §7). */
+  sobreposicaoAutorizada: boolean;
   combo: { id: string; nome: string; tipo: string } | null;
   salas: SalaLinha[];
   adicionais: AdicionalLinha[];

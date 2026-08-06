@@ -190,6 +190,19 @@ async function contatoInterno(admin: Admin): Promise<string | null> {
   return email && email.includes("@") ? email : null;
 }
 
+/** WhatsApp interno da ACIMM (Ciclo 2 / Spec 30 §4.3). Vazio → sem canal. */
+async function contatoInternoWhatsapp(admin: Admin): Promise<string | null> {
+  const { data } = await admin
+    .from("configuracoes")
+    .select("valor")
+    .eq("chave", "contato_acimm")
+    .maybeSingle();
+  const whatsapp = (
+    (data?.valor as { whatsapp?: string } | null)?.whatsapp ?? ""
+  ).trim();
+  return whatsapp || null;
+}
+
 // --- Eventos ---------------------------------------------------------------
 
 export async function notificarSolicitada(locacaoId: string): Promise<void> {
@@ -221,11 +234,55 @@ export async function notificarSolicitada(locacaoId: string): Promise<void> {
   await enfileirar(admin, locacaoId, linhas);
 }
 
+/**
+ * Resumo do pedido para a mensagem de aprovação (Ciclo 2 / Spec 30 §3.2):
+ * sala(s), período, coffee (nível/pessoas/horário) e adicionais.
+ */
+async function montarResumoPedido(
+  admin: Admin,
+  locacaoId: string,
+  base: BaseNotificacao,
+): Promise<string> {
+  const linhas = [`Sala(s): ${base.salas}`, `Data: ${base.data} · ${base.horario}`];
+
+  const { data: coffee } = await admin
+    .from("coffee_breaks")
+    .select("qtd_pessoas, horario_servir, coffee_niveis ( nome )")
+    .eq("locacao_id", locacaoId)
+    .maybeSingle();
+  if (coffee) {
+    const nivel =
+      (um(coffee.coffee_niveis as unknown) as { nome?: string } | null)?.nome ??
+      "Coffee break";
+    const servir = coffee.horario_servir
+      ? ` · servir ${horaSP(coffee.horario_servir as string)}`
+      : "";
+    linhas.push(
+      `Coffee break: ${nivel} · ${coffee.qtd_pessoas} pessoa(s)${servir}`,
+    );
+  }
+
+  const { data: ads } = await admin
+    .from("locacao_adicionais")
+    .select("descricao, quantidade")
+    .eq("locacao_id", locacaoId);
+  const lista = (ads ?? []) as { descricao: string; quantidade: number }[];
+  if (lista.length > 0) {
+    const itens = lista
+      .map((a) => `${a.descricao}${a.quantidade > 1 ? ` (x${a.quantidade})` : ""}`)
+      .join(", ");
+    linhas.push(`Adicionais: ${itens}`);
+  }
+
+  return linhas.join("\n");
+}
+
 export async function notificarAprovada(locacaoId: string): Promise<void> {
   const admin = createAdminClient();
   const base = await montarBase(admin, locacaoId);
   if (!base) return;
-  await enfileirar(admin, locacaoId, parLocatario(base, "aprovada"));
+  const resumo = await montarResumoPedido(admin, locacaoId, base);
+  await enfileirar(admin, locacaoId, parLocatario(base, "aprovada", { resumo }));
 }
 
 export async function notificarRecusada(
@@ -336,6 +393,53 @@ export async function notificarContratoEnviado(
   ]);
 }
 
+/**
+ * Envia o PDF do contrato ao locatário por WhatsApp (documento) — Ciclo 2 / Spec
+ * 30 §4.1. O e-mail do cadastro costuma ser do financeiro/RH, não de quem loca;
+ * o WhatsApp é o canal confiável. URL assinada (7 dias) para a Evolution baixar.
+ */
+export async function enfileirarContratoWhatsapp(
+  locacaoId: string,
+): Promise<{ ok: boolean; erro?: string }> {
+  const admin = createAdminClient();
+  const base = await montarBase(admin, locacaoId);
+  if (!base) return { ok: false, erro: "Locação não encontrada." };
+  if (!base.telefone) {
+    return { ok: false, erro: "Locatário sem telefone para WhatsApp." };
+  }
+
+  const { data: contrato } = await admin
+    .from("contratos")
+    .select("pdf_url")
+    .eq("locacao_id", locacaoId)
+    .maybeSingle();
+  const path = (contrato?.pdf_url as string | null) ?? null;
+  if (!path) return { ok: false, erro: "PDF do contrato não encontrado." };
+
+  const { data: signed } = await admin.storage
+    .from("contratos")
+    .createSignedUrl(path, 604800);
+  if (!signed) {
+    return { ok: false, erro: "Não foi possível gerar o link do contrato." };
+  }
+
+  await enfileirar(admin, locacaoId, [
+    {
+      canal: "whatsapp",
+      destinatario: base.telefone,
+      template: "contrato_whatsapp",
+      payload: {
+        nome: base.nome,
+        loc: base.loc,
+        link: base.link,
+        documentoUrl: signed.signedUrl,
+        documentoNome: `contrato-${base.loc}.pdf`,
+      },
+    },
+  ]);
+  return { ok: true };
+}
+
 /** Lembrete pré-evento (Spec 16). Dedupe: uma linha por locação/template —
  * rodar o job 2× no mesmo dia não duplica. Retorna se enfileirou. */
 export async function notificarLembrete(locacaoId: string): Promise<boolean> {
@@ -398,24 +502,77 @@ export async function enfileirarCoffeePdf(input: {
   return true;
 }
 
-/** Comprovante recebido — aviso interno à ACIMM (§5). */
+/** Comprovante recebido — aviso interno à ACIMM por e-mail e WhatsApp (§5 / Spec
+ * 30 §4.3). Cada canal só entra se o contato estiver configurado. */
 export async function notificarComprovanteRecebido(
   locacaoId: string,
 ): Promise<void> {
   const admin = createAdminClient();
-  const interno = await contatoInterno(admin);
-  if (!interno) return;
+  const [interno, internoWhatsapp] = await Promise.all([
+    contatoInterno(admin),
+    contatoInternoWhatsapp(admin),
+  ]);
+  if (!interno && !internoWhatsapp) return;
   const base = await montarBase(admin, locacaoId);
   if (!base) return;
 
-  await enfileirar(admin, locacaoId, [
-    {
-      canal: "email",
+  const payload = {
+    loc: base.loc,
+    nome: base.nome,
+    linkAdmin: base.linkAdmin,
+  };
+  const itens = [];
+  if (interno) {
+    itens.push({
+      canal: "email" as const,
       destinatario: interno,
       template: "interna_comprovante_recebido",
-      payload: { loc: base.loc, nome: base.nome, linkAdmin: base.linkAdmin },
-    },
+      payload,
+    });
+  }
+  if (internoWhatsapp) {
+    itens.push({
+      canal: "whatsapp" as const,
+      destinatario: internoWhatsapp,
+      template: "interna_comprovante_recebido",
+      payload,
+    });
+  }
+  await enfileirar(admin, locacaoId, itens);
+}
+
+/** Via assinada do contrato recebida — aviso interno à ACIMM (Spec 30 §4.2). */
+export async function notificarContratoAssinadoRecebido(
+  locacaoId: string,
+): Promise<void> {
+  const admin = createAdminClient();
+  const [interno, internoWhatsapp] = await Promise.all([
+    contatoInterno(admin),
+    contatoInternoWhatsapp(admin),
   ]);
+  if (!interno && !internoWhatsapp) return;
+  const base = await montarBase(admin, locacaoId);
+  if (!base) return;
+
+  const payload = { loc: base.loc, nome: base.nome, linkAdmin: base.linkAdmin };
+  const itens = [];
+  if (interno) {
+    itens.push({
+      canal: "email" as const,
+      destinatario: interno,
+      template: "interna_contrato_assinado",
+      payload,
+    });
+  }
+  if (internoWhatsapp) {
+    itens.push({
+      canal: "whatsapp" as const,
+      destinatario: internoWhatsapp,
+      template: "interna_contrato_assinado",
+      payload,
+    });
+  }
+  await enfileirar(admin, locacaoId, itens);
 }
 
 /**
@@ -488,8 +645,9 @@ export async function notificarVagasLocacao(locacaoId: string): Promise<void> {
 }
 
 /**
- * Comissão já exportada foi estornada (Spec 21 §4). Só e-mail interno à ACIMM —
- * é ajuste para a equipe lançar de volta no controle dela. Config vazia → skip.
+ * Comissão já paga ao colaborador foi estornada por cancelamento (Ciclo 2 / Spec
+ * 29 §4.2). Só e-mail interno à ACIMM — é ajuste para a equipe lançar de volta no
+ * controle dela. Config vazia → skip.
  */
 export async function notificarComissaoEstornada(
   locacaoId: string,
@@ -515,7 +673,7 @@ export async function notificarComissaoEstornada(
         loc: rot(loc.numero as number),
         nome: (loc.locatario_nome as string) ?? "—",
         qtd: String(qtd),
-        linkAdmin: `${envCore.APP_URL}/admin/comissoes?status=estornadas_exportadas`,
+        linkAdmin: `${envCore.APP_URL}/admin/comissoes`,
       },
     },
   ]);

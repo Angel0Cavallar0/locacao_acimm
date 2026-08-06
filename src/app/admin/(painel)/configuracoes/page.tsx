@@ -13,12 +13,9 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { parsearModoEnvio } from "@/lib/contratos/tipos";
 import { requireAdmin } from "@/lib/auth/guards";
-import { isAutentiqueConfigured } from "@/lib/integracoes/autentique";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CardColapsavel } from "./card-colapsavel";
-import { ContratoModoForm } from "./contrato-modo";
 import { type RotinaCron, RotinasCron } from "./rotinas-cron";
 
 export const metadata: Metadata = { title: "Configurações" };
@@ -28,13 +25,6 @@ export default async function ConfiguracoesPage() {
   await requireAdmin();
 
   const admin = createAdminClient();
-  const { data: cfg } = await admin
-    .from("configuracoes")
-    .select("valor")
-    .eq("chave", "modo_envio_contrato")
-    .maybeSingle();
-  const modo = parsearModoEnvio(cfg?.valor);
-  const autentiqueDisponivel = isAutentiqueConfigured();
 
   const { data: rotinasRows } = await admin.rpc("listar_rotinas_cron");
   const rotinas: RotinaCron[] = (
@@ -67,10 +57,12 @@ export default async function ConfiguracoesPage() {
         titulo="Contratos"
         descricao="Como o contrato é enviado ao locatário após a aprovação."
       >
-        <ContratoModoForm
-          modoInicial={modo}
-          autentiqueDisponivel={autentiqueDisponivel}
-        />
+        <p className="text-sm text-ink-muted">
+          Após a aprovação, o contrato é enviado <strong>por WhatsApp</strong> ao
+          telefone do locatário (o e-mail do cadastro costuma ser do
+          financeiro/RH). A via assinada volta pela plataforma — o associado faz
+          o upload, ou a equipe marca como assinado.
+        </p>
       </CardColapsavel>
 
       <CardColapsavel

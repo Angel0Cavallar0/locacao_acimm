@@ -5,6 +5,7 @@ import { parsearAdicionaisCoffee } from "@/lib/coffee/dados";
 import { camposAtivos } from "@/lib/formulario/dados";
 import { listarCombosAplicaveis } from "@/lib/locacoes/combos-dados";
 import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
+import { listarServicosAtivos } from "@/lib/servicos-adicionais/dados";
 import type { CondicaoLocatario, PeriodoDia } from "@/lib/dominio";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +30,7 @@ export default async function NovaLocacaoPage({
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: salas }, { data: niveis }, campos, horarios, combos] =
+  const [{ data: salas }, { data: niveis }, campos, horarios, combos, servicos] =
     await Promise.all([
       supabase
         .from("salas")
@@ -45,6 +46,7 @@ export default async function NovaLocacaoPage({
       camposAtivos(),
       obterHorariosPeriodos(),
       listarCombosAplicaveis(),
+      listarServicosAtivos(),
     ]);
 
   const periodoPrefill = texto(sp.periodo);
@@ -84,7 +86,7 @@ export default async function NovaLocacaoPage({
         const { data: a } = await admin
           .from("associados")
           .select(
-            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao",
+            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao, codigo_sophus",
           )
           .eq("id", fe.associado_id)
           .maybeSingle();
@@ -101,6 +103,7 @@ export default async function NovaLocacaoPage({
               (a.telefone as string | null) ??
               null,
             situacao: a.situacao as AssociadoBusca["situacao"],
+            codigoSophus: (a.codigo_sophus as number | null) ?? null,
           };
           locatario = {
             condicao: "associado",
@@ -158,6 +161,7 @@ export default async function NovaLocacaoPage({
         horarios={horarios}
         prefill={prefill}
         combos={combos}
+        servicos={servicos}
       />
     </div>
   );

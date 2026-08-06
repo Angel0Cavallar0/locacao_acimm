@@ -15,6 +15,7 @@ import { parsearFaixas } from "@/lib/coffee/faixas-core";
 import { camposAtivos } from "@/lib/formulario/dados";
 import type { PeriodoDia } from "@/lib/dominio";
 import { listarCombosAplicaveis } from "@/lib/locacoes/combos-dados";
+import { listarServicosAtivos } from "@/lib/servicos-adicionais/dados";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SolicitacaoForm } from "./solicitacao-form";
 
@@ -40,21 +41,23 @@ export default async function NovaSolicitacaoPage({
   const sp = await searchParams;
   const admin = createAdminClient();
 
-  const [todasSalas, niveisRes, campos, cfgRes, combos] = await Promise.all([
-    listarSalasAtivas(),
-    admin
-      .from("coffee_niveis")
-      .select("id, nome, faixas_preco, adicionais")
-      .eq("ativo", true)
-      .order("ordem", { ascending: true }),
-    camposAtivos(),
-    admin
-      .from("configuracoes")
-      .select("valor")
-      .eq("chave", "contato_acimm")
-      .maybeSingle(),
-    listarCombosAplicaveis(),
-  ]);
+  const [todasSalas, niveisRes, campos, cfgRes, combos, servicos] =
+    await Promise.all([
+      listarSalasAtivas(),
+      admin
+        .from("coffee_niveis")
+        .select("id, nome, faixas_preco, adicionais")
+        .eq("ativo", true)
+        .order("ordem", { ascending: true }),
+      camposAtivos(),
+      admin
+        .from("configuracoes")
+        .select("valor")
+        .eq("chave", "contato_acimm")
+        .maybeSingle(),
+      listarCombosAplicaveis(),
+      listarServicosAtivos(),
+    ]);
 
   const cv = (cfgRes.data?.valor ?? {}) as Partial<ContatoAcimm>;
   const contato: ContatoAcimm = {
@@ -120,6 +123,7 @@ export default async function NovaSolicitacaoPage({
       }}
       contato={contato}
       combos={combos}
+      servicos={servicos}
       prefill={{
         salaId:
           salaBruta && todasSalas.some((s) => s.id === salaBruta)

@@ -136,8 +136,9 @@ export function ListaEsperaClient({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-ink-muted">
-          Interessados por data e sala, na ordem de chegada. Contato e conversão
-          em um toque.
+          Reservas pendentes de confirmação, por data e sala, na ordem de
+          chegada. A equipe contata e converte em locação em um toque; quando uma
+          vaga abre, você é avisado.
         </p>
         <Button size="sm" onClick={() => setAdicionar(true)}>
           <UserPlus className="size-4" />

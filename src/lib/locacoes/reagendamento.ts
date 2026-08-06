@@ -10,7 +10,11 @@ import { revalidarComboReagendamento } from "./combos-dados";
 import { descreverConflitoAgenda } from "./dados";
 import { podeReagendar, type StatusLocacao } from "./maquina-estados-core";
 
-export type ResultadoReagendamento = { ok: true; aviso?: string } | { erro: string };
+export type ResultadoReagendamento =
+  | { ok: true; aviso?: string }
+  | { erro: string }
+  // Spec 31 §7: novo slot ocupado; reenviar com sobreposicaoAutorizada=true.
+  | { conflitoSobreposicao: string };
 
 export interface ReagendarInput {
   locacaoId: string;
@@ -19,6 +23,8 @@ export interface ReagendarInput {
   horaFim: string; // 'HH:mm'
   periodo: PeriodoDia;
   salaIds: string[];
+  /** Colaborador confirmou a sobreposição no novo slot (Spec 31 §7). */
+  sobreposicaoAutorizada?: boolean;
 }
 
 /**
@@ -185,6 +191,7 @@ export async function reagendarLocacao(
     p_periodo_gratuito_aplicado: Boolean(beneficio),
     p_periodo_gratuito: gratuitoPayload,
     p_associado_id: (loc.associado_id as string | null) ?? null,
+    p_sobreposicao_autorizada: input.sobreposicaoAutorizada ?? false,
   });
 
   if (error) {
@@ -198,6 +205,17 @@ export async function reagendarLocacao(
   if (data === "conflito") {
     return {
       erro: "O estado da locação mudou. Recarregue a página e tente de novo.",
+    };
+  }
+  // Spec 31 §7: novo slot ocupado por bloqueante (a constraint parcial não pega
+  // overlap com autorizada) — devolve para o colaborador confirmar a sobreposição.
+  if (data === "conflito_agenda") {
+    return {
+      conflitoSobreposicao: await descreverConflitoAgenda(
+        input.locacaoId,
+        inicioUtc,
+        fimUtc,
+      ),
     };
   }
 

@@ -25,6 +25,9 @@ const VISTAS_SECUNDARIAS: { valor: VistaLista; rotulo: string }[] = [
 
 const FORMAS_VALIDAS = new Set<FormaPagamento>([
   "pix",
+  "transferencia",
+  "cartao",
+  "dinheiro",
   "boleto_avulso",
   "boleto_mensalidade",
   "isento",

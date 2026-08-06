@@ -12,6 +12,8 @@ export interface AssociadoBusca {
   emails: string[];
   telefone: string | null;
   situacao: "ativo" | "suspenso" | "excluido";
+  /** Código do associado no Sophus (Spec 32 §3.1) — usado na busca de boletos. */
+  codigoSophus: number | null;
 }
 
 export type EstadoDisponibilidade =
@@ -65,6 +67,8 @@ export interface AdicionalPayload {
   descricao: string;
   quantidade: number;
   valorUnitarioCentavos: number;
+  /** Item do catálogo (Ciclo 2/Spec 30); null = texto livre. */
+  servicoAdicionalId?: string | null;
 }
 
 export interface CriarLocacaoPayload {
@@ -94,4 +98,14 @@ export interface CriarLocacaoPayload {
   periodoGratuitoRecusado?: boolean;
   /** Combo selecionado (Spec 20 §3). */
   comboId?: string | null;
+  /** Colaborador confirmou a sobreposição no pop-up (Spec 31 §7). */
+  sobreposicaoAutorizada?: boolean;
+  /** Lançamento retroativo — evento passado, sem automações (Spec 31 §6). */
+  retroativa?: boolean;
+}
+
+/** Ocupante bloqueante que o colaborador precisa confirmar sobrepor (Spec 31 §7). */
+export interface ConflitoSobreposicao {
+  salaNome: string;
+  ocupante: string;
 }

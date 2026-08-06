@@ -33,6 +33,8 @@ export const reagendarSchema = z
     horaFim: z.string().regex(/^\d{2}:\d{2}$/, "Hora inválida"),
     periodo: periodoSchema,
     salaIds: z.array(z.uuid()).min(1, "Selecione ao menos uma sala"),
+    // Colaborador confirmou a sobreposição no novo slot (Spec 31 §7).
+    sobreposicaoAutorizada: z.boolean().optional().default(false),
   })
   .refine((v) => v.horaFim > v.horaInicio, {
     message: "A hora de fim deve ser maior que a de início.",
@@ -46,6 +48,8 @@ export const adicionalSchema = z.object({
     .number()
     .int()
     .min(0, "Valor não pode ser negativo"),
+  // Item do catálogo de serviços (Ciclo 2/Spec 30); ausente = texto livre.
+  servicoAdicionalId: z.string().uuid().nullable().optional(),
 });
 
 export type TransicaoInput = z.infer<typeof transicaoSchema>;

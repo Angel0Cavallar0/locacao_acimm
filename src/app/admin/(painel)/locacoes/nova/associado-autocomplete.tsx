@@ -56,7 +56,7 @@ export function AssociadoAutocomplete({
           value={termo}
           onChange={(e) => setTermo(e.target.value)}
           onFocus={() => resultados.length > 0 && setAberto(true)}
-          placeholder="Buscar por nome, razão social ou documento…"
+          placeholder="Buscar por nome, razão social, documento ou código…"
           className="pl-8"
           autoComplete="off"
         />
@@ -93,6 +93,7 @@ export function AssociadoAutocomplete({
                   </span>
                 </span>
                 <span className="truncate text-xs text-ink-muted">
+                  {a.codigoSophus != null ? `#${a.codigoSophus} · ` : ""}
                   {a.razaoSocial ?? "—"}
                   {a.documento ? ` · ${formatarDocumento(a.documento)}` : ""}
                 </span>

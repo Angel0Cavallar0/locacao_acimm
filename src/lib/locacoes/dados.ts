@@ -207,7 +207,9 @@ export async function carregarLocacao(
       .eq("locacao_id", id),
     admin
       .from("locacao_adicionais")
-      .select("id, descricao, quantidade, valor_unitario_centavos")
+      .select(
+        "id, descricao, quantidade, valor_unitario_centavos, aprovacao_status, disponibilidade_status",
+      )
       .eq("locacao_id", id)
       .order("criado_em", { ascending: true }),
     admin
@@ -274,6 +276,8 @@ export async function carregarLocacao(
     descricao: r.descricao as string,
     quantidade: Number(r.quantidade),
     valorUnitarioCentavos: r.valor_unitario_centavos as number,
+    aprovacaoStatus: (r.aprovacao_status as string | null) ?? null,
+    disponibilidadeStatus: (r.disponibilidade_status as string | null) ?? null,
   }));
 
   const eventos: EventoTimeline[] = (eventosRows ?? []).map((r) => {
@@ -360,6 +364,7 @@ export async function carregarLocacao(
     qtdPessoas: loc.qtd_pessoas,
     tipoEvento: loc.tipo_evento ?? null,
     observacoes: loc.observacoes ?? null,
+    observacoesInternas: loc.observacoes_internas ?? null,
     respostasFormulario: (loc.respostas_formulario ?? {}) as Record<
       string,
       unknown
@@ -383,6 +388,8 @@ export async function carregarLocacao(
     valorDescontosCentavos: loc.valor_descontos_centavos,
     valorTotalCentavos: loc.valor_total_centavos,
     periodoGratuitoAplicado: loc.periodo_gratuito_aplicado,
+    retroativa: Boolean(loc.retroativa),
+    sobreposicaoAutorizada: Boolean(loc.sobreposicao_autorizada),
     combo,
     salas,
     adicionais,
