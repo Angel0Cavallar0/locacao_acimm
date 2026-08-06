@@ -353,8 +353,11 @@ function OcupacaoSalas({ salas }: { salas: OcupacaoSala[] }) {
                     style={{ width: `${s.pct}%` }}
                   />
                 </div>
-                <span className="w-9 shrink-0 text-right text-xs text-ink-muted">
-                  {s.pct}%
+                <span className="flex w-20 shrink-0 flex-col items-end leading-tight">
+                  <span className="text-xs font-medium text-ink">{s.pct}%</span>
+                  <span className="text-[10px] text-ink-muted">
+                    {s.locacoesQtd} locação{s.locacoesQtd === 1 ? "" : "ões"}
+                  </span>
                 </span>
               </div>
             ))}

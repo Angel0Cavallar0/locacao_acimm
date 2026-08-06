@@ -52,6 +52,8 @@ export interface OcupacaoSala {
   bloqueados: number;
   total: number;
   pct: number;
+  /** Quantas vezes a sala foi locada no mês (locações distintas bloqueantes). */
+  locacoesQtd: number;
   /** Sala com regra de período gratuito ativa (marcador discreto — §5). */
   temPeriodoGratuito: boolean;
 }

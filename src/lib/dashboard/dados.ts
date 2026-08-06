@@ -447,11 +447,18 @@ export async function carregarDashboard(opts?: {
     }
   }
   const ocupacoes = new Map<string, Intervalo[]>();
+  // Locações distintas por sala no mês (quantas vezes a sala foi locada).
+  const locacoesPorSala = new Map<string, Set<string>>();
   for (const it of agendaMes) {
     if (!it.bloqueante) continue;
     const arr = ocupacoes.get(it.salaId) ?? [];
     arr.push({ inicioMs: Date.parse(it.inicioUtc), fimMs: Date.parse(it.fimUtc) });
     ocupacoes.set(it.salaId, arr);
+    if (it.origem === "locacao" && it.locacaoId) {
+      const set = locacoesPorSala.get(it.salaId) ?? new Set<string>();
+      set.add(it.locacaoId);
+      locacoesPorSala.set(it.salaId, set);
+    }
   }
   const porSala = ocupacaoPorSala(slots, ocupacoes);
   const totalOc = totalOcupacao(porSala);
@@ -464,6 +471,7 @@ export async function carregarDashboard(opts?: {
       bloqueados: c.bloqueados,
       total: c.total,
       pct: percentualOcupacao(c.bloqueados, c.total),
+      locacoesQtd: locacoesPorSala.get(s.id)?.size ?? 0,
       temPeriodoGratuito: comGratuito.has(s.id),
     };
   });
