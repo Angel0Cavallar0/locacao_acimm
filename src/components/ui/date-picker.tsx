@@ -103,8 +103,9 @@ export function DatePicker({
               : undefined
           }
           modifiersClassNames={{
+            // Spec 32 §2.2 — dia ocupado destacado pelo fundo (não mais um ponto).
             ocupado:
-              "relative after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-amber-500",
+              "rounded-md bg-amber-500/20 font-medium text-amber-700 dark:text-amber-300",
           }}
         />
       </PopoverContent>

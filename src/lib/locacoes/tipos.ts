@@ -76,6 +76,9 @@ export interface AdicionalLinha {
   descricao: string;
   quantidade: number;
   valorUnitarioCentavos: number;
+  /** Fluxo de aprovação/disponibilidade (Spec 30) — alimenta o checklist (§3.3). */
+  aprovacaoStatus: string | null;
+  disponibilidadeStatus: string | null;
 }
 
 export interface EventoTimeline {
@@ -146,6 +149,8 @@ export interface LocacaoDetalhe {
   qtdPessoas: number;
   tipoEvento: string | null;
   observacoes: string | null;
+  /** Anotações internas da equipe (Spec 32 §3.4) — nunca expostas ao portal. */
+  observacoesInternas: string | null;
   respostasFormulario: Record<string, unknown>;
   locatarioNome: string;
   locatarioDocumento: string;

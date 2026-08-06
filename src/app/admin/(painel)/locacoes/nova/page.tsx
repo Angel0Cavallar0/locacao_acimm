@@ -86,7 +86,7 @@ export default async function NovaLocacaoPage({
         const { data: a } = await admin
           .from("associados")
           .select(
-            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao",
+            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao, codigo_sophus",
           )
           .eq("id", fe.associado_id)
           .maybeSingle();
@@ -103,6 +103,7 @@ export default async function NovaLocacaoPage({
               (a.telefone as string | null) ??
               null,
             situacao: a.situacao as AssociadoBusca["situacao"],
+            codigoSophus: (a.codigo_sophus as number | null) ?? null,
           };
           locatario = {
             condicao: "associado",

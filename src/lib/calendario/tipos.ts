@@ -48,6 +48,8 @@ export interface AgendaItem {
   status?: StatusLocacao | null;
   qtdPessoas?: number | null;
   valorTotalCentavos?: number | null;
+  /** Horário de servir o coffee (UTC ISO), quando a locação tem coffee (§2.1). */
+  coffeeHorarioServirUtc?: string | null;
 
   // origem = 'evento_interno'
   eventoId?: string | null;

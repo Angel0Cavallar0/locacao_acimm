@@ -37,6 +37,7 @@ interface LinhaRpc {
   qtd_inscritos: number | null;
   sympla_event_id: string | null;
   sobreposicao_autorizada: boolean | null;
+  coffee_horario_servir: string | null;
 }
 
 export async function carregarAgenda(
@@ -95,6 +96,7 @@ export async function carregarAgenda(
     prioridade: l.prioridade,
     qtdInscritos: l.qtd_inscritos,
     symplaEventId: l.sympla_event_id,
+    coffeeHorarioServirUtc: l.coffee_horario_servir,
     motivo: l.motivo,
   }));
 

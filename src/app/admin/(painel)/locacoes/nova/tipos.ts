@@ -12,6 +12,8 @@ export interface AssociadoBusca {
   emails: string[];
   telefone: string | null;
   situacao: "ativo" | "suspenso" | "excluido";
+  /** Código do associado no Sophus (Spec 32 §3.1) — usado na busca de boletos. */
+  codigoSophus: number | null;
 }
 
 export type EstadoDisponibilidade =

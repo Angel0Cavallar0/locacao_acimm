@@ -13,7 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { intervaloSP } from "@/lib/calendario/tempo";
+import { horaSP, intervaloSP } from "@/lib/calendario/tempo";
 import {
   type AgendaItem,
   PRIORIDADE_ROTULO,
@@ -101,6 +101,11 @@ export function DetalheSheet({
                         <Users className="size-4 text-ink-muted" />
                         {item.qtdPessoas}
                       </span>
+                    </Campo>
+                  ) : null}
+                  {item.coffeeHorarioServirUtc ? (
+                    <Campo rotulo="Coffee">
+                      servir às {horaSP(item.coffeeHorarioServirUtc)}
                     </Campo>
                   ) : null}
                   {item.valorTotalCentavos != null &&

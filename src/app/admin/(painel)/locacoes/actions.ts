@@ -1,5 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { requireColaborador } from "@/lib/auth/guards";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   adicionarAdicional,
   editarAdicional,
@@ -59,6 +62,29 @@ export async function reagendar(input: {
     return { conflitoSobreposicao: r.conflitoSobreposicao };
   }
   return { error: r.erro };
+}
+
+/**
+ * Observações internas da equipe (Spec 32 §3.4). Texto livre visível SÓ no
+ * admin — nunca chega ao portal (LocacaoPortalDetalhe não carrega o campo).
+ */
+export async function salvarObservacoesInternasAction(input: {
+  locacaoId: string;
+  texto: string;
+}): Promise<ResultadoAcao> {
+  await requireColaborador();
+  const texto = input.texto.trim();
+  if (texto.length > 5000) {
+    return { error: "Texto muito longo (máx. 5000 caracteres)." };
+  }
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("locacoes")
+    .update({ observacoes_internas: texto.length > 0 ? texto : null })
+    .eq("id", input.locacaoId);
+  if (error) return { error: "Não foi possível salvar as observações." };
+  revalidatePath(`/admin/locacoes/${input.locacaoId}`);
+  return {};
 }
 
 export async function adicionarAdicionalAction(input: {

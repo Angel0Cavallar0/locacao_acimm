@@ -124,7 +124,11 @@ async function carregarAgendaLeve(
   }));
 }
 
-export async function carregarDashboard(): Promise<DashboardData> {
+export async function carregarDashboard(opts?: {
+  /** Período da RECEITA (Spec 32 §1.1), 'YYYY-MM-DD' inclusivos. Default = mês. */
+  receitaDeISO?: string;
+  receitaAteISO?: string;
+}): Promise<DashboardData> {
   const admin = createAdminClient();
 
   const hoje = hojeSP();
@@ -137,6 +141,14 @@ export async function carregarDashboard(): Promise<DashboardData> {
       : `${ano}-${String(mes + 1).padStart(2, "0")}-01`;
   const inicioMesUtc = spWallParaUtc(inicioMesISO, "00:00");
   const fimMesUtc = spWallParaUtc(proxMesISO, "00:00");
+
+  // Período da receita (§1.1): default = mês corrente; custom = range inclusivo.
+  const receitaDeISO = opts?.receitaDeISO ?? inicioMesISO;
+  const receitaAteISO = opts?.receitaAteISO ?? somarDias(proxMesISO, -1);
+  const receitaCustom = Boolean(opts?.receitaDeISO || opts?.receitaAteISO);
+  const receitaDeUtc = spWallParaUtc(receitaDeISO, "00:00");
+  // `ate` é inclusivo → limite exclusivo é o dia seguinte às 00:00.
+  const receitaFimUtc = spWallParaUtc(somarDias(receitaAteISO, 1), "00:00");
 
   const fimSemanaISO = somarDias(hoje, 7);
   const inicioSemanaUtc = spWallParaUtc(hoje, "00:00");
@@ -180,9 +192,11 @@ export async function carregarDashboard(): Promise<DashboardData> {
       .order("inicio", { ascending: true }),
     admin
       .from("locacoes")
-      .select("valor_total_centavos, status")
-      .gte("inicio", inicioMesUtc)
-      .lt("inicio", fimMesUtc),
+      .select(
+        "valor_salas_centavos, valor_coffee_centavos, valor_total_centavos, status",
+      )
+      .gte("inicio", receitaDeUtc)
+      .lt("inicio", receitaFimUtc),
     admin
       .from("salas")
       .select("id, nome")
@@ -392,14 +406,23 @@ export async function carregarDashboard(): Promise<DashboardData> {
 
   // --- Cards ---------------------------------------------------------------
   const mesRows = (mesRes.data ?? []) as {
+    valor_salas_centavos: number;
+    valor_coffee_centavos: number;
     valor_total_centavos: number;
     status: StatusLocacao;
   }[];
   let receita = 0;
+  let receitaSalas = 0;
+  let receitaCoffee = 0;
+  let receitaQtd = 0;
   let pipeline = 0;
   for (const r of mesRows) {
-    if (RECEITA.includes(r.status)) receita += r.valor_total_centavos;
-    else if (PIPELINE.includes(r.status)) pipeline += r.valor_total_centavos;
+    if (RECEITA.includes(r.status)) {
+      receita += r.valor_total_centavos;
+      receitaSalas += r.valor_salas_centavos ?? 0;
+      receitaCoffee += r.valor_coffee_centavos ?? 0;
+      receitaQtd += 1;
+    } else if (PIPELINE.includes(r.status)) pipeline += r.valor_total_centavos;
   }
 
   // --- Ocupação ------------------------------------------------------------
@@ -471,12 +494,19 @@ export async function carregarDashboard(): Promise<DashboardData> {
     timeZone: "America/Sao_Paulo",
   }).format(new Date(inicioMesUtc));
 
+  const receitaPeriodoRotulo = receitaCustom
+    ? `${diaBR(receitaDeISO)} – ${diaBR(receitaAteISO)}`
+    : mesRotulo;
+
   return {
     acoes,
     cards: {
       pendentesAprovacao: pendentes.length,
       locacoesSemana: semanaRows.length,
       receitaMesCentavos: receita,
+      receitaSalasCentavos: receitaSalas,
+      receitaCoffeeCentavos: receitaCoffee,
+      receitaQuantidade: receitaQtd,
       pipelineMesCentavos: pipeline,
       ocupacaoPct: percentualOcupacao(totalOc.bloqueados, totalOc.total),
       ocupacaoBloqueados: totalOc.bloqueados,
@@ -485,5 +515,14 @@ export async function carregarDashboard(): Promise<DashboardData> {
     proximas,
     ocupacaoSalas,
     mesRotulo,
+    receitaDeISO,
+    receitaAteISO,
+    receitaPeriodoRotulo,
   };
+}
+
+/** 'YYYY-MM-DD' → 'DD/MM/YYYY'. */
+function diaBR(iso: string): string {
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a}`;
 }

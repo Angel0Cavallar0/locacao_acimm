@@ -21,11 +21,13 @@ import { createClient } from "@/lib/supabase/server";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import { AcoesLocacao } from "../acoes-locacao";
 import { AdicionaisEditor } from "../adicionais-editor";
+import { ChecklistLocacao } from "../checklist-locacao";
 import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
 import { StatusBadge } from "../status-badge";
 import { ContratoAcoes } from "./contrato-acoes";
 import { NotificacoesLista } from "./notificacoes-lista";
+import { ObservacoesInternas } from "./observacoes-internas";
 import { PagamentosGestao } from "./pagamentos-gestao";
 
 const STATUS_COM_CONTRATO = new Set([
@@ -222,6 +224,10 @@ export default async function LocacaoDetalhePage({
                 {loc.observacoes}
               </p>
             ) : null}
+            <ObservacoesInternas
+              locacaoId={loc.id}
+              inicial={loc.observacoesInternas}
+            />
             {respostas.length > 0 ? (
               <div className="border-t pt-2">
                 <p className="mb-1 text-xs font-medium text-ink-muted">
@@ -384,6 +390,25 @@ export default async function LocacaoDetalhePage({
               </Link>
             </CardContent>
           </Card>
+
+          <Secao titulo="Checklist">
+            <ChecklistLocacao
+              status={loc.status}
+              contratoStatus={loc.contrato?.status ?? null}
+              temDivulgacao={loc.adicionais.some(
+                (a) => a.aprovacaoStatus != null,
+              )}
+              divulgacaoAprovada={loc.adicionais
+                .filter((a) => a.aprovacaoStatus != null)
+                .every((a) => a.aprovacaoStatus === "aprovado")}
+              temCozinha={loc.adicionais.some(
+                (a) => a.disponibilidadeStatus != null,
+              )}
+              cozinhaConfirmada={loc.adicionais
+                .filter((a) => a.disponibilidadeStatus != null)
+                .every((a) => a.disponibilidadeStatus === "confirmado")}
+            />
+          </Secao>
 
           <Secao titulo="Linha do tempo">
             <LinhaDoTempo eventos={loc.eventos} />

@@ -125,6 +125,7 @@ export async function buscarAssociadosAction(
     celular: string | null;
     whatsapp: string | null;
     situacao: "ativo" | "suspenso" | "excluido";
+    codigo_sophus: number | null;
   };
 
   return ((data ?? []) as Row[]).map((a) => ({
@@ -135,6 +136,7 @@ export async function buscarAssociadosAction(
     emails: a.emails ?? [],
     telefone: a.whatsapp ?? a.celular ?? a.telefone ?? null,
     situacao: a.situacao,
+    codigoSophus: a.codigo_sophus ?? null,
   }));
 }
 
