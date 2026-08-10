@@ -1,45 +1,28 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { ConfigComissoes } from "./apuracao-core.ts";
 import {
   baseLocacao,
-  comissoesDevidas,
+  basesDevidas,
   competenciaDoMes,
-  type ConfigComissoes,
+  mesDaCompetencia,
   mesRelativo,
-  parsearConfigComissoes,
+  proximaCompetenciaAberta,
   valorComissao,
 } from "./comissoes-core.ts";
 
-// --- parsearConfigComissoes ------------------------------------------------
+// O parse da config e a lógica de faixas/bônus vivem em apuracao-core.test.ts.
 
-test("parse: defaults quando vazio/nulo", () => {
-  assert.deepEqual(parsearConfigComissoes(null), {
-    locacao: { ativo: false, percentual: 0 },
-    coffee: { ativo: false, percentual: 0 },
-  });
-  assert.deepEqual(parsearConfigComissoes({}), {
-    locacao: { ativo: false, percentual: 0 },
-    coffee: { ativo: false, percentual: 0 },
-  });
-});
-
-test("parse: lê ativo/percentual e limita 0..100", () => {
-  const cfg = parsearConfigComissoes({
-    locacao: { ativo: true, percentual: 5 },
-    coffee: { ativo: true, percentual: 150 },
-  });
-  assert.deepEqual(cfg.locacao, { ativo: true, percentual: 5 });
-  assert.equal(cfg.coffee.percentual, 100); // teto
-});
-
-test("parse: percentual negativo e não-numérico viram 0", () => {
-  const cfg = parsearConfigComissoes({
-    locacao: { ativo: true, percentual: -3 },
-    coffee: { ativo: true, percentual: "abc" },
-  });
-  assert.equal(cfg.locacao.percentual, 0);
-  assert.equal(cfg.coffee.percentual, 0);
-});
+const CFG_ATIVAS: ConfigComissoes = {
+  locacao: { ativo: true, faixas: [{ ateCentavos: null, percentual: 10 }] },
+  coffee: { ativo: true, faixas: [{ ateCentavos: null, percentual: 5 }] },
+  bonus: {
+    ativo: false,
+    percentual: 0,
+    metaLocacaoCentavos: 0,
+    metaCoffeeCentavos: 0,
+  },
+};
 
 // --- valorComissao (floor no centavo) --------------------------------------
 
@@ -61,17 +44,17 @@ test("valor: percentual decimal", () => {
   assert.equal(valorComissao(100000, 2.5), 2500);
 });
 
-// --- baseLocacao (líquida de descontos; Ciclo 2: SEM adicionais) -----------
+// --- baseLocacao (Ciclo 3: salas + adicionais - descontos) -----------------
 
-test("base locação: salas - descontos, ignorando adicionais (0%)", () => {
+test("base locação: salas + adicionais - descontos (Spec 33)", () => {
   assert.equal(
     baseLocacao({
       valorSalasCentavos: 50000,
       valorDescontosCentavos: 20000,
-      valorAdicionaisCentavos: 4500, // fora da base (Ciclo 2)
+      valorAdicionaisCentavos: 4500, // Ciclo 3: DENTRO da base
       valorCoffeeCentavos: 0,
     }),
-    30000,
+    34500,
   );
 });
 
@@ -87,39 +70,28 @@ test("base locação: nunca negativa (desconto total ≥ salas)", () => {
   );
 });
 
-// --- comissoesDevidas ------------------------------------------------------
-
-const CFG_ATIVAS: ConfigComissoes = {
-  locacao: { ativo: true, percentual: 10 },
-  coffee: { ativo: true, percentual: 5 },
-};
+// --- basesDevidas ----------------------------------------------------------
 
 test("devidas: gera locação + coffee quando ambas ativas e há coffee", () => {
-  const linhas = comissoesDevidas(CFG_ATIVAS, {
+  const linhas = basesDevidas(CFG_ATIVAS, {
     valorSalasCentavos: 50000,
     valorDescontosCentavos: 0,
     valorAdicionaisCentavos: 0,
     valorCoffeeCentavos: 20000,
   });
   assert.equal(linhas.length, 2);
-  const loc = linhas.find((l) => l.origem === "locacao");
-  const cof = linhas.find((l) => l.origem === "coffee");
-  assert.deepEqual(loc, {
-    origem: "locacao",
-    baseCentavos: 50000,
-    percentual: 10,
-    valorCentavos: 5000,
-  });
-  assert.deepEqual(cof, {
-    origem: "coffee",
-    baseCentavos: 20000,
-    percentual: 5,
-    valorCentavos: 1000,
-  });
+  assert.deepEqual(
+    linhas.find((l) => l.origem === "locacao"),
+    { origem: "locacao", baseCentavos: 50000 },
+  );
+  assert.deepEqual(
+    linhas.find((l) => l.origem === "coffee"),
+    { origem: "coffee", baseCentavos: 20000 },
+  );
 });
 
 test("devidas: sem coffee não gera linha de coffee", () => {
-  const linhas = comissoesDevidas(CFG_ATIVAS, {
+  const linhas = basesDevidas(CFG_ATIVAS, {
     valorSalasCentavos: 50000,
     valorDescontosCentavos: 0,
     valorAdicionaisCentavos: 0,
@@ -131,10 +103,10 @@ test("devidas: sem coffee não gera linha de coffee", () => {
 
 test("devidas: origem inativa não gera", () => {
   const cfg: ConfigComissoes = {
-    locacao: { ativo: false, percentual: 10 },
-    coffee: { ativo: true, percentual: 5 },
+    ...CFG_ATIVAS,
+    locacao: { ...CFG_ATIVAS.locacao, ativo: false },
   };
-  const linhas = comissoesDevidas(cfg, {
+  const linhas = basesDevidas(cfg, {
     valorSalasCentavos: 50000,
     valorDescontosCentavos: 0,
     valorAdicionaisCentavos: 0,
@@ -144,8 +116,22 @@ test("devidas: origem inativa não gera", () => {
   assert.equal(linhas[0].origem, "coffee");
 });
 
+test("devidas: origem sem faixas configuradas não gera", () => {
+  const cfg: ConfigComissoes = {
+    ...CFG_ATIVAS,
+    locacao: { ativo: true, faixas: [] },
+  };
+  const linhas = basesDevidas(cfg, {
+    valorSalasCentavos: 50000,
+    valorDescontosCentavos: 0,
+    valorAdicionaisCentavos: 0,
+    valorCoffeeCentavos: 0,
+  });
+  assert.equal(linhas.length, 0);
+});
+
 test("devidas: base zero (período gratuito sem adicionais) não gera locação", () => {
-  const linhas = comissoesDevidas(CFG_ATIVAS, {
+  const linhas = basesDevidas(CFG_ATIVAS, {
     valorSalasCentavos: 30000,
     valorDescontosCentavos: 30000, // sala 100% gratuita
     valorAdicionaisCentavos: 0,
@@ -154,24 +140,21 @@ test("devidas: base zero (período gratuito sem adicionais) não gera locação"
   assert.equal(linhas.length, 0);
 });
 
-test("devidas: valor arredondado a 0 não gera linha", () => {
-  const cfg: ConfigComissoes = {
-    locacao: { ativo: true, percentual: 1 },
-    coffee: { ativo: false, percentual: 0 },
-  };
-  // base 50 * 1% = 0.5 → floor 0 → sem linha
-  const linhas = comissoesDevidas(cfg, {
+test("devidas: base ínfima ainda gera linha (o percentual é do mês, Spec 33)", () => {
+  // Antes (Spec 29) o valor arredondado a 0 suprimia a linha. Agora o percentual
+  // vem da apuração do mês e pode subir, então o gate é só base > 0.
+  const linhas = basesDevidas(CFG_ATIVAS, {
     valorSalasCentavos: 50,
     valorDescontosCentavos: 0,
     valorAdicionaisCentavos: 0,
     valorCoffeeCentavos: 0,
   });
-  assert.equal(linhas.length, 0);
+  assert.equal(linhas.length, 1);
+  assert.equal(linhas[0].baseCentavos, 50);
 });
 
-test("devidas: adicionais NÃO entram na comissão (Ciclo 2)", () => {
-  // Só sala e coffee geram; os 100000 de adicionais são ignorados na base.
-  const linhas = comissoesDevidas(CFG_ATIVAS, {
+test("devidas: adicionais ENTRAM na base (Ciclo 3 / Spec 33)", () => {
+  const linhas = basesDevidas(CFG_ATIVAS, {
     valorSalasCentavos: 40000,
     valorDescontosCentavos: 0,
     valorAdicionaisCentavos: 100000,
@@ -179,10 +162,10 @@ test("devidas: adicionais NÃO entram na comissão (Ciclo 2)", () => {
   });
   assert.equal(linhas.length, 1);
   assert.equal(linhas[0].origem, "locacao");
-  assert.equal(linhas[0].baseCentavos, 40000);
+  assert.equal(linhas[0].baseCentavos, 140000);
 });
 
-// --- helpers de mês (visões da tela) ---------------------------------------
+// --- helpers de mês / competência ------------------------------------------
 
 test("mesRelativo: desloca meses cruzando o ano", () => {
   assert.equal(mesRelativo("2026-01", -1), "2025-12");
@@ -191,6 +174,38 @@ test("mesRelativo: desloca meses cruzando o ano", () => {
   assert.equal(mesRelativo("2026-08", 0), "2026-08");
 });
 
-test("competenciaDoMes: 1º dia do mês", () => {
+test("competenciaDoMes / mesDaCompetencia", () => {
   assert.equal(competenciaDoMes("2026-08"), "2026-08-01");
+  assert.equal(mesDaCompetencia("2026-08-01"), "2026-08");
+});
+
+test("proximaCompetenciaAberta: devolve a desejada quando aberta", () => {
+  assert.equal(proximaCompetenciaAberta("2026-08-01", []), "2026-08-01");
+  assert.equal(
+    proximaCompetenciaAberta("2026-08-01", ["2026-07-01"]),
+    "2026-08-01",
+  );
+});
+
+test("proximaCompetenciaAberta: pula meses fechados em sequência", () => {
+  assert.equal(
+    proximaCompetenciaAberta("2026-08-01", ["2026-08-01"]),
+    "2026-09-01",
+  );
+  assert.equal(
+    proximaCompetenciaAberta("2026-11-01", [
+      "2026-11-01",
+      "2026-12-01",
+      "2027-01-01",
+    ]),
+    "2027-02-01",
+  );
+});
+
+test("proximaCompetenciaAberta: teto de 12 meses evita laço infinito", () => {
+  const todas = Array.from({ length: 24 }, (_, i) =>
+    competenciaDoMes(mesRelativo("2026-01", i)),
+  );
+  const r = proximaCompetenciaAberta("2026-01-01", todas);
+  assert.equal(r, "2027-01-01"); // parou no teto
 });

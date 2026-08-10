@@ -26,6 +26,7 @@ import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
 import { StatusBadge } from "../status-badge";
 import { ContratoAcoes } from "./contrato-acoes";
+import { MesRecebimento } from "./mes-recebimento";
 import { NotificacoesLista } from "./notificacoes-lista";
 import { ObservacoesInternas } from "./observacoes-internas";
 import { PagamentosGestao } from "./pagamentos-gestao";
@@ -364,6 +365,10 @@ export default async function LocacaoDetalhePage({
           </Secao>
 
           <Secao titulo="Pagamentos">
+            <MesRecebimento
+              locacaoId={loc.id}
+              inicial={loc.mesRecebimento}
+            />
             <PagamentosGestao
               locacaoId={loc.id}
               status={loc.status}

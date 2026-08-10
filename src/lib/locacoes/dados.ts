@@ -365,6 +365,9 @@ export async function carregarLocacao(
     tipoEvento: loc.tipo_evento ?? null,
     observacoes: loc.observacoes ?? null,
     observacoesInternas: loc.observacoes_internas ?? null,
+    mesRecebimento: loc.mes_recebimento
+      ? String(loc.mes_recebimento).slice(0, 7)
+      : null,
     respostasFormulario: (loc.respostas_formulario ?? {}) as Record<
       string,
       unknown

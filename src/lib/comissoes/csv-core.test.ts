@@ -34,7 +34,11 @@ test("montarCsvComissoes: cabeçalho correto e centavos crus", () => {
       recebidoEm: "10/09/2026",
       formaPagamento: "Pix",
       baseCentavos: 50000,
-      valorCentavos: 5000,
+      percentual: "6",
+      valorCentavos: 3000,
+      bonusAplicado: "Não",
+      competenciaStatus: "Fechada",
+      competenciaOriginal: "",
       pago: "Sim",
     },
   ]);
@@ -42,8 +46,32 @@ test("montarCsvComissoes: cabeçalho correto e centavos crus", () => {
   assert.equal(linhas[0], CABECALHO_COMISSOES.join(";"));
   assert.equal(
     linhas[1],
-    "2026-09;LOC-000123;Empresa X;12345678000199;Sala Cinza, Espaço Gourmet;Locação;10/09/2026;Pix;50000;5000;Sim",
+    "2026-09;LOC-000123;Empresa X;12345678000199;Sala Cinza, Espaço Gourmet;Locação;10/09/2026;Pix;50000;6;3000;Não;Fechada;;Sim",
   );
+});
+
+test("montarCsvComissoes: percentual decimal sai com vírgula e deslocamento aparece", () => {
+  const csv = montarCsvComissoes([
+    {
+      competencia: "2026-09",
+      locNumero: "LOC-000200",
+      locatario: "Empresa Y",
+      documento: "12345678000199",
+      salas: "Sala",
+      origem: "Coffee break",
+      recebidoEm: "02/08/2026",
+      formaPagamento: "Múltiplas formas",
+      baseCentavos: 120000,
+      percentual: "7,5",
+      valorCentavos: 9000,
+      bonusAplicado: "Sim",
+      competenciaStatus: "Em apuração",
+      competenciaOriginal: "2026-08",
+      pago: "Não",
+    },
+  ]);
+  assert.ok(csv.includes(";7,5;"));
+  assert.ok(csv.includes(";Sim;Em apuração;2026-08;Não"));
 });
 
 test("montarCsvComissoes: locatário com ; é aspeado", () => {
@@ -58,7 +86,11 @@ test("montarCsvComissoes: locatário com ; é aspeado", () => {
       recebidoEm: "",
       formaPagamento: "",
       baseCentavos: 2000,
-      valorCentavos: 100,
+      percentual: "3",
+      valorCentavos: 60,
+      bonusAplicado: "",
+      competenciaStatus: "Previsão",
+      competenciaOriginal: "",
       pago: "",
     },
   ]);

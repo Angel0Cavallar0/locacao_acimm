@@ -65,21 +65,36 @@ export function ComissoesTabela({
     });
   }
 
-  const reaisNaoPagas = linhas.filter((l) => l.tipo === "real" && !l.pago);
+  // Só competência FECHADA libera pagamento: em mês aberto o percentual ainda
+  // pode mudar e o valor pago divergiria do gravado (Spec 33 §7.4).
+  const elegiveis = linhas.filter(
+    (l) => l.tipo === "real" && !l.pago && l.competenciaFechada,
+  );
+  const bloqueadas = linhas.filter(
+    (l) => l.tipo === "real" && !l.pago && !l.competenciaFechada,
+  );
 
   return (
     <div className="flex flex-col gap-2">
-      {reaisNaoPagas.length > 0 ? (
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            loading={pendente}
-            onClick={() => marcar(reaisNaoPagas.map((l) => l.id), true)}
-          >
-            <Check className="size-4" />
-            Marcar todas como pagas ({reaisNaoPagas.length})
-          </Button>
+      {elegiveis.length > 0 || bloqueadas.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {bloqueadas.length > 0 ? (
+            <p className="text-xs text-ink-muted">
+              {bloqueadas.length} em competência aberta — feche a competência
+              para liberar o pagamento.
+            </p>
+          ) : null}
+          {elegiveis.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              loading={pendente}
+              onClick={() => marcar(elegiveis.map((l) => l.id), true)}
+            >
+              <Check className="size-4" />
+              Marcar todas como pagas ({elegiveis.length})
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
@@ -91,6 +106,7 @@ export function ComissoesTabela({
               <TableHead>Locatário</TableHead>
               <TableHead>Origem</TableHead>
               <TableHead className="text-right">Base</TableHead>
+              <TableHead className="text-right">%</TableHead>
               <TableHead className="text-right">Comissão</TableHead>
               <TableHead>Recebido em</TableHead>
               <TableHead>Forma</TableHead>
@@ -104,7 +120,7 @@ export function ComissoesTabela({
             {linhas.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="py-8 text-center text-sm text-ink-muted"
                 >
                   Nenhuma comissão nesta visão.
@@ -130,6 +146,9 @@ export function ComissoesTabela({
                   <TableCell className="text-right text-ink-muted">
                     {centavosParaBRL(l.baseCentavos)}
                   </TableCell>
+                  <TableCell className="text-right text-ink-muted">
+                    {l.percentual}%
+                  </TableCell>
                   <TableCell className="text-right font-medium text-ink">
                     {centavosParaBRL(l.valorCentavos)}
                   </TableCell>
@@ -140,7 +159,18 @@ export function ComissoesTabela({
                     {rotuloForma(l.formaPagamento)}
                   </TableCell>
                   <TableCell className="text-ink-muted">
-                    {competenciaBR(l.competencia)}
+                    <span className="whitespace-nowrap">
+                      {competenciaBR(l.competencia)}
+                    </span>
+                    {l.competenciaOriginal ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1"
+                        title={`Recebido em ${competenciaBR(l.competenciaOriginal)} · competência já fechada`}
+                      >
+                        deslocada
+                      </Badge>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-right">
                     {l.tipo === "previsao" ? (
@@ -164,7 +194,12 @@ export function ComissoesTabela({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={pendente}
+                        disabled={pendente || !l.competenciaFechada}
+                        title={
+                          l.competenciaFechada
+                            ? undefined
+                            : `Feche a competência ${competenciaBR(l.competencia)} para liberar o pagamento`
+                        }
                         onClick={() => marcar([l.id], true)}
                       >
                         Marcar paga
