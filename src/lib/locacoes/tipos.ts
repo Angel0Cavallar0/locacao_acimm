@@ -151,6 +151,8 @@ export interface LocacaoDetalhe {
   observacoes: string | null;
   /** Anotações internas da equipe (Spec 32 §3.4) — nunca expostas ao portal. */
   observacoesInternas: string | null;
+  /** 'YYYY-MM' do recebimento (Spec 33 §8) — define a competência da comissão. */
+  mesRecebimento: string | null;
   respostasFormulario: Record<string, unknown>;
   locatarioNome: string;
   locatarioDocumento: string;

@@ -1,26 +1,19 @@
 /**
- * Núcleo PURO das comissões (Spec 21 §3). Sem I/O — recebe a config já lida e as
- * bases já apuradas. A geração (geracao.ts) e a tela (dados.ts) consomem daqui.
+ * Núcleo PURO das comissões (Spec 21 §3, revisto pelos Specs 29 e 33). Sem I/O —
+ * recebe a config já lida e as bases já apuradas. A geração (geracao.ts) e a tela
+ * (dados.ts) consomem daqui.
+ *
+ * Ciclo 3 (Spec 33): a decisão de PERCENTUAL saiu deste arquivo e foi para
+ * `apuracao-core.ts` — ele agora depende do total do MÊS, não da locação. Aqui
+ * ficam as bases, o valor de uma linha e a aritmética de competência.
  * Testado com node:test; evita import de valor entre módulos locais.
  */
 
+import type { ConfigComissoes } from "./apuracao-core";
+
+export type { ConfigComissoes } from "./apuracao-core";
+
 export type OrigemComissao = "locacao" | "coffee";
-
-export interface RegraOrigem {
-  ativo: boolean;
-  /** Percentual inteiro/decimal (ex.: 5 = 5%, 7.5 = 7,5%). */
-  percentual: number;
-}
-
-export interface ConfigComissoes {
-  locacao: RegraOrigem;
-  coffee: RegraOrigem;
-}
-
-export const CONFIG_COMISSOES_PADRAO: ConfigComissoes = {
-  locacao: { ativo: false, percentual: 0 },
-  coffee: { ativo: false, percentual: 0 },
-};
 
 /** Bases (centavos) vindas da locação já confirmada — congeladas no snapshot. */
 export interface BasesLocacao {
@@ -30,36 +23,20 @@ export interface BasesLocacao {
   valorCoffeeCentavos: number;
 }
 
-export interface LinhaComissaoDevida {
+export interface BaseDevida {
   origem: OrigemComissao;
   baseCentavos: number;
-  percentual: number;
-  valorCentavos: number;
-}
-
-function numeroSeguro(v: unknown, minimo: number, maximo: number): number {
-  const n = typeof v === "number" ? v : Number.parseFloat(String(v));
-  if (!Number.isFinite(n)) return 0;
-  return Math.min(maximo, Math.max(minimo, n));
-}
-
-function regra(v: unknown): RegraOrigem {
-  const o = (v ?? {}) as { ativo?: unknown; percentual?: unknown };
-  return {
-    ativo: o.ativo === true,
-    percentual: numeroSeguro(o.percentual, 0, 100),
-  };
-}
-
-/** Interpreta o JSON de `configuracoes.comissoes` com defaults tolerantes. */
-export function parsearConfigComissoes(valor: unknown): ConfigComissoes {
-  const o = (valor ?? {}) as { locacao?: unknown; coffee?: unknown };
-  return { locacao: regra(o.locacao), coffee: regra(o.coffee) };
 }
 
 /**
- * Valor da comissão: percentual da base, arredondado PARA BAIXO no centavo
- * (§3). Base ou percentual não-positivos → 0 (não gera linha).
+ * Valor da comissão de UMA linha: percentual da base, arredondado PARA BAIXO no
+ * centavo. Espelho exato do `floor(base * pct / 100)` da RPC de apuração.
+ *
+ * O total do mês é a SOMA das linhas, nunca `floor(baseTotal * pct)`: o que se
+ * paga é a linha (o CSV, o estorno e o "marcar paga" são por linha), e ratear o
+ * resto faria o valor de uma linha depender do conjunto do mês — uma baixa no dia
+ * 28 mudaria uma linha gerada no dia 3, inclusive já paga. A sobra é de no máximo
+ * (n−1) centavos por grupo/mês.
  */
 export function valorComissao(baseCentavos: number, percentual: number): number {
   if (baseCentavos <= 0 || percentual <= 0) return 0;
@@ -67,14 +44,20 @@ export function valorComissao(baseCentavos: number, percentual: number): number 
 }
 
 /**
- * Base da locação: valor das salas LÍQUIDO de descontos de sala (Ciclo 2 / Spec
- * 29). Os adicionais NÃO entram mais na base (0% — fora da comissão); o subtotal
- * de adicionais fica isolado em `valor_adicionais_centavos` justamente para ser
- * excluído. Todos os descontos do sistema são de sala (multi-sala/período
+ * Base da locação: salas + serviços adicionais, LÍQUIDO de descontos de sala.
+ *
+ * Ciclo 3 (Spec 33 §1): os adicionais VOLTARAM para a base — a ACIMM passou a
+ * comissioná-los como locação de sala, revertendo a decisão do Spec 29 §4.1 que
+ * os deixava a 0%. Todos os descontos do sistema são de sala (multi-sala/período
  * gratuito), então `valor_descontos_centavos` é a dedução correta. Nunca negativa.
  */
 export function baseLocacao(bases: BasesLocacao): number {
-  return Math.max(0, bases.valorSalasCentavos - bases.valorDescontosCentavos);
+  return Math.max(
+    0,
+    bases.valorSalasCentavos +
+      bases.valorAdicionaisCentavos -
+      bases.valorDescontosCentavos,
+  );
 }
 
 /**
@@ -94,44 +77,51 @@ export function competenciaDoMes(mes: string): string {
   return `${mes}-01`;
 }
 
+/** Mês 'YYYY-MM' de uma competência 'YYYY-MM-01'. */
+export function mesDaCompetencia(competencia: string): string {
+  return competencia.slice(0, 7);
+}
+
 /**
- * Linhas de comissão devidas por uma locação confirmada. Só origens ativas,
- * base > 0 e valor > 0 geram linha (sem lixo). Coffee só quando há coffee.
+ * Primeira competência ABERTA a partir da desejada (Spec 33 §7.3).
+ *
+ * Uma competência fechada pode já ter sido paga ao colaborador; lançar dentro
+ * dela reescreveria um total congelado. A resposta contábil é deslocar para o
+ * próximo fechamento, guardando o mês real em `competencia_original`.
+ * Teto de 12 meses evita laço infinito com config improvável.
  */
-export function comissoesDevidas(
+export function proximaCompetenciaAberta(
+  desejada: string,
+  fechadas: string[],
+): string {
+  const travadas = new Set(fechadas);
+  let atual = desejada;
+  for (let i = 0; i < 12; i++) {
+    if (!travadas.has(atual)) return atual;
+    atual = competenciaDoMes(mesRelativo(mesDaCompetencia(atual), 1));
+  }
+  return atual;
+}
+
+/**
+ * Bases devidas por uma locação confirmada — SEM percentual/valor: no momento do
+ * insert a competência ainda não foi apurada, e o percentual é do mês (Spec 33).
+ * Só grupos ativos, com faixas configuradas e base > 0 geram linha.
+ */
+export function basesDevidas(
   cfg: ConfigComissoes,
   bases: BasesLocacao,
-): LinhaComissaoDevida[] {
-  const linhas: LinhaComissaoDevida[] = [];
+): BaseDevida[] {
+  const linhas: BaseDevida[] = [];
 
-  if (cfg.locacao.ativo && cfg.locacao.percentual > 0) {
+  if (cfg.locacao.ativo && cfg.locacao.faixas.length > 0) {
     const base = baseLocacao(bases);
-    const valor = valorComissao(base, cfg.locacao.percentual);
-    if (valor > 0) {
-      linhas.push({
-        origem: "locacao",
-        baseCentavos: base,
-        percentual: cfg.locacao.percentual,
-        valorCentavos: valor,
-      });
-    }
+    if (base > 0) linhas.push({ origem: "locacao", baseCentavos: base });
   }
 
-  if (
-    cfg.coffee.ativo &&
-    cfg.coffee.percentual > 0 &&
-    bases.valorCoffeeCentavos > 0
-  ) {
+  if (cfg.coffee.ativo && cfg.coffee.faixas.length > 0) {
     const base = bases.valorCoffeeCentavos;
-    const valor = valorComissao(base, cfg.coffee.percentual);
-    if (valor > 0) {
-      linhas.push({
-        origem: "coffee",
-        baseCentavos: base,
-        percentual: cfg.coffee.percentual,
-        valorCentavos: valor,
-      });
-    }
+    if (base > 0) linhas.push({ origem: "coffee", baseCentavos: base });
   }
 
   return linhas;

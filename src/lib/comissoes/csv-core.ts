@@ -25,9 +25,13 @@ export function montarCsv(cabecalho: string[], linhas: string[][]): string {
   return `${BOM}${corpo}${EOL}`;
 }
 
-/** Uma linha de comissão já resolvida para exportação (Ciclo 2 / §5). */
+/**
+ * Uma linha de comissão já resolvida para exportação (Ciclo 3 / Spec 33 §9.2).
+ * O `percentual` passou a ser obrigatório na exportação: com faixa por meta ele
+ * varia de mês para mês, e sem ele o CSV não se explica.
+ */
 export interface LinhaCsvComissao {
-  competencia: string; // 'YYYY-MM' (mês da quitação)
+  competencia: string; // 'YYYY-MM' (mês do recebimento)
   locNumero: string; // 'LOC-000123'
   locatario: string;
   documento: string;
@@ -36,7 +40,11 @@ export interface LinhaCsvComissao {
   recebidoEm: string; // 'dd/MM/yyyy' ou '' (previsão)
   formaPagamento: string; // rótulo pt-BR ou ''
   baseCentavos: number;
+  percentual: string; // '6' | '7,5'
   valorCentavos: number;
+  bonusAplicado: string; // 'Sim' | 'Não' | ''
+  competenciaStatus: string; // 'Fechada' | 'Em apuração' | 'Previsão'
+  competenciaOriginal: string; // 'YYYY-MM' quando deslocada, senão ''
   pago: string; // 'Sim' | 'Não' | '' (previsão)
 }
 
@@ -50,7 +58,11 @@ export const CABECALHO_COMISSOES = [
   "recebido_em",
   "forma_pagamento",
   "base_centavos",
+  "percentual",
   "valor_centavos",
+  "bonus_aplicado",
+  "competencia_status",
+  "competencia_original",
   "pago",
 ];
 
@@ -65,7 +77,11 @@ export function montarCsvComissoes(linhas: LinhaCsvComissao[]): string {
     l.recebidoEm,
     l.formaPagamento,
     String(l.baseCentavos),
+    l.percentual,
     String(l.valorCentavos),
+    l.bonusAplicado,
+    l.competenciaStatus,
+    l.competenciaOriginal,
     l.pago,
   ]);
   return montarCsv(CABECALHO_COMISSOES, corpo);

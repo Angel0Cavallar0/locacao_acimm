@@ -87,6 +87,22 @@ export async function salvarObservacoesInternasAction(input: {
   return {};
 }
 
+/**
+ * Mês do recebimento (Spec 33 §8). Define a competência da comissão: o valor
+ * informado ganha do mês derivado da baixa. Mover uma comissão viva reapura os
+ * dois meses envolvidos e é recusado se algum estiver fechado.
+ */
+export async function salvarMesRecebimentoAction(input: {
+  locacaoId: string;
+  mes: string | null;
+}): Promise<ResultadoAcao> {
+  const { salvarMesRecebimento } = await import(
+    "@/lib/comissoes/mes-recebimento"
+  );
+  const r = await salvarMesRecebimento(input);
+  return "ok" in r ? { aviso: r.aviso } : { error: r.erro };
+}
+
 export async function adicionarAdicionalAction(input: {
   locacaoId: string;
   descricao: string;

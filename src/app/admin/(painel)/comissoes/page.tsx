@@ -3,14 +3,18 @@ import Link from "next/link";
 import { requireColaborador } from "@/lib/auth/guards";
 import type { OrigemComissao } from "@/lib/comissoes/comissoes-core";
 import {
+  carregarApuracao,
   carregarReconciliacao,
   carregarVisaoComissoes,
   lerConfigComissoes,
+  mesCorrenteSP,
 } from "@/lib/comissoes/dados";
+import { mesRelativo } from "@/lib/comissoes/comissoes-core";
 import { VISAO_ROTULO, VISOES_COMISSAO } from "@/lib/comissoes/tipos";
 import type { VisaoComissao } from "@/lib/comissoes/tipos";
 import { centavosParaBRL } from "@/lib/utils/moeda";
 import { ORIGENS_COMISSAO } from "@/lib/validacoes/comissoes";
+import { ApuracaoPainel } from "./apuracao-painel";
 import { ComissoesTabela } from "./comissoes-tabela";
 import { ConfigComissoes } from "./config-comissoes";
 import { ExportarBotao } from "./exportar-botao";
@@ -51,10 +55,18 @@ export default async function ComissoesPage({
     : null;
   const busca = texto(sp.q);
 
-  const [dados, reconc, config] = await Promise.all([
+  // Competência do painel: o mês anterior é o fluxo real (dia 5 de setembro,
+  // fecha-se agosto e paga-se). Sobrescrevível pelo seletor.
+  const competenciaParam = texto(sp.competencia);
+  const mesApuracao = /^\d{4}-(0[1-9]|1[0-2])$/.test(competenciaParam ?? "")
+    ? (competenciaParam as string)
+    : mesRelativo(mesCorrenteSP(), -1);
+
+  const [dados, reconc, config, apuracao] = await Promise.all([
     carregarVisaoComissoes(visao, { origem, busca }),
     carregarReconciliacao(),
     lerConfigComissoes(),
+    carregarApuracao(mesApuracao),
   ]);
 
   const paramsAtuais: Record<string, string> = {};
@@ -78,8 +90,8 @@ export default async function ComissoesPage({
             Comissões
           </h2>
           <p className="text-sm text-ink-muted">
-            Geradas no recebimento do pagamento. Pagas ao colaborador no mês
-            seguinte à quitação.
+            Faixa sobre o total recebido no mês, por grupo. Os valores da
+            competência só congelam no fechamento.
           </p>
         </div>
         <ExportarBotao
@@ -100,6 +112,13 @@ export default async function ComissoesPage({
       <ReconciliacaoBanner
         pendentes={reconc.pendentes.length}
         revisaoParcial={reconc.revisaoParcial.length}
+        adicionalSemValor={reconc.adicionalSemValor.length}
+      />
+
+      <ApuracaoPainel
+        apuracao={apuracao}
+        params={paramsAtuais}
+        ehAdmin={ehAdmin}
       />
 
       {/* Abas de visão */}

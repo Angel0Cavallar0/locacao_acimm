@@ -15,14 +15,18 @@ import { repararComissoesAction } from "./actions";
 export function ReconciliacaoBanner({
   pendentes,
   revisaoParcial,
+  adicionalSemValor,
 }: {
   pendentes: number;
   revisaoParcial: number;
+  adicionalSemValor: number;
 }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
 
-  if (pendentes === 0 && revisaoParcial === 0) return null;
+  if (pendentes === 0 && revisaoParcial === 0 && adicionalSemValor === 0) {
+    return null;
+  }
 
   function reparar() {
     iniciar(async () => {
@@ -55,6 +59,14 @@ export function ReconciliacaoBanner({
             <span>
               <strong>{revisaoParcial}</strong> locação(ões) com isenção parcial —
               confira a base da comissão manualmente.
+            </span>
+          ) : null}
+          {adicionalSemValor > 0 ? (
+            <span>
+              <strong>{adicionalSemValor}</strong> locação(ões) com{" "}
+              <strong>adicional sem valor</strong> (sob consulta não cotado) —
+              como os adicionais entram na base, um R$ 0 esquecido pode derrubar
+              a faixa do mês.
             </span>
           ) : null}
         </div>
