@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { somarAdicionais, totalCoffee, totalGeral } from "./calcular-core.ts";
+import {
+  calcularDescontoManual,
+  somarAdicionais,
+  totalCoffee,
+  totalGeral,
+} from "./calcular-core.ts";
 
 test("somarAdicionais multiplica qtd × unitário e soma", () => {
   assert.equal(
@@ -35,4 +40,36 @@ test("totalGeral soma salas+coffee+adicionais e desconta", () => {
     }),
     41900,
   );
+});
+
+test("calcularDescontoManual percentual arredonda sobre a base", () => {
+  assert.equal(
+    calcularDescontoManual(10000, { tipo: "percentual", valor: 10 }),
+    1000,
+  );
+  assert.equal(
+    calcularDescontoManual(9999, { tipo: "percentual", valor: 33 }),
+    3300, // round(9999 * 33 / 100) = round(3299.67)
+  );
+});
+
+test("calcularDescontoManual percentual trava em 100 e não fica negativo", () => {
+  assert.equal(
+    calcularDescontoManual(10000, { tipo: "percentual", valor: 150 }),
+    10000,
+  );
+  assert.equal(
+    calcularDescontoManual(10000, { tipo: "percentual", valor: -20 }),
+    0,
+  );
+});
+
+test("calcularDescontoManual valor fixo nunca passa da base", () => {
+  assert.equal(calcularDescontoManual(10000, { tipo: "valor", valor: 3000 }), 3000);
+  assert.equal(calcularDescontoManual(2000, { tipo: "valor", valor: 5000 }), 2000);
+});
+
+test("calcularDescontoManual base zero ou negativa devolve zero", () => {
+  assert.equal(calcularDescontoManual(0, { tipo: "percentual", valor: 50 }), 0);
+  assert.equal(calcularDescontoManual(-500, { tipo: "valor", valor: 100 }), 0);
 });

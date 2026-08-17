@@ -15,6 +15,7 @@ import type { StatusLocacao } from "@/lib/locacoes/maquina-estados-core";
 import type { FormaPagamento } from "@/lib/locacoes/tipos";
 import { resolverAdicionais } from "@/lib/servicos-adicionais/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { centavosParaBRL } from "@/lib/utils/moeda";
 import { criarLocacaoSchema } from "@/lib/validacoes/locacao-assistida";
 import type {
   AssociadoBusca,
@@ -208,6 +209,9 @@ export async function calcularResumoAction(input: {
   associadoId?: string | null;
   periodoGratuitoRecusado?: boolean;
   comboId?: string | null;
+  /** Valor por sala confirmado/sobrescrito pelo colaborador (Spec 34). */
+  valoresManuaisPorSala?: Record<string, number>;
+  descontoManual?: { tipo: "percentual" | "valor"; valor: number } | null;
 }): Promise<ResumoValores> {
   await requireColaborador();
 
@@ -216,6 +220,8 @@ export async function calcularResumoAction(input: {
     associadoId: input.condicao === "associado" ? input.associadoId : null,
     periodoGratuitoRecusado: input.periodoGratuitoRecusado,
     comboId: input.condicao === "associado" ? input.comboId : null,
+    valoresManuaisPorSala: input.valoresManuaisPorSala,
+    descontoManual: input.descontoManual,
   });
 
   const admin = createAdminClient();
@@ -244,6 +250,7 @@ export async function calcularResumoAction(input: {
       nome: nome.get(s.salaId) ?? "Sala",
       valorCentavos: s.valorCentavos,
       semPreco: s.semPreco,
+      referenciaCentavos: s.referenciaCentavos,
     })),
     salasSemPreco: calc.salasSemPreco,
     salasCentavos: calc.salasCentavos,
@@ -422,6 +429,8 @@ export async function criarLocacaoAssistida(
     associadoId: v.condicao === "associado" ? v.associadoId : null,
     periodoGratuitoRecusado: v.periodoGratuitoRecusado,
     comboId: v.condicao === "associado" ? v.comboId : null,
+    valoresManuaisPorSala: v.valoresManuaisPorSala,
+    descontoManual: v.descontoManual,
   });
 
   // Combo (Spec 20 §3): exclusivo de sócio; recalculado no servidor — se o
@@ -543,6 +552,50 @@ export async function criarLocacaoAssistida(
   // Vínculo do combo (metadado): best-effort pós-insert (Spec 20 §3).
   if (calc.combo?.aplicado) {
     await admin.from("locacoes").update({ combo_id: calc.combo.id }).eq("id", id);
+  }
+
+  // (5b) Auditoria de valor manual/desconto manual (Spec 34): registra uma
+  // linha extra no histórico só quando houver algo fora do calculado por
+  // resolverPreco() — best-effort, não bloqueia a criação.
+  const notaPartes: string[] = [];
+  const divergentes = calc.salas.filter((s) => s.valorCentavos !== s.referenciaCentavos);
+  if (divergentes.length > 0) {
+    const nomeSala = new Map(
+      (salas ?? []).map((s) => [s.id as string, s.nome as string]),
+    );
+    const linhas = divergentes.map((s) => {
+      const nome = nomeSala.get(s.salaId) ?? "sala";
+      const ref =
+        s.referenciaCentavos != null
+          ? centavosParaBRL(s.referenciaCentavos)
+          : "sem preço de referência";
+      return `${nome}: ${centavosParaBRL(s.valorCentavos)} (ref. ${ref})`;
+    });
+    notaPartes.push(`Valor manual — ${linhas.join("; ")}`);
+  }
+  if (v.descontoManual) {
+    const desc =
+      v.descontoManual.tipo === "percentual"
+        ? `${v.descontoManual.valor}%`
+        : centavosParaBRL(v.descontoManual.valor);
+    notaPartes.push(
+      `Desconto manual — ${desc}${v.descontoManual.motivo ? ` (${v.descontoManual.motivo})` : ""}`,
+    );
+  }
+  if (notaPartes.length > 0) {
+    const { data: locAtual } = await admin
+      .from("locacoes")
+      .select("status")
+      .eq("id", id)
+      .maybeSingle();
+    const status = (locAtual?.status as StatusLocacao | undefined) ?? "solicitada";
+    await admin.from("locacao_eventos").insert({
+      locacao_id: id,
+      de: status,
+      para: status,
+      autor_user_id: user.id,
+      observacao: notaPartes.join(" · "),
+    });
   }
 
   // (6a) Lançamento retroativo (Spec 31 §6): registra o pagamento passado e leva

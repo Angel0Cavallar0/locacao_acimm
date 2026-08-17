@@ -36,3 +36,21 @@ export function totalGeral(p: {
     p.salasCentavos + p.coffeeCentavos + p.adicionaisCentavos - p.descontosCentavos
   );
 }
+
+/**
+ * Desconto manual (colaborador, atendimento assistido) sobre uma base já
+ * líquida dos demais descontos — percentual (0–100, arredonda) ou valor fixo
+ * (nunca passa da base). Nunca negativo, nunca maior que a base.
+ */
+export function calcularDescontoManual(
+  baseCentavos: number,
+  desconto: { tipo: "percentual" | "valor"; valor: number },
+): number {
+  const base = Math.max(0, baseCentavos);
+  if (base <= 0) return 0;
+  if (desconto.tipo === "percentual") {
+    const pct = Math.min(100, Math.max(0, desconto.valor));
+    return Math.round((base * pct) / 100);
+  }
+  return Math.min(Math.max(0, Math.round(desconto.valor)), base);
+}
