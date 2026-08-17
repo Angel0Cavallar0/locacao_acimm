@@ -48,6 +48,9 @@ const PIPELINE: StatusLocacao[] = [
 ];
 // Estados que, ao cair, liberavam vaga bloqueante (Spec 19 §6).
 const BLOQUEANTES_DE: StatusLocacao[] = [...ATIVAS];
+// Locação não vai mais acontecer — pendência (comprovante/contrato/notif.)
+// deixada para trás não é mais "ação necessária".
+const ENCERRADAS: StatusLocacao[] = ["cancelada", "recusada"];
 
 const PRIORIDADE: Record<TipoAcao, number> = {
   solicitacao: 0,
@@ -206,18 +209,18 @@ export async function carregarDashboard(opts?: {
     admin.from("regras_periodo_gratuito").select("sala_id").eq("ativo", true),
     admin
       .from("pagamentos")
-      .select("id, criado_em, locacao_id, locacoes ( numero )")
+      .select("id, criado_em, locacao_id, locacoes ( numero, status )")
       .eq("status", "pendente")
       .not("comprovante_url", "is", null)
       .order("criado_em", { ascending: true }),
     admin
       .from("contratos")
-      .select("id, criado_em, locacao_id, locacoes ( numero )")
+      .select("id, criado_em, locacao_id, locacoes ( numero, status )")
       .eq("status", "recusado")
       .order("criado_em", { ascending: true }),
     admin
       .from("notificacoes")
-      .select("id, locacao_id, criado_em, locacoes ( numero )")
+      .select("id, locacao_id, criado_em, locacoes ( numero, status )")
       .eq("status", "falha")
       .not("locacao_id", "is", null)
       .order("criado_em", { ascending: true }),
@@ -267,9 +270,14 @@ export async function carregarDashboard(opts?: {
     id: string;
     criado_em: string;
     locacao_id: string;
-    locacoes: { numero: number } | { numero: number }[] | null;
+    locacoes:
+      | { numero: number; status: StatusLocacao }
+      | { numero: number; status: StatusLocacao }[]
+      | null;
   }[]) {
-    const numero = um(p.locacoes)?.numero ?? 0;
+    const loc = um(p.locacoes);
+    if (loc && ENCERRADAS.includes(loc.status)) continue;
+    const numero = loc?.numero ?? 0;
     acoes.push({
       id: `pag-${p.id}`,
       tipo: "comprovante",
@@ -284,9 +292,14 @@ export async function carregarDashboard(opts?: {
     id: string;
     criado_em: string;
     locacao_id: string;
-    locacoes: { numero: number } | { numero: number }[] | null;
+    locacoes:
+      | { numero: number; status: StatusLocacao }
+      | { numero: number; status: StatusLocacao }[]
+      | null;
   }[]) {
-    const numero = um(c.locacoes)?.numero ?? 0;
+    const loc = um(c.locacoes);
+    if (loc && ENCERRADAS.includes(loc.status)) continue;
+    const numero = loc?.numero ?? 0;
     acoes.push({
       id: `ctr-${c.id}`,
       tipo: "contrato_recusado",
@@ -305,9 +318,14 @@ export async function carregarDashboard(opts?: {
   for (const n of (notifRes.data ?? []) as {
     locacao_id: string;
     criado_em: string;
-    locacoes: { numero: number } | { numero: number }[] | null;
+    locacoes:
+      | { numero: number; status: StatusLocacao }
+      | { numero: number; status: StatusLocacao }[]
+      | null;
   }[]) {
-    const numero = um(n.locacoes)?.numero ?? 0;
+    const loc = um(n.locacoes);
+    if (loc && ENCERRADAS.includes(loc.status)) continue;
+    const numero = loc?.numero ?? 0;
     const cur = falhasPorLoc.get(n.locacao_id);
     if (cur) cur.qtd += 1;
     else
