@@ -41,7 +41,14 @@ export interface PeriodoGratuitoResumo {
 }
 
 export interface ResumoValores {
-  salas: { salaId: string; nome: string; valorCentavos: number; semPreco: boolean }[];
+  salas: {
+    salaId: string;
+    nome: string;
+    valorCentavos: number;
+    semPreco: boolean;
+    /** Valor que resolverPreco() calcularia — null = sem preço de referência (Spec 34). */
+    referenciaCentavos: number | null;
+  }[];
   salasSemPreco: string[];
   salasCentavos: number;
   coffeeCentavos: number;
@@ -102,6 +109,10 @@ export interface CriarLocacaoPayload {
   sobreposicaoAutorizada?: boolean;
   /** Lançamento retroativo — evento passado, sem automações (Spec 31 §6). */
   retroativa?: boolean;
+  /** Valor final por sala confirmado/sobrescrito pelo colaborador (Spec 34). */
+  valoresManuaisPorSala: Record<string, number>;
+  /** Desconto manual — percentual ou valor fixo em centavos (Spec 34). */
+  descontoManual?: { tipo: "percentual" | "valor"; valor: number; motivo?: string } | null;
 }
 
 /** Ocupante bloqueante que o colaborador precisa confirmar sobrepor (Spec 31 §7). */

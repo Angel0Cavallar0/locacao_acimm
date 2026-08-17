@@ -9,7 +9,12 @@ import {
 } from "@/lib/periodo-gratuito/elegibilidade-core";
 import { resolverPreco } from "@/lib/precos/resolver";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { somarAdicionais, totalCoffee, totalGeral } from "./calcular-core";
+import {
+  calcularDescontoManual,
+  somarAdicionais,
+  totalCoffee,
+  totalGeral,
+} from "./calcular-core";
 import {
   avaliarElegibilidadeCombo,
   calcularDescontoMultiSala,
@@ -17,7 +22,13 @@ import {
   ratearValorFechado,
 } from "./combo-core";
 
-type SalaCalc = { salaId: string; valorCentavos: number; semPreco: boolean };
+type SalaCalc = {
+  salaId: string;
+  valorCentavos: number;
+  semPreco: boolean;
+  /** Valor que resolverPreco() calcularia — só exibição/comparação (Spec 34). */
+  referenciaCentavos: number | null;
+};
 
 /**
  * ÚNICA fonte de cálculo de valores da locação (Spec 07 §4). O client nunca
@@ -25,6 +36,14 @@ type SalaCalc = { salaId: string; valorCentavos: number; semPreco: boolean };
  * do coffee de coffee_niveis. Os adicionais (locação e coffee) são valores
  * manuais digitados pelo colaborador (como "hora extra R$45"), então entram
  * como informados — a aritmética é sempre refeita aqui. Spec 11 reutiliza.
+ *
+ * Exceção deliberada (Spec 34): no atendimento assistido (`nova/actions.ts`,
+ * sempre atrás de `requireColaborador()`), o colaborador pode confirmar ou
+ * sobrescrever o valor de cada sala (`valoresManuaisPorSala`) e aplicar um
+ * desconto manual (`descontoManual`) — nunca no portal do associado, que
+ * nunca passa esses campos. A aritmética (soma, desconto, total) continua
+ * inteiramente do servidor; só o valor-base de cada sala passa a poder ser
+ * confirmado por um humano autorizado em vez de vir só de resolverPreco().
  */
 
 export interface EntradaCalculo {
@@ -45,6 +64,21 @@ export interface EntradaCalculo {
   periodoGratuitoRecusado?: boolean;
   /** Combo selecionado (Spec 20 §3, parte 2) — exclusivo de sócio ativo. */
   comboId?: string | null;
+  /**
+   * Valor final por sala definido pelo colaborador no atendimento assistido
+   * (Spec 34) — salaId → centavos. Quando presente para uma sala, SEMPRE
+   * vence sobre a referência de resolverPreco() (nunca escreve em
+   * precos_sala; é um valor específico desta locação, usado em tudo:
+   * cobrança, contrato e base de comissão). Ausente no portal do associado.
+   */
+  valoresManuaisPorSala?: Record<string, number>;
+  /**
+   * Desconto manual (Spec 34) — percentual (0–100) ou valor fixo em
+   * centavos, aplicado sobre o valor de sala já líquido de combo/período
+   * gratuito. Mantém o invariante "todo desconto do sistema é de sala"
+   * (comissoes-core.ts) sem precisar mexer no motor de comissões.
+   */
+  descontoManual?: { tipo: "percentual" | "valor"; valor: number } | null;
 }
 
 /** Info do combo para a UX e a validação (null = nenhum combo). */
@@ -85,7 +119,12 @@ export interface LinhaDesconto {
 }
 
 export interface ResultadoCalculo {
-  salas: { salaId: string; valorCentavos: number; semPreco: boolean }[];
+  salas: {
+    salaId: string;
+    valorCentavos: number;
+    semPreco: boolean;
+    referenciaCentavos: number | null;
+  }[];
   salasSemPreco: string[];
   salasCentavos: number;
   coffeeCentavos: number;
@@ -113,11 +152,24 @@ export async function calcularValores(
       periodo: input.periodo,
       condicao: input.condicao,
     });
-    if ("erro" in preco) {
-      salasRef.push({ salaId, valorCentavos: 0, semPreco: true });
+    const referenciaCentavos = "erro" in preco ? null : preco.valorCentavos;
+    // Atendimento assistido (Spec 34): o colaborador pode confirmar ou
+    // sobrescrever o valor de referência — nunca altera precos_sala, e o
+    // valor final vale para cobrança/contrato/comissão desta locação.
+    const manual = input.valoresManuaisPorSala?.[salaId];
+    if (manual !== undefined) {
+      salasRef.push({ salaId, valorCentavos: manual, semPreco: false, referenciaCentavos });
+      salasCentavosRef += manual;
+    } else if (referenciaCentavos !== null) {
+      salasRef.push({
+        salaId,
+        valorCentavos: referenciaCentavos,
+        semPreco: false,
+        referenciaCentavos,
+      });
+      salasCentavosRef += referenciaCentavos;
     } else {
-      salasRef.push({ salaId, valorCentavos: preco.valorCentavos, semPreco: false });
-      salasCentavosRef += preco.valorCentavos;
+      salasRef.push({ salaId, valorCentavos: 0, semPreco: true, referenciaCentavos: null });
     }
   }
 
@@ -168,6 +220,23 @@ export async function calcularValores(
       valorCentavos: sala?.valorCentavos ?? 0,
     });
   }
+
+  // Desconto manual (Spec 34): colaborador, atendimento assistido. Aplicado
+  // sobre o que resta do valor de sala após combo/período gratuito — mantém
+  // o invariante "todo desconto do sistema é de sala" (comissoes-core.ts).
+  if (input.descontoManual) {
+    const jaDescontado = descontos.reduce((s, d) => s + d.valorCentavos, 0);
+    const baseRestante = Math.max(0, salasCentavos - jaDescontado);
+    const valorDesconto = calcularDescontoManual(baseRestante, input.descontoManual);
+    if (valorDesconto > 0) {
+      const rotulo =
+        input.descontoManual.tipo === "percentual"
+          ? `Desconto manual — ${input.descontoManual.valor}%`
+          : "Desconto manual";
+      descontos.push({ rotulo, valorCentavos: valorDesconto });
+    }
+  }
+
   const descontosCentavos = descontos.reduce((s, d) => s + d.valorCentavos, 0);
 
   const totalCentavos = totalGeral({
@@ -325,6 +394,8 @@ async function avaliarCombo(
       salaId: r.salaId,
       valorCentavos: r.valorCentavos,
       semPreco: false,
+      referenciaCentavos:
+        salasRef.find((s) => s.salaId === r.salaId)?.referenciaCentavos ?? null,
     }));
     return {
       info: { ...info, referenciaCentavos: salasCentavosRef },

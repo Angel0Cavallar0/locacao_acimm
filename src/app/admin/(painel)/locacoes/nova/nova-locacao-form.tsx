@@ -204,6 +204,36 @@ export function NovaLocacaoForm({
   // Lançamento retroativo (Spec 31 §6): evento passado, sem automações.
   const [retroativa, setRetroativa] = useState(false);
 
+  // Valor por sala editável (Spec 34): texto BRL exibido; "tocada" = o
+  // colaborador já editou, então não sincroniza mais com a referência do
+  // servidor. Desconto manual: sempre disponível, não depende de retroativa.
+  const [valoresPorSalaTexto, setValoresPorSalaTexto] = useState<
+    Record<string, string>
+  >({});
+  const [salasTocadas, setSalasTocadas] = useState<Set<string>>(new Set());
+  const [descontoAtivo, setDescontoAtivo] = useState(false);
+  const [descontoTipo, setDescontoTipo] = useState<"percentual" | "valor">(
+    "percentual",
+  );
+  const [descontoValorTexto, setDescontoValorTexto] = useState("");
+  const [descontoMotivo, setDescontoMotivo] = useState("");
+
+  function editarValorSala(salaId: string, texto: string) {
+    setValoresPorSalaTexto((p) => ({ ...p, [salaId]: texto }));
+    setSalasTocadas((p) => new Set(p).add(salaId));
+  }
+  function restaurarValorReferencia(salaId: string, referenciaCentavos: number) {
+    setValoresPorSalaTexto((p) => ({
+      ...p,
+      [salaId]: centavosParaBRL(referenciaCentavos),
+    }));
+    setSalasTocadas((p) => {
+      const n = new Set(p);
+      n.delete(salaId);
+      return n;
+    });
+  }
+
   function trocarPeriodo(p: PeriodoDia) {
     setPeriodo(p);
     setHoraInicio(horarios[p].inicio);
@@ -291,6 +321,44 @@ export function NovaLocacaoForm({
   // Período gratuito do sócio: o colaborador pode recusar (guarda o uso).
   const [pgRecusado, setPgRecusado] = useState(false);
 
+  // Ao trocar a seleção de salas, descarta valores/edições de salas que
+  // saíram — uma sala re-adicionada depois começa "não tocada" de novo.
+  useEffect(() => {
+    setSalasTocadas((p) => new Set([...p].filter((id) => salaIds.includes(id))));
+    setValoresPorSalaTexto((p) =>
+      Object.fromEntries(
+        Object.entries(p).filter(([id]) => salaIds.includes(id)),
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salaIds]);
+
+  // Valor manual por sala (Spec 34): só envia override das salas que o
+  // colaborador realmente editou — as demais seguem a referência do servidor.
+  const valoresManuaisPorSalaCentavos: Record<string, number> = Object.fromEntries(
+    [...salasTocadas]
+      .filter((id) => salaIds.includes(id))
+      .map((id): [string, number] => [
+        id,
+        brlParaCentavos(valoresPorSalaTexto[id] ?? "0"),
+      ]),
+  );
+  const descontoManualValorNumerico =
+    descontoTipo === "percentual"
+      ? Number(descontoValorTexto.replace(",", "."))
+      : brlParaCentavos(descontoValorTexto);
+  const descontoManualPayload =
+    descontoAtivo &&
+    descontoValorTexto.trim() &&
+    Number.isFinite(descontoManualValorNumerico) &&
+    descontoManualValorNumerico > 0
+      ? {
+          tipo: descontoTipo,
+          valor: descontoManualValorNumerico,
+          motivo: descontoMotivo.trim() || undefined,
+        }
+      : null;
+
   // Resumo em tempo real (server recalcula — client só exibe).
   const associadoIdCalc = condicao === "associado" ? (assoc?.id ?? null) : null;
   const chaveResumo = JSON.stringify({
@@ -305,6 +373,8 @@ export function NovaLocacaoForm({
       ? { coffeeNivelId, coffeeQtd, coffeeAdicionaisCentavos }
       : null,
     adicionaisCalc,
+    valoresManuaisPorSalaCentavos,
+    descontoManualPayload,
   });
   useEffect(() => {
     if (salaIds.length === 0 || !data) {
@@ -330,6 +400,8 @@ export function NovaLocacaoForm({
               }
             : null,
         adicionais: adicionaisCalc,
+        valoresManuaisPorSala: valoresManuaisPorSalaCentavos,
+        descontoManual: descontoManualPayload,
       });
       if (ativo) setResumo(r);
     }, 350);
@@ -339,6 +411,26 @@ export function NovaLocacaoForm({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveResumo]);
+
+  // Sincroniza o texto exibido das salas NÃO tocadas com a referência que o
+  // servidor acabou de calcular (ex.: mudou data/período/condição).
+  useEffect(() => {
+    if (!resumo) return;
+    setValoresPorSalaTexto((p) => {
+      const next = { ...p };
+      let mudou = false;
+      for (const s of resumo.salas) {
+        if (salasTocadas.has(s.salaId)) continue;
+        const texto = centavosParaBRL(s.valorCentavos);
+        if (next[s.salaId] !== texto) {
+          next[s.salaId] = texto;
+          mudou = true;
+        }
+      }
+      return mudou ? next : p;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumo]);
 
   // Disponibilidade inline.
   const chaveDisp = JSON.stringify({ salaIds, data, horaInicio, horaFim });
@@ -404,6 +496,12 @@ export function NovaLocacaoForm({
       setErro("Selecione sala(s) e data.");
       return;
     }
+    if (resumo && resumo.salasSemPreco.length > 0) {
+      setErro(
+        "Informe o valor de todas as salas selecionadas (não há preço de referência para alguma delas nessa data).",
+      );
+      return;
+    }
     if (retroativa && !formaPagamento && (resumo?.totalCentavos ?? 0) > 0) {
       setErro("Escolha a forma de pagamento do lançamento retroativo.");
       return;
@@ -457,6 +555,8 @@ export function NovaLocacaoForm({
       comboId,
       sobreposicaoAutorizada: sobrepor,
       retroativa,
+      valoresManuaisPorSala: valoresManuaisPorSalaCentavos,
+      descontoManual: descontoManualPayload,
     });
     setEnviando(false);
     setEnviandoQual(null);
@@ -958,15 +1058,47 @@ export function NovaLocacaoForm({
                   </div>
                 ) : null}
                 {resumo.salas.map((s) => (
-                  <div key={s.salaId} className="flex justify-between">
-                    <span className="text-ink-muted">
-                      {nomeSala.get(s.salaId) ?? s.nome}
-                    </span>
-                    <span className={s.semPreco ? "text-destructive" : "text-ink"}>
-                      {s.semPreco
-                        ? "sem preço"
-                        : centavosParaBRL(s.valorCentavos)}
-                    </span>
+                  <div key={s.salaId} className="flex flex-col gap-0.5 py-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-ink-muted">
+                        {nomeSala.get(s.salaId) ?? s.nome}
+                      </span>
+                      <Input
+                        aria-label={`Valor da sala ${nomeSala.get(s.salaId) ?? s.nome}`}
+                        className="h-7 w-28 text-right text-sm"
+                        value={valoresPorSalaTexto[s.salaId] ?? ""}
+                        onChange={(e) => editarValorSala(s.salaId, e.target.value)}
+                        placeholder="R$ 0,00"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      {s.referenciaCentavos == null ? (
+                        <span className="text-destructive">
+                          Sem preço de referência para esta data/condição —
+                          informe o valor.
+                        </span>
+                      ) : s.valorCentavos !== s.referenciaCentavos ? (
+                        <span className="text-ink-muted">
+                          Referência: {centavosParaBRL(s.referenciaCentavos)}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+                      {salasTocadas.has(s.salaId) && s.referenciaCentavos != null ? (
+                        <button
+                          type="button"
+                          className="text-brand hover:underline"
+                          onClick={() =>
+                            restaurarValorReferencia(
+                              s.salaId,
+                              s.referenciaCentavos as number,
+                            )
+                          }
+                        >
+                          usar valor de referência
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
                 {resumo.coffeeCentavos > 0 ? (
@@ -995,6 +1127,66 @@ export function NovaLocacaoForm({
                     </span>
                   </div>
                 ))}
+
+                <div className="mt-1 flex flex-col gap-2 rounded-md border border-dashed px-2.5 py-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      className="size-3.5"
+                      checked={descontoAtivo}
+                      onChange={(e) => setDescontoAtivo(e.target.checked)}
+                    />
+                    <span className="font-medium text-ink">
+                      Aplicar desconto manual
+                    </span>
+                  </label>
+                  {descontoAtivo ? (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setDescontoTipo("percentual")}
+                          className={
+                            descontoTipo === "percentual"
+                              ? "rounded-full border border-brand bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand"
+                              : "rounded-full border px-2.5 py-0.5 text-xs text-ink-muted"
+                          }
+                        >
+                          Percentual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDescontoTipo("valor")}
+                          className={
+                            descontoTipo === "valor"
+                              ? "rounded-full border border-brand bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand"
+                              : "rounded-full border px-2.5 py-0.5 text-xs text-ink-muted"
+                          }
+                        >
+                          Valor em R$
+                        </button>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        <Input
+                          className="h-8 text-sm"
+                          value={descontoValorTexto}
+                          onChange={(e) => setDescontoValorTexto(e.target.value)}
+                          placeholder={
+                            descontoTipo === "percentual" ? "Ex.: 10" : "Ex.: 50,00"
+                          }
+                          inputMode="decimal"
+                        />
+                        <Input
+                          className="h-8 text-sm"
+                          value={descontoMotivo}
+                          onChange={(e) => setDescontoMotivo(e.target.value)}
+                          placeholder="Motivo (opcional)"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
                 {resumo.periodoGratuito &&
                 (resumo.periodoGratuito.elegivel ||
                   resumo.periodoGratuito.motivo === "esgotado") ? (
@@ -1040,7 +1232,8 @@ export function NovaLocacaoForm({
           ) : null}
           {resumo && resumo.salasSemPreco.length > 0 ? (
             <p className="text-sm text-destructive">
-              Há sala sem preço cadastrado para este período/condição/data.
+              Não há preço de referência para alguma sala nesse
+              período/condição/data — informe o valor manualmente acima.
             </p>
           ) : null}
           {resumo?.aviso ? (
