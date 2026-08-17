@@ -342,6 +342,7 @@ export default async function LocacaoDetalhePage({
                   temPdf={Boolean(loc.contrato.pdfUrl)}
                   temAssinado={loc.contrato.temAssinado}
                   assinado={loc.contrato.status === "assinado"}
+                  statusContrato={loc.contrato.status}
                 />
               </div>
             ) : STATUS_COM_CONTRATO.has(loc.status) ? (
