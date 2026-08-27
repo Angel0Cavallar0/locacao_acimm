@@ -77,6 +77,8 @@ export const criarLocacaoSchema = z
     filaEsperaId: z.uuid().nullable().default(null),
     // Conversão a partir de uma pendência sem data (marca convertido_locacao_id).
     pendenciaId: z.uuid().nullable().optional().default(null),
+    // Conversão a partir de uma cotação (marca cotacoes.status = 'convertida').
+    cotacaoId: z.uuid().nullable().optional().default(null),
     // Preferência de canal de notificação ao locatário (assistida) — default
     // true preserva o comportamento atual quando o campo não é enviado.
     notificarWhatsapp: z.boolean().optional().default(true),

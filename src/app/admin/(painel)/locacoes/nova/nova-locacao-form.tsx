@@ -123,10 +123,13 @@ export function NovaLocacaoForm({
   servicos: ServicoAdicional[];
   prefill: {
     salaId: string | null;
+    /** Cotação pode orçar mais de uma sala. */
+    salaIds?: string[] | null;
     data: string | null;
     periodo: PeriodoDia | null;
     filaId?: string | null;
     pendenciaId?: string | null;
+    cotacaoId?: string | null;
     locatario?: {
       condicao: CondicaoLocatario;
       associado: AssociadoBusca | null;
@@ -143,6 +146,7 @@ export function NovaLocacaoForm({
   const pl = prefill.locatario;
   const [filaId] = useState<string | null>(prefill.filaId ?? null);
   const [pendenciaId] = useState<string | null>(prefill.pendenciaId ?? null);
+  const [cotacaoId] = useState<string | null>(prefill.cotacaoId ?? null);
   const [condicao, setCondicao] = useState<CondicaoLocatario>(
     pl?.condicao ?? "associado",
   );
@@ -157,7 +161,7 @@ export function NovaLocacaoForm({
 
   // Evento
   const [salaIds, setSalaIds] = useState<string[]>(
-    prefill.salaId ? [prefill.salaId] : [],
+    prefill.salaIds ?? (prefill.salaId ? [prefill.salaId] : []),
   );
   const [data, setData] = useState(prefill.data ?? "");
   const [periodo, setPeriodo] = useState<PeriodoDia>(prefill.periodo ?? "manha");
@@ -567,6 +571,7 @@ export function NovaLocacaoForm({
       aprovar,
       filaEsperaId: filaId,
       pendenciaId,
+      cotacaoId,
       periodoGratuitoRecusado: pgRecusado,
       comboId,
       sobreposicaoAutorizada: sobrepor,
@@ -618,6 +623,14 @@ export function NovaLocacaoForm({
           Convertendo uma{" "}
           <span className="font-medium">pendência sem data</span>. Ao salvar,
           a pendência é marcada como convertida.
+        </div>
+      ) : null}
+
+      {cotacaoId ? (
+        <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-sm text-ink">
+          Convertendo uma <span className="font-medium">cotação</span>. A
+          disponibilidade é checada agora, normalmente — a cotação não
+          reservou o horário.
         </div>
       ) : null}
 

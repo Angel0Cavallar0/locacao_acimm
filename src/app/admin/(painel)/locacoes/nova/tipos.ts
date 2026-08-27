@@ -103,6 +103,8 @@ export interface CriarLocacaoPayload {
   filaEsperaId?: string | null;
   /** Conversão a partir de uma pendência sem data. */
   pendenciaId?: string | null;
+  /** Conversão a partir de uma cotação. */
+  cotacaoId?: string | null;
   /** Sócio recusou o período gratuito nesta reserva (Spec 20 §5.3). */
   periodoGratuitoRecusado?: boolean;
   /** Combo selecionado (Spec 20 §3). */

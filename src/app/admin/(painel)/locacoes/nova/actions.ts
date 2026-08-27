@@ -568,6 +568,17 @@ export async function criarLocacaoAssistida(
   }
   const id = novoId as string;
 
+  // Conversão a partir de uma cotação: marca convertida (best-effort — a
+  // cotação nunca reservou nada, então não precisa da mesma atomicidade
+  // transacional de fila de espera/pendência).
+  if (v.cotacaoId) {
+    await admin
+      .from("cotacoes")
+      .update({ status: "convertida", convertido_locacao_id: id })
+      .eq("id", v.cotacaoId)
+      .eq("status", "pendente");
+  }
+
   // Vínculo do combo (metadado): best-effort pós-insert (Spec 20 §3).
   if (calc.combo?.aplicado) {
     await admin.from("locacoes").update({ combo_id: calc.combo.id }).eq("id", id);
