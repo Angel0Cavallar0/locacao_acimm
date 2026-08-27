@@ -29,6 +29,7 @@ import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
 import { PagamentoPendenteBadge, StatusBadge } from "../status-badge";
 import { ContratoAcoes } from "./contrato-acoes";
+import { ExclusaoLocacao } from "./exclusao-locacao";
 import { MesRecebimento } from "./mes-recebimento";
 import { NotificacoesLista } from "./notificacoes-lista";
 import { ObservacoesInternas } from "./observacoes-internas";
@@ -81,7 +82,7 @@ export default async function LocacaoDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireColaborador();
+  const { colaborador } = await requireColaborador();
   const { id } = await params;
 
   const loc = await carregarLocacao(id);
@@ -428,6 +429,10 @@ export default async function LocacaoDetalhePage({
           <Secao titulo="Linha do tempo">
             <LinhaDoTempo eventos={loc.eventos} />
           </Secao>
+
+          {colaborador.role === "admin" ? (
+            <ExclusaoLocacao locacaoId={loc.id} numero={loc.numero} />
+          ) : null}
         </div>
       </div>
     </div>
