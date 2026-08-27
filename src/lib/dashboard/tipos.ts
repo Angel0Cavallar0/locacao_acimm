@@ -31,9 +31,6 @@ export interface CardsIndicadores {
   receitaQuantidade: number;
   /** Pipeline do mês (aprovada→aguardando_pagamento): não é receita ainda. */
   pipelineMesCentavos: number;
-  ocupacaoPct: number;
-  ocupacaoBloqueados: number;
-  ocupacaoDisponiveis: number;
 }
 
 export interface LocacaoResumo {
@@ -49,9 +46,6 @@ export interface LocacaoResumo {
 export interface OcupacaoSala {
   salaId: string;
   nome: string;
-  bloqueados: number;
-  total: number;
-  pct: number;
   /** Quantas vezes a sala foi locada no mês (locações distintas bloqueantes). */
   locacoesQtd: number;
   /** Sala com regra de período gratuito ativa (marcador discreto — §5). */
