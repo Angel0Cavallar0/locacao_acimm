@@ -109,6 +109,10 @@ export interface CriarLocacaoPayload {
   sobreposicaoAutorizada?: boolean;
   /** Lançamento retroativo — evento passado, sem automações (Spec 31 §6). */
   retroativa?: boolean;
+  /** Resultado do evento retroativo — só relevante quando `retroativa`. */
+  retroativaResultado?: "concluido" | "cancelado";
+  /** Situação do pagamento retroativo — só relevante quando `retroativa`. */
+  retroativaPagamento?: "pago" | "pendente";
   /** Valor final por sala confirmado/sobrescrito pelo colaborador (Spec 34). */
   valoresManuaisPorSala: Record<string, number>;
   /** Desconto manual — percentual ou valor fixo em centavos (Spec 34). */

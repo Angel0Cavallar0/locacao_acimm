@@ -82,6 +82,16 @@ export const criarLocacaoSchema = z
     sobreposicaoAutorizada: z.boolean().optional().default(false),
     // Lançamento retroativo (Spec 31 §6): evento passado, sem automações.
     retroativa: z.boolean().optional().default(false),
+    // Resultado do evento retroativo e situação do pagamento — só relevantes
+    // quando `retroativa = true` (ver completarRetroativa em nova/actions.ts).
+    retroativaResultado: z
+      .enum(["concluido", "cancelado"])
+      .optional()
+      .default("concluido"),
+    retroativaPagamento: z
+      .enum(["pago", "pendente"])
+      .optional()
+      .default("pago"),
     // Valor final por sala confirmado/sobrescrito pelo colaborador (Spec 34).
     valoresManuaisPorSala: z
       .record(z.string().uuid(), z.number().int().min(0).max(100_000_000))
