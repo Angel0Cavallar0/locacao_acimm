@@ -126,6 +126,7 @@ export function NovaLocacaoForm({
     data: string | null;
     periodo: PeriodoDia | null;
     filaId?: string | null;
+    pendenciaId?: string | null;
     locatario?: {
       condicao: CondicaoLocatario;
       associado: AssociadoBusca | null;
@@ -141,6 +142,7 @@ export function NovaLocacaoForm({
   // Locatário (pré-preenchido quando convertendo da lista de espera).
   const pl = prefill.locatario;
   const [filaId] = useState<string | null>(prefill.filaId ?? null);
+  const [pendenciaId] = useState<string | null>(prefill.pendenciaId ?? null);
   const [condicao, setCondicao] = useState<CondicaoLocatario>(
     pl?.condicao ?? "associado",
   );
@@ -564,6 +566,7 @@ export function NovaLocacaoForm({
       formaPagamento: formaPagamento || null,
       aprovar,
       filaEsperaId: filaId,
+      pendenciaId,
       periodoGratuitoRecusado: pgRecusado,
       comboId,
       sobreposicaoAutorizada: sobrepor,
@@ -607,6 +610,14 @@ export function NovaLocacaoForm({
           Convertendo um interessado da{" "}
           <span className="font-medium">lista de espera</span>. Ao salvar, a
           entrada é marcada como convertida.
+        </div>
+      ) : null}
+
+      {pendenciaId ? (
+        <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-sm text-ink">
+          Convertendo uma{" "}
+          <span className="font-medium">pendência sem data</span>. Ao salvar,
+          a pendência é marcada como convertida.
         </div>
       ) : null}
 

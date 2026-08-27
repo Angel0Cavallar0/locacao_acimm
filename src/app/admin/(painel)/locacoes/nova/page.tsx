@@ -64,6 +64,7 @@ export default async function NovaLocacaoPage({
   let filaId: string | null = null;
   let filaSalaId: string | null = null;
   let filaData: string | null = null;
+  let pendenciaId: string | null = null;
   let locatario: LocatarioPrefill | null = null;
 
   const filaParam = texto(sp.fila);
@@ -128,6 +129,69 @@ export default async function NovaLocacaoPage({
     }
   }
 
+  // Conversão a partir de uma pendência sem data (?pendencia={id}): só
+  // pré-preenche o locatário — sala/data seguem em aberto, é o próprio
+  // propósito da pendência (não tinha data definida ainda).
+  const pendenciaParam = texto(sp.pendencia);
+  if (pendenciaParam && !locatario) {
+    const admin = createAdminClient();
+    const { data: pend } = await admin
+      .from("pendencias_locacao")
+      .select(
+        "id, associado_id, nome, contato, convertido_locacao_id, arquivado_em",
+      )
+      .eq("id", pendenciaParam)
+      .maybeSingle();
+
+    if (pend && !pend.convertido_locacao_id && !pend.arquivado_em) {
+      pendenciaId = pend.id as string;
+
+      if (pend.associado_id) {
+        const { data: a } = await admin
+          .from("associados")
+          .select(
+            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao, codigo_sophus",
+          )
+          .eq("id", pend.associado_id)
+          .maybeSingle();
+        if (a) {
+          const associado: AssociadoBusca = {
+            id: a.id as string,
+            nome: a.nome as string,
+            razaoSocial: (a.razao_social as string | null) ?? null,
+            documento: (a.documento as string | null) ?? null,
+            emails: (a.emails as string[] | null) ?? [],
+            telefone:
+              (a.whatsapp as string | null) ??
+              (a.celular as string | null) ??
+              (a.telefone as string | null) ??
+              null,
+            situacao: a.situacao as AssociadoBusca["situacao"],
+            codigoSophus: (a.codigo_sophus as number | null) ?? null,
+          };
+          locatario = {
+            condicao: "associado",
+            associado,
+            nome: associado.razaoSocial ?? associado.nome,
+            documento: mascararDocumento(associado.documento ?? ""),
+            email: associado.emails[0] ?? "",
+            telefone: mascararTelefone(associado.telefone ?? ""),
+          };
+        }
+      }
+      if (!locatario) {
+        locatario = {
+          condicao: "nao_associado",
+          associado: null,
+          nome: (pend.nome as string) ?? "",
+          documento: "",
+          email: "",
+          telefone: mascararTelefone((pend.contato as string) ?? ""),
+        };
+      }
+    }
+  }
+
   const prefill = {
     salaId: filaSalaId ?? texto(sp.sala),
     data: filaData ?? texto(sp.data),
@@ -136,6 +200,7 @@ export default async function NovaLocacaoPage({
         ? (periodoPrefill as PeriodoDia)
         : null,
     filaId,
+    pendenciaId,
     locatario,
   };
 

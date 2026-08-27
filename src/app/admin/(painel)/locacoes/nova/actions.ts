@@ -540,6 +540,7 @@ export async function criarLocacaoAssistida(
     p_retroativa: v.retroativa,
     p_notificar_whatsapp: v.notificarWhatsapp,
     p_notificar_email: v.notificarEmail,
+    p_pendencia_id: v.pendenciaId ?? null,
   });
 
   if (error || !novoId) {

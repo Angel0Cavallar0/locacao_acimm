@@ -101,6 +101,8 @@ export interface CriarLocacaoPayload {
   aprovar: boolean;
   /** Conversão a partir da lista de espera (Spec 19 §4). */
   filaEsperaId?: string | null;
+  /** Conversão a partir de uma pendência sem data. */
+  pendenciaId?: string | null;
   /** Sócio recusou o período gratuito nesta reserva (Spec 20 §5.3). */
   periodoGratuitoRecusado?: boolean;
   /** Combo selecionado (Spec 20 §3). */
