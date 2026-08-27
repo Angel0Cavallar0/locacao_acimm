@@ -538,6 +538,8 @@ export async function criarLocacaoAssistida(
     p_periodo_gratuito: gratuitoPayload,
     p_sobreposicao_autorizada: v.sobreposicaoAutorizada,
     p_retroativa: v.retroativa,
+    p_notificar_whatsapp: v.notificarWhatsapp,
+    p_notificar_email: v.notificarEmail,
   });
 
   if (error || !novoId) {

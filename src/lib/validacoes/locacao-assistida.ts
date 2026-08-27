@@ -75,6 +75,10 @@ export const criarLocacaoSchema = z
       .default(null),
     aprovar: z.boolean().default(false),
     filaEsperaId: z.uuid().nullable().default(null),
+    // Preferência de canal de notificação ao locatário (assistida) — default
+    // true preserva o comportamento atual quando o campo não é enviado.
+    notificarWhatsapp: z.boolean().optional().default(true),
+    notificarEmail: z.boolean().optional().default(true),
     periodoGratuitoRecusado: z.boolean().optional().default(false),
     comboId: z.uuid().nullable().default(null),
     // Sobreposição autorizada por colaborador (Spec 31 §7): permite gravar

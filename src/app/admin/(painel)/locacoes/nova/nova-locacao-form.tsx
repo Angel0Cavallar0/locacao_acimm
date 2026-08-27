@@ -190,6 +190,8 @@ export function NovaLocacaoForm({
   >([]);
 
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento | "">("");
+  const [notificarWhatsapp, setNotificarWhatsapp] = useState(true);
+  const [notificarEmail, setNotificarEmail] = useState(true);
 
   const [resumo, setResumo] = useState<ResumoValores | null>(null);
   const [disp, setDisp] = useState<DisponibilidadeSala[]>([]);
@@ -568,6 +570,8 @@ export function NovaLocacaoForm({
       retroativa,
       retroativaResultado,
       retroativaPagamento,
+      notificarWhatsapp,
+      notificarEmail,
       valoresManuaisPorSala: valoresManuaisPorSalaCentavos,
       descontoManual: descontoManualPayload,
     });
@@ -1047,6 +1051,30 @@ export function NovaLocacaoForm({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-ink">
+              Notificar o locatário
+            </span>
+            <div className="flex gap-4 text-sm">
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={notificarWhatsapp}
+                  onChange={(e) => setNotificarWhatsapp(e.target.checked)}
+                />
+                WhatsApp
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={notificarEmail}
+                  onChange={(e) => setNotificarEmail(e.target.checked)}
+                />
+                E-mail
+              </label>
+            </div>
           </div>
 
           <div className="rounded-md border bg-surface-muted p-3 text-sm">

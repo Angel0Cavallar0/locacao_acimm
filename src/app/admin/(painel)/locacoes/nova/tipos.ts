@@ -113,6 +113,9 @@ export interface CriarLocacaoPayload {
   retroativaResultado?: "concluido" | "cancelado";
   /** Situação do pagamento retroativo — só relevante quando `retroativa`. */
   retroativaPagamento?: "pago" | "pendente";
+  /** Preferência de canal de notificação ao locatário nesta locação. */
+  notificarWhatsapp?: boolean;
+  notificarEmail?: boolean;
   /** Valor final por sala confirmado/sobrescrito pelo colaborador (Spec 34). */
   valoresManuaisPorSala: Record<string, number>;
   /** Desconto manual — percentual ou valor fixo em centavos (Spec 34). */
