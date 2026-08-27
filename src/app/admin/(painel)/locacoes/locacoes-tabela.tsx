@@ -11,13 +11,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { dataSP, horaSP } from "@/lib/calendario/tempo";
+import { mostraPagamentoPendente } from "@/lib/locacoes/maquina-estados-core";
 import {
   FORMA_PAGAMENTO_ROTULO,
   type LocacaoLista,
   rotuloLocacao,
 } from "@/lib/locacoes/tipos";
 import { centavosParaBRL } from "@/lib/utils/moeda";
-import { StatusBadge } from "./status-badge";
+import { PagamentoPendenteBadge, StatusBadge } from "./status-badge";
 
 export function LocacoesTabela({ linhas }: { linhas: LocacaoLista[] }) {
   const router = useRouter();
@@ -76,7 +77,12 @@ export function LocacoesTabela({ linhas }: { linhas: LocacaoLista[] }) {
                 {l.salas.join(", ") || "—"}
               </TableCell>
               <TableCell>
-                <StatusBadge status={l.status} />
+                <div className="flex flex-wrap items-center gap-1">
+                  <StatusBadge status={l.status} />
+                  {l.pagamentoPendente && mostraPagamentoPendente(l.status) ? (
+                    <PagamentoPendenteBadge />
+                  ) : null}
+                </div>
               </TableCell>
               <TableCell className="text-right text-ink">
                 {centavosParaBRL(l.valorTotalCentavos)}

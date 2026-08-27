@@ -1,10 +1,12 @@
 import {
   CalendarDays,
+  CalendarOff,
   ClipboardList,
   Coffee,
   Contact,
   DollarSign,
   DoorOpen,
+  FileSpreadsheet,
   FileText,
   FormInput,
   LayoutDashboard,
@@ -34,6 +36,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/admin/contratos", label: "Contratos", icon: FileText },
   { href: "/admin/comissoes", label: "Comissões", icon: DollarSign },
   { href: "/admin/lista-espera", label: "Pendentes", icon: ListOrdered },
+  { href: "/admin/pendencias", label: "Sem data", icon: CalendarOff },
+  { href: "/admin/cotacoes", label: "Cotações", icon: FileSpreadsheet },
   {
     href: "/admin/configuracoes/servicos",
     label: "Serviços adicionais",

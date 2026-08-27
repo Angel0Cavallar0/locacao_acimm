@@ -123,9 +123,13 @@ export function NovaLocacaoForm({
   servicos: ServicoAdicional[];
   prefill: {
     salaId: string | null;
+    /** Cotação pode orçar mais de uma sala. */
+    salaIds?: string[] | null;
     data: string | null;
     periodo: PeriodoDia | null;
     filaId?: string | null;
+    pendenciaId?: string | null;
+    cotacaoId?: string | null;
     locatario?: {
       condicao: CondicaoLocatario;
       associado: AssociadoBusca | null;
@@ -141,6 +145,8 @@ export function NovaLocacaoForm({
   // Locatário (pré-preenchido quando convertendo da lista de espera).
   const pl = prefill.locatario;
   const [filaId] = useState<string | null>(prefill.filaId ?? null);
+  const [pendenciaId] = useState<string | null>(prefill.pendenciaId ?? null);
+  const [cotacaoId] = useState<string | null>(prefill.cotacaoId ?? null);
   const [condicao, setCondicao] = useState<CondicaoLocatario>(
     pl?.condicao ?? "associado",
   );
@@ -155,7 +161,7 @@ export function NovaLocacaoForm({
 
   // Evento
   const [salaIds, setSalaIds] = useState<string[]>(
-    prefill.salaId ? [prefill.salaId] : [],
+    prefill.salaIds ?? (prefill.salaId ? [prefill.salaId] : []),
   );
   const [data, setData] = useState(prefill.data ?? "");
   const [periodo, setPeriodo] = useState<PeriodoDia>(prefill.periodo ?? "manha");
@@ -190,6 +196,8 @@ export function NovaLocacaoForm({
   >([]);
 
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento | "">("");
+  const [notificarWhatsapp, setNotificarWhatsapp] = useState(true);
+  const [notificarEmail, setNotificarEmail] = useState(true);
 
   const [resumo, setResumo] = useState<ResumoValores | null>(null);
   const [disp, setDisp] = useState<DisponibilidadeSala[]>([]);
@@ -203,6 +211,12 @@ export function NovaLocacaoForm({
   const [conflitoAprovar, setConflitoAprovar] = useState(false);
   // Lançamento retroativo (Spec 31 §6): evento passado, sem automações.
   const [retroativa, setRetroativa] = useState(false);
+  const [retroativaResultado, setRetroativaResultado] = useState<
+    "concluido" | "cancelado"
+  >("concluido");
+  const [retroativaPagamento, setRetroativaPagamento] = useState<
+    "pago" | "pendente"
+  >("pago");
 
   // Valor por sala editável (Spec 34): texto BRL exibido; "tocada" = o
   // colaborador já editou, então não sincroniza mais com a referência do
@@ -502,7 +516,12 @@ export function NovaLocacaoForm({
       );
       return;
     }
-    if (retroativa && !formaPagamento && (resumo?.totalCentavos ?? 0) > 0) {
+    if (
+      retroativa &&
+      retroativaResultado === "concluido" &&
+      !formaPagamento &&
+      (resumo?.totalCentavos ?? 0) > 0
+    ) {
       setErro("Escolha a forma de pagamento do lançamento retroativo.");
       return;
     }
@@ -551,10 +570,16 @@ export function NovaLocacaoForm({
       formaPagamento: formaPagamento || null,
       aprovar,
       filaEsperaId: filaId,
+      pendenciaId,
+      cotacaoId,
       periodoGratuitoRecusado: pgRecusado,
       comboId,
       sobreposicaoAutorizada: sobrepor,
       retroativa,
+      retroativaResultado,
+      retroativaPagamento,
+      notificarWhatsapp,
+      notificarEmail,
       valoresManuaisPorSala: valoresManuaisPorSalaCentavos,
       descontoManual: descontoManualPayload,
     });
@@ -571,7 +596,9 @@ export function NovaLocacaoForm({
       setErro(r.error);
       return;
     }
-    if (r.concluida) {
+    if (retroativa && retroativaResultado === "cancelado") {
+      toast.success("Lançamento retroativo registrado (Cancelada).");
+    } else if (r.concluida) {
       toast.success("Lançamento retroativo registrado (Concluída).");
     } else {
       toast.success(aprovar ? "Locação criada e aprovada." : "Locação criada.");
@@ -588,6 +615,22 @@ export function NovaLocacaoForm({
           Convertendo um interessado da{" "}
           <span className="font-medium">lista de espera</span>. Ao salvar, a
           entrada é marcada como convertida.
+        </div>
+      ) : null}
+
+      {pendenciaId ? (
+        <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-sm text-ink">
+          Convertendo uma{" "}
+          <span className="font-medium">pendência sem data</span>. Ao salvar,
+          a pendência é marcada como convertida.
+        </div>
+      ) : null}
+
+      {cotacaoId ? (
+        <div className="rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-sm text-ink">
+          Convertendo uma <span className="font-medium">cotação</span>. A
+          disponibilidade é checada agora, normalmente — a cotação não
+          reservou o horário.
         </div>
       ) : null}
 
@@ -1034,6 +1077,30 @@ export function NovaLocacaoForm({
             </select>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-ink">
+              Notificar o locatário
+            </span>
+            <div className="flex gap-4 text-sm">
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={notificarWhatsapp}
+                  onChange={(e) => setNotificarWhatsapp(e.target.checked)}
+                />
+                WhatsApp
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={notificarEmail}
+                  onChange={(e) => setNotificarEmail(e.target.checked)}
+                />
+                E-mail
+              </label>
+            </div>
+          </div>
+
           <div className="rounded-md border bg-surface-muted p-3 text-sm">
             {!resumo ? (
               <p className="text-ink-muted">
@@ -1256,11 +1323,73 @@ export function NovaLocacaoForm({
             />
             <span className="text-ink-muted">
               <span className="font-medium text-ink">Lançamento retroativo</span>{" "}
-              — evento que já aconteceu. Registra como <b>Concluída</b> com o
-              pagamento já quitado, sem enviar mensagens, contrato ou convite de
-              agenda ao associado.
+              — evento que já aconteceu, sem enviar mensagens, contrato ou
+              convite de agenda ao associado.
             </span>
           </label>
+
+          {retroativa ? (
+            <div className="flex flex-col gap-3 rounded-md border border-dashed px-3 py-2">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-ink-muted">
+                  Resultado do evento
+                </span>
+                <div className="flex gap-3 text-sm">
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="retroativa-resultado"
+                      checked={retroativaResultado === "concluido"}
+                      onChange={() => setRetroativaResultado("concluido")}
+                    />
+                    Concluído
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="retroativa-resultado"
+                      checked={retroativaResultado === "cancelado"}
+                      onChange={() => setRetroativaResultado("cancelado")}
+                    />
+                    Cancelado
+                  </label>
+                </div>
+              </div>
+
+              {retroativaResultado === "concluido" ? (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-ink-muted">
+                    Pagamento
+                  </span>
+                  <div className="flex gap-3 text-sm">
+                    <label className="flex cursor-pointer items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name="retroativa-pagamento"
+                        checked={retroativaPagamento === "pago"}
+                        onChange={() => setRetroativaPagamento("pago")}
+                      />
+                      Pago
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name="retroativa-pagamento"
+                        checked={retroativaPagamento === "pendente"}
+                        onChange={() => setRetroativaPagamento("pendente")}
+                      />
+                      Pendente
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-ink-muted">
+                  Evento cancelado: a locação é registrada direto como
+                  cancelada, sem pagamento nem comissão.
+                </p>
+              )}
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap gap-2">
             {retroativa ? (

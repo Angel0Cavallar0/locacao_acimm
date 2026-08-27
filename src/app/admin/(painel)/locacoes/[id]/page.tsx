@@ -10,7 +10,10 @@ import { resolverRespostasFormulario } from "@/lib/formulario/campos-core";
 import { todosCamposDef } from "@/lib/formulario/dados";
 import { PERIODOS } from "@/lib/dominio";
 import { carregarLocacao } from "@/lib/locacoes/dados";
-import { podeEditarAdicionais } from "@/lib/locacoes/maquina-estados-core";
+import {
+  mostraPagamentoPendente,
+  podeEditarAdicionais,
+} from "@/lib/locacoes/maquina-estados-core";
 import {
   FORMA_PAGAMENTO_ROTULO,
   formatarDocumento,
@@ -24,8 +27,9 @@ import { AdicionaisEditor } from "../adicionais-editor";
 import { ChecklistLocacao } from "../checklist-locacao";
 import { CoffeeEditor } from "../coffee-editor";
 import { LinhaDoTempo } from "../linha-do-tempo";
-import { StatusBadge } from "../status-badge";
+import { PagamentoPendenteBadge, StatusBadge } from "../status-badge";
 import { ContratoAcoes } from "./contrato-acoes";
+import { ExclusaoLocacao } from "./exclusao-locacao";
 import { MesRecebimento } from "./mes-recebimento";
 import { NotificacoesLista } from "./notificacoes-lista";
 import { ObservacoesInternas } from "./observacoes-internas";
@@ -78,7 +82,7 @@ export default async function LocacaoDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireColaborador();
+  const { colaborador } = await requireColaborador();
   const { id } = await params;
 
   const loc = await carregarLocacao(id);
@@ -119,6 +123,8 @@ export default async function LocacaoDetalhePage({
         )
       : [];
 
+  const pagamentoPendente = loc.pagamentos.some((p) => p.status === "pendente");
+
   const dataFoco = utcParaNaiveSP(loc.inicioUtc).slice(0, 10);
   const salaFoco = loc.salas[0]?.salaId ?? "";
   const linkCalendario = `/admin/calendario?data=${dataFoco}${
@@ -145,6 +151,9 @@ export default async function LocacaoDetalhePage({
                     {rotuloLocacao(loc.numero)}
                   </h2>
                   <StatusBadge status={loc.status} />
+                  {pagamentoPendente && mostraPagamentoPendente(loc.status) ? (
+                    <PagamentoPendenteBadge />
+                  ) : null}
                   {loc.retroativa ? (
                     <span className="inline-flex items-center rounded-full bg-ink/10 px-2 py-0.5 text-xs font-medium text-ink">
                       Concluída · retroativa
@@ -187,6 +196,7 @@ export default async function LocacaoDetalhePage({
                   })),
                 }}
                 salasDisponiveis={salasRows ?? []}
+                pagamentoPendente={pagamentoPendente}
               />
             </CardContent>
           </Card>
@@ -419,6 +429,10 @@ export default async function LocacaoDetalhePage({
           <Secao titulo="Linha do tempo">
             <LinhaDoTempo eventos={loc.eventos} />
           </Secao>
+
+          {colaborador.role === "admin" ? (
+            <ExclusaoLocacao locacaoId={loc.id} numero={loc.numero} />
+          ) : null}
         </div>
       </div>
     </div>

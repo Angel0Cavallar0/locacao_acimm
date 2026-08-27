@@ -1,11 +1,4 @@
-import {
-  CalendarDays,
-  FileClock,
-  Gift,
-  History,
-  Info,
-  PieChart,
-} from "lucide-react";
+import { CalendarDays, FileClock, Gift, History, Info } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -233,13 +226,6 @@ function CardsGrid({ cards }: { cards: CardsIndicadores }) {
         icone={<CalendarDays className="size-4" />}
         href="/admin/locacoes?vista=proximas"
       />
-      <Indicador
-        titulo="Ocupação"
-        valor={`${cards.ocupacaoPct}%`}
-        subtexto={`${cards.ocupacaoBloqueados}/${cards.ocupacaoDisponiveis} períodos`}
-        icone={<PieChart className="size-4" />}
-        tooltip="Períodos bloqueados ÷ disponíveis (salas ativas × dias do mês × 3 períodos). Dia inteiro conta 3; bloqueios manuais contam como ocupação."
-      />
     </div>
   );
 }
@@ -304,7 +290,7 @@ function OcupacaoSalas({ salas }: { salas: OcupacaoSala[] }) {
     <Card>
       <CardContent className="flex flex-col gap-3">
         <h2 className="font-display text-sm font-semibold text-ink">
-          Ocupação por sala (mês)
+          Locações por sala (mês)
         </h2>
         {salas.length === 0 ? (
           <p className="py-6 text-center text-sm text-ink-muted">
@@ -313,8 +299,11 @@ function OcupacaoSalas({ salas }: { salas: OcupacaoSala[] }) {
         ) : (
           <div className="flex flex-col gap-2.5">
             {salas.map((s) => (
-              <div key={s.salaId} className="flex items-center gap-2 text-sm">
-                <span className="flex w-32 shrink-0 items-center gap-1 truncate text-ink">
+              <div
+                key={s.salaId}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
+                <span className="flex items-center gap-1 truncate text-ink">
                   <span className="truncate">{s.nome}</span>
                   {s.temPeriodoGratuito ? (
                     <span title="Sala com período gratuito ativo">
@@ -322,17 +311,8 @@ function OcupacaoSalas({ salas }: { salas: OcupacaoSala[] }) {
                     </span>
                   ) : null}
                 </span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-muted">
-                  <div
-                    className="h-full rounded-full bg-brand"
-                    style={{ width: `${s.pct}%` }}
-                  />
-                </div>
-                <span className="flex w-20 shrink-0 flex-col items-end leading-tight">
-                  <span className="text-xs font-medium text-ink">{s.pct}%</span>
-                  <span className="text-[10px] text-ink-muted">
-                    {s.locacoesQtd} locação{s.locacoesQtd === 1 ? "" : "ões"}
-                  </span>
+                <span className="shrink-0 text-xs font-medium text-ink">
+                  {s.locacoesQtd} locação{s.locacoesQtd === 1 ? "" : "ões"}
                 </span>
               </div>
             ))}

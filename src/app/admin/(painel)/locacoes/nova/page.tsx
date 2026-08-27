@@ -64,6 +64,11 @@ export default async function NovaLocacaoPage({
   let filaId: string | null = null;
   let filaSalaId: string | null = null;
   let filaData: string | null = null;
+  let pendenciaId: string | null = null;
+  let cotacaoId: string | null = null;
+  let cotacaoSalaIds: string[] | null = null;
+  let cotacaoData: string | null = null;
+  let cotacaoPeriodo: PeriodoDia | null = null;
   let locatario: LocatarioPrefill | null = null;
 
   const filaParam = texto(sp.fila);
@@ -128,14 +133,148 @@ export default async function NovaLocacaoPage({
     }
   }
 
+  // Conversão a partir de uma pendência sem data (?pendencia={id}): só
+  // pré-preenche o locatário — sala/data seguem em aberto, é o próprio
+  // propósito da pendência (não tinha data definida ainda).
+  const pendenciaParam = texto(sp.pendencia);
+  if (pendenciaParam && !locatario) {
+    const admin = createAdminClient();
+    const { data: pend } = await admin
+      .from("pendencias_locacao")
+      .select(
+        "id, associado_id, nome, contato, convertido_locacao_id, arquivado_em",
+      )
+      .eq("id", pendenciaParam)
+      .maybeSingle();
+
+    if (pend && !pend.convertido_locacao_id && !pend.arquivado_em) {
+      pendenciaId = pend.id as string;
+
+      if (pend.associado_id) {
+        const { data: a } = await admin
+          .from("associados")
+          .select(
+            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao, codigo_sophus",
+          )
+          .eq("id", pend.associado_id)
+          .maybeSingle();
+        if (a) {
+          const associado: AssociadoBusca = {
+            id: a.id as string,
+            nome: a.nome as string,
+            razaoSocial: (a.razao_social as string | null) ?? null,
+            documento: (a.documento as string | null) ?? null,
+            emails: (a.emails as string[] | null) ?? [],
+            telefone:
+              (a.whatsapp as string | null) ??
+              (a.celular as string | null) ??
+              (a.telefone as string | null) ??
+              null,
+            situacao: a.situacao as AssociadoBusca["situacao"],
+            codigoSophus: (a.codigo_sophus as number | null) ?? null,
+          };
+          locatario = {
+            condicao: "associado",
+            associado,
+            nome: associado.razaoSocial ?? associado.nome,
+            documento: mascararDocumento(associado.documento ?? ""),
+            email: associado.emails[0] ?? "",
+            telefone: mascararTelefone(associado.telefone ?? ""),
+          };
+        }
+      }
+      if (!locatario) {
+        locatario = {
+          condicao: "nao_associado",
+          associado: null,
+          nome: (pend.nome as string) ?? "",
+          documento: "",
+          email: "",
+          telefone: mascararTelefone((pend.contato as string) ?? ""),
+        };
+      }
+    }
+  }
+
+  // Conversão a partir de uma cotação (?cotacao={id}): pré-preenche
+  // locatário, sala(s), data e período já orçados. Não checa conflito aqui —
+  // a criação da locação de verdade checa normalmente (a cotação nunca
+  // reservou nada).
+  const cotacaoParam = texto(sp.cotacao);
+  if (cotacaoParam && !locatario) {
+    const admin = createAdminClient();
+    const { data: cot } = await admin
+      .from("cotacoes")
+      .select(
+        "id, condicao, associado_id, locatario_nome, locatario_documento, locatario_email, locatario_telefone, sala_ids, data, periodo, status",
+      )
+      .eq("id", cotacaoParam)
+      .maybeSingle();
+
+    if (cot && cot.status === "pendente") {
+      cotacaoId = cot.id as string;
+      cotacaoSalaIds = (cot.sala_ids as string[]) ?? [];
+      cotacaoData = (cot.data as string | null) ?? null;
+      cotacaoPeriodo = (cot.periodo as PeriodoDia | null) ?? null;
+
+      if (cot.associado_id) {
+        const { data: a } = await admin
+          .from("associados")
+          .select(
+            "id, nome, razao_social, documento, emails, telefone, celular, whatsapp, situacao, codigo_sophus",
+          )
+          .eq("id", cot.associado_id)
+          .maybeSingle();
+        if (a) {
+          const associado: AssociadoBusca = {
+            id: a.id as string,
+            nome: a.nome as string,
+            razaoSocial: (a.razao_social as string | null) ?? null,
+            documento: (a.documento as string | null) ?? null,
+            emails: (a.emails as string[] | null) ?? [],
+            telefone:
+              (a.whatsapp as string | null) ??
+              (a.celular as string | null) ??
+              (a.telefone as string | null) ??
+              null,
+            situacao: a.situacao as AssociadoBusca["situacao"],
+            codigoSophus: (a.codigo_sophus as number | null) ?? null,
+          };
+          locatario = {
+            condicao: "associado",
+            associado,
+            nome: associado.razaoSocial ?? associado.nome,
+            documento: mascararDocumento(associado.documento ?? ""),
+            email: associado.emails[0] ?? "",
+            telefone: mascararTelefone(associado.telefone ?? ""),
+          };
+        }
+      }
+      if (!locatario) {
+        locatario = {
+          condicao: "nao_associado",
+          associado: null,
+          nome: (cot.locatario_nome as string) ?? "",
+          documento: mascararDocumento((cot.locatario_documento as string) ?? ""),
+          email: (cot.locatario_email as string) ?? "",
+          telefone: mascararTelefone((cot.locatario_telefone as string) ?? ""),
+        };
+      }
+    }
+  }
+
   const prefill = {
     salaId: filaSalaId ?? texto(sp.sala),
-    data: filaData ?? texto(sp.data),
+    salaIds: cotacaoSalaIds,
+    data: cotacaoData ?? filaData ?? texto(sp.data),
     periodo:
-      periodoPrefill && PERIODOS_VALIDOS.includes(periodoPrefill as PeriodoDia)
+      cotacaoPeriodo ??
+      (periodoPrefill && PERIODOS_VALIDOS.includes(periodoPrefill as PeriodoDia)
         ? (periodoPrefill as PeriodoDia)
-        : null,
+        : null),
     filaId,
+    pendenciaId,
+    cotacaoId,
     locatario,
   };
 

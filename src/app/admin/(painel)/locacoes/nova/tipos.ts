@@ -101,6 +101,10 @@ export interface CriarLocacaoPayload {
   aprovar: boolean;
   /** Conversão a partir da lista de espera (Spec 19 §4). */
   filaEsperaId?: string | null;
+  /** Conversão a partir de uma pendência sem data. */
+  pendenciaId?: string | null;
+  /** Conversão a partir de uma cotação. */
+  cotacaoId?: string | null;
   /** Sócio recusou o período gratuito nesta reserva (Spec 20 §5.3). */
   periodoGratuitoRecusado?: boolean;
   /** Combo selecionado (Spec 20 §3). */
@@ -109,6 +113,13 @@ export interface CriarLocacaoPayload {
   sobreposicaoAutorizada?: boolean;
   /** Lançamento retroativo — evento passado, sem automações (Spec 31 §6). */
   retroativa?: boolean;
+  /** Resultado do evento retroativo — só relevante quando `retroativa`. */
+  retroativaResultado?: "concluido" | "cancelado";
+  /** Situação do pagamento retroativo — só relevante quando `retroativa`. */
+  retroativaPagamento?: "pago" | "pendente";
+  /** Preferência de canal de notificação ao locatário nesta locação. */
+  notificarWhatsapp?: boolean;
+  notificarEmail?: boolean;
   /** Valor final por sala confirmado/sobrescrito pelo colaborador (Spec 34). */
   valoresManuaisPorSala: Record<string, number>;
   /** Desconto manual — percentual ou valor fixo em centavos (Spec 34). */

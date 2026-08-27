@@ -5,15 +5,7 @@ import type { AgendaItem } from "@/lib/calendario/tipos";
 import { hojeSP, somarDias } from "@/lib/disponibilidade/janela";
 import type { StatusLocacao } from "@/lib/locacoes/maquina-estados-core";
 import { rotuloLocacao } from "@/lib/locacoes/tipos";
-import { obterHorariosPeriodos } from "@/lib/locacoes/horarios";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  type Intervalo,
-  ocupacaoPorSala,
-  percentualOcupacao,
-  type SlotDisponivel,
-  totalOcupacao,
-} from "./ocupacao-core";
 import type {
   AcaoNecessaria,
   DashboardData,
@@ -162,8 +154,6 @@ export async function carregarDashboard(opts?: {
   const fim30Utc = spWallParaUtc(em30ISO, "23:59");
   const sete = somarDias(hoje, -7);
   const seteAtrasUtc = spWallParaUtc(sete, "00:00");
-
-  const horarios = await obterHorariosPeriodos();
 
   const [
     pendentesRes,
@@ -443,56 +433,28 @@ export async function carregarDashboard(opts?: {
     } else if (PIPELINE.includes(r.status)) pipeline += r.valor_total_centavos;
   }
 
-  // --- Ocupação ------------------------------------------------------------
+  // --- Locações por sala (mês) -----------------------------------------------
   const salas = (salasRes.data ?? []) as { id: string; nome: string }[];
   const comGratuito = new Set(
     ((regrasRes.data ?? []) as { sala_id: string }[]).map((r) => r.sala_id),
   );
-  const diasNoMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
-  const periodos = [horarios.manha, horarios.tarde, horarios.noite];
-
-  const slots: SlotDisponivel[] = [];
-  for (const s of salas) {
-    for (let d = 1; d <= diasNoMes; d++) {
-      const diaISO = `${ano}-${mesPad}-${String(d).padStart(2, "0")}`;
-      for (const p of periodos) {
-        slots.push({
-          salaId: s.id,
-          inicioMs: Date.parse(spWallParaUtc(diaISO, p.inicio)),
-          fimMs: Date.parse(spWallParaUtc(diaISO, p.fim)),
-        });
-      }
-    }
-  }
-  const ocupacoes = new Map<string, Intervalo[]>();
   // Locações distintas por sala no mês (quantas vezes a sala foi locada).
   const locacoesPorSala = new Map<string, Set<string>>();
   for (const it of agendaMes) {
     if (!it.bloqueante) continue;
-    const arr = ocupacoes.get(it.salaId) ?? [];
-    arr.push({ inicioMs: Date.parse(it.inicioUtc), fimMs: Date.parse(it.fimUtc) });
-    ocupacoes.set(it.salaId, arr);
     if (it.origem === "locacao" && it.locacaoId) {
       const set = locacoesPorSala.get(it.salaId) ?? new Set<string>();
       set.add(it.locacaoId);
       locacoesPorSala.set(it.salaId, set);
     }
   }
-  const porSala = ocupacaoPorSala(slots, ocupacoes);
-  const totalOc = totalOcupacao(porSala);
 
-  const ocupacaoSalas: OcupacaoSala[] = salas.map((s) => {
-    const c = porSala.get(s.id) ?? { bloqueados: 0, total: 0 };
-    return {
-      salaId: s.id,
-      nome: s.nome,
-      bloqueados: c.bloqueados,
-      total: c.total,
-      pct: percentualOcupacao(c.bloqueados, c.total),
-      locacoesQtd: locacoesPorSala.get(s.id)?.size ?? 0,
-      temPeriodoGratuito: comGratuito.has(s.id),
-    };
-  });
+  const ocupacaoSalas: OcupacaoSala[] = salas.map((s) => ({
+    salaId: s.id,
+    nome: s.nome,
+    locacoesQtd: locacoesPorSala.get(s.id)?.size ?? 0,
+    temPeriodoGratuito: comGratuito.has(s.id),
+  }));
 
   // --- Próximas locações da semana ----------------------------------------
   const semanaRows = (semanaRes.data ?? []) as {
@@ -534,9 +496,6 @@ export async function carregarDashboard(opts?: {
       receitaCoffeeCentavos: receitaCoffee,
       receitaQuantidade: receitaQtd,
       pipelineMesCentavos: pipeline,
-      ocupacaoPct: percentualOcupacao(totalOc.bloqueados, totalOc.total),
-      ocupacaoBloqueados: totalOc.bloqueados,
-      ocupacaoDisponiveis: totalOc.total,
     },
     proximas,
     ocupacaoSalas,

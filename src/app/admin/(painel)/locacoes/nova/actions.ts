@@ -279,31 +279,47 @@ export interface ResultadoCriar {
 }
 
 /**
- * Lançamento retroativo (Spec 31 §6): registra o pagamento passado já quitado
- * (competência = data do evento) e caminha a máquina até "Concluída"
- * (finalizada). Os efeitos externos são suprimidos pela flag `retroativa`
- * (efeitos.ts); a comissão nasce na confirmação, pela data de quitação passada.
- * Devolve a mensagem de erro se algum passo falhar (ex.: conflito na aprovação).
+ * Lançamento retroativo (Spec 31 §6 + resultado/pagamento pedidos pela
+ * ACIMM): registra o pagamento passado (pago ou pendente, conforme o
+ * colaborador informou) e caminha a máquina até "Concluída" (finalizada) —
+ * ou, se o evento foi cancelado, transiciona direto para `cancelada` sem
+ * gerar pagamento nem comissão. Os efeitos externos seguem suprimidos pela
+ * flag `retroativa` (efeitos.ts); quando o pagamento é pendente, ele fica
+ * visível como pendência (badge de pagamento pendente) mesmo com a locação
+ * já concluída. Devolve a mensagem de erro se algum passo falhar.
  */
 async function completarRetroativa(
   admin: ReturnType<typeof createAdminClient>,
   id: string,
   opts: {
+    resultado: "concluido" | "cancelado";
+    pagamento: "pago" | "pendente";
     forma: FormaPagamento;
     totalCentavos: number;
     baixaEmUtc: string;
     autorUserId: string;
   },
 ): Promise<string | undefined> {
+  if (opts.resultado === "cancelado") {
+    const r = await aplicarTransicao({
+      locacaoId: id,
+      para: "cancelada",
+      autorUserId: opts.autorUserId,
+      motivo: "Evento retroativo cancelado",
+    });
+    return "erro" in r ? r.erro : undefined;
+  }
+
   if (opts.totalCentavos > 0) {
     await admin.from("pagamentos").insert({
       locacao_id: id,
       descricao: "Lançamento retroativo",
       forma: opts.forma,
       valor_centavos: opts.totalCentavos,
-      status: "pago",
-      baixa_por: opts.autorUserId,
-      baixa_em: opts.baixaEmUtc,
+      status: opts.pagamento === "pago" ? "pago" : "pendente",
+      ...(opts.pagamento === "pago"
+        ? { baixa_por: opts.autorUserId, baixa_em: opts.baixaEmUtc }
+        : {}),
     });
   }
 
@@ -522,6 +538,9 @@ export async function criarLocacaoAssistida(
     p_periodo_gratuito: gratuitoPayload,
     p_sobreposicao_autorizada: v.sobreposicaoAutorizada,
     p_retroativa: v.retroativa,
+    p_notificar_whatsapp: v.notificarWhatsapp,
+    p_notificar_email: v.notificarEmail,
+    p_pendencia_id: v.pendenciaId ?? null,
   });
 
   if (error || !novoId) {
@@ -548,6 +567,17 @@ export async function criarLocacaoAssistida(
     };
   }
   const id = novoId as string;
+
+  // Conversão a partir de uma cotação: marca convertida (best-effort — a
+  // cotação nunca reservou nada, então não precisa da mesma atomicidade
+  // transacional de fila de espera/pendência).
+  if (v.cotacaoId) {
+    await admin
+      .from("cotacoes")
+      .update({ status: "convertida", convertido_locacao_id: id })
+      .eq("id", v.cotacaoId)
+      .eq("status", "pendente");
+  }
 
   // Vínculo do combo (metadado): best-effort pós-insert (Spec 20 §3).
   if (calc.combo?.aplicado) {
@@ -598,10 +628,13 @@ export async function criarLocacaoAssistida(
     });
   }
 
-  // (6a) Lançamento retroativo (Spec 31 §6): registra o pagamento passado e leva
-  // a locação a "Concluída", sem automações (efeitos suprimidos pela flag).
+  // (6a) Lançamento retroativo (Spec 31 §6): registra o resultado (concluído
+  // ou cancelado) e o pagamento (pago ou pendente) informados, sem automações
+  // (efeitos suprimidos pela flag).
   if (v.retroativa) {
     const erroRetro = await completarRetroativa(admin, id, {
+      resultado: v.retroativaResultado,
+      pagamento: v.retroativaPagamento,
       forma: v.formaPagamento ?? "dinheiro",
       totalCentavos: calc.totalCentavos,
       baixaEmUtc: fim,
@@ -612,7 +645,7 @@ export async function criarLocacaoAssistida(
     revalidatePath("/admin");
     return {
       id,
-      concluida: true,
+      concluida: v.retroativaResultado === "concluido",
       aprovacaoErro: erroRetro,
       aviso: aviso ?? undefined,
     };

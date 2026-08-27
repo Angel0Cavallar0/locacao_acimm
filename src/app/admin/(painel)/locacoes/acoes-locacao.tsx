@@ -22,12 +22,14 @@ import {
   type StatusLocacao,
 } from "@/lib/locacoes/maquina-estados-core";
 import { centavosParaBRL } from "@/lib/utils/moeda";
+import { confirmarComPendenciaAction } from "./[id]/pagamentos-actions";
 import { transicionar } from "./actions";
 import { ReagendarDialog } from "./reagendar-dialog";
 
 export function AcoesLocacao({
   locacao,
   salasDisponiveis,
+  pagamentoPendente = false,
 }: {
   locacao: {
     id: string;
@@ -39,6 +41,8 @@ export function AcoesLocacao({
     salas: { salaId: string; nome: string }[];
   };
   salasDisponiveis: { id: string; nome: string }[];
+  /** Há pagamento vigente pendente — condiciona o aviso no diálogo de confirmação. */
+  pagamentoPendente?: boolean;
 }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
@@ -51,6 +55,8 @@ export function AcoesLocacao({
   } | null>(null);
   const [motivo, setMotivo] = useState("");
   const [aprovarAberto, setAprovarAberto] = useState(false);
+  const [confirmarPendenciaAberto, setConfirmarPendenciaAberto] =
+    useState(false);
   const [reagendarAberto, setReagendarAberto] = useState(false);
 
   const acoes = ACOES_POR_STATUS[locacao.status];
@@ -80,6 +86,22 @@ export function AcoesLocacao({
     });
   }
 
+  function executaConfirmacaoPendente() {
+    setExecutandoPara("confirmada");
+    iniciar(async () => {
+      const r = await confirmarComPendenciaAction(locacao.id);
+      if (r.error) {
+        toast.error(r.error);
+        setExecutandoPara(null);
+        return;
+      }
+      toast.success("Locação confirmada.");
+      setConfirmarPendenciaAberto(false);
+      setExecutandoPara(null);
+      router.refresh();
+    });
+  }
+
   const variante = (v: "default" | "outline" | "destructive") => v;
 
   if (acoes.length === 0 && !podeReagendar(locacao.status)) {
@@ -104,6 +126,8 @@ export function AcoesLocacao({
               if (a.tipo === "aprovar") setAprovarAberto(true);
               else if (a.tipo === "motivo")
                 setMotivoDialog({ para: a.para, rotulo: a.rotulo });
+              else if (a.tipo === "confirmar_pendencia")
+                setConfirmarPendenciaAberto(true);
               else executa(a.para);
             }}
           >
@@ -162,6 +186,42 @@ export function AcoesLocacao({
               onClick={() => executa("aprovada")}
             >
               Aprovar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmar locação a partir de aguardando pagamento (pode ter pendência) */}
+      <Dialog
+        open={confirmarPendenciaAberto}
+        onOpenChange={setConfirmarPendenciaAberto}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar locação?</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 text-sm">
+            {pagamentoPendente ? (
+              <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+                O pagamento ainda está pendente. A locação será confirmada
+                mesmo assim — o pagamento continua pendente e pode ser
+                baixado depois, na seção Pagamentos.
+              </p>
+            ) : (
+              <p className="text-ink-muted">
+                Confirmar esta locação agora?
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" type="button" />}>
+              Voltar
+            </DialogClose>
+            <Button
+              loading={executandoPara === "confirmada"}
+              onClick={executaConfirmacaoPendente}
+            >
+              {pagamentoPendente ? "Confirmar mesmo assim" : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>

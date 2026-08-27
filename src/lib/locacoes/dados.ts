@@ -47,6 +47,11 @@ function statusDaVista(v: VistaLista): StatusLocacao[] | null {
   return null; // "proximas" e "todas" não restringem por status
 }
 
+function temPagamentoPendente(rel: unknown): boolean {
+  if (!Array.isArray(rel)) return false;
+  return rel.some((p) => (p as { status?: string }).status === "pendente");
+}
+
 function nomesDeSalas(rel: unknown): string[] {
   // locacao_salas: [{ salas: {nome} | {nome}[] }]
   if (!Array.isArray(rel)) return [];
@@ -83,7 +88,8 @@ export async function listarLocacoes(
     .select(
       `id, numero, condicao, locatario_nome, inicio, fim, status,
        valor_total_centavos, forma_pagamento_preferida, criado_em,
-       locacao_salas ( salas ( nome ) )`,
+       locacao_salas ( salas ( nome ) ),
+       pagamentos ( status )`,
       { count: "exact" },
     );
 
@@ -125,6 +131,7 @@ export async function listarLocacoes(
     status: r.status as StatusLocacao,
     valorTotalCentavos: r.valor_total_centavos as number,
     formaPagamento: (r.forma_pagamento_preferida as FormaPagamento) ?? null,
+    pagamentoPendente: temPagamentoPendente(r.pagamentos),
     criadoEmUtc: r.criado_em as string,
     salas: nomesDeSalas(r.locacao_salas),
   }));

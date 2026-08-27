@@ -59,6 +59,9 @@ interface BaseNotificacao {
   link: string;
   linkAdmin: string;
   associadoUserId: string | null;
+  /** Preferência de canal da locação (colaborador, atendimento assistido). */
+  notificarWhatsapp: boolean;
+  notificarEmail: boolean;
 }
 
 async function montarBase(
@@ -70,7 +73,8 @@ async function montarBase(
     .select(
       `numero, status, locatario_nome, locatario_email, locatario_telefone,
        associado_id, inicio, fim, valor_total_centavos,
-       forma_pagamento_preferida, motivo_encerramento`,
+       forma_pagamento_preferida, motivo_encerramento,
+       notificar_whatsapp, notificar_email`,
     )
     .eq("id", locacaoId)
     .maybeSingle();
@@ -120,6 +124,8 @@ async function montarBase(
     link,
     linkAdmin: `${envCore.APP_URL}/admin/locacoes/${locacaoId}`,
     associadoUserId,
+    notificarWhatsapp: (loc.notificar_whatsapp as boolean | null) ?? true,
+    notificarEmail: (loc.notificar_email as boolean | null) ?? true,
   };
 }
 
@@ -157,7 +163,12 @@ async function enfileirar(
   agendarProcessamento();
 }
 
-/** Par (WhatsApp + e-mail) ao locatário com o mesmo template/payload. */
+/**
+ * Par (WhatsApp + e-mail) ao locatário com o mesmo template/payload. Omite o
+ * canal que o colaborador desligou para esta locação (atendimento assistido)
+ * — único ponto de passagem de toda notificação voltada ao locatário, então
+ * o gate aqui cobre aprovação/recusa/confirmação/contrato/pagamento/lembrete.
+ */
 function parLocatario(
   base: BaseNotificacao,
   template: string,
@@ -173,10 +184,14 @@ function parLocatario(
     link: base.link,
     ...extra,
   };
-  return [
-    { canal: "whatsapp", destinatario: base.telefone, template, payload },
-    { canal: "email", destinatario: base.email, template, payload },
-  ];
+  const linhas: LinhaFila[] = [];
+  if (base.notificarWhatsapp) {
+    linhas.push({ canal: "whatsapp", destinatario: base.telefone, template, payload });
+  }
+  if (base.notificarEmail) {
+    linhas.push({ canal: "email", destinatario: base.email, template, payload });
+  }
+  return linhas;
 }
 
 /** E-mail interno à ACIMM (config vazia → skip, nem enfileira — §5). */

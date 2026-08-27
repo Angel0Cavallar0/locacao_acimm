@@ -66,6 +66,20 @@ export function podeEditarAdicionais(status: StatusLocacao): boolean {
   return podeReagendar(status);
 }
 
+const STATUS_MOSTRA_PAGAMENTO_PENDENTE = new Set<StatusLocacao>([
+  "confirmada",
+  "realizada",
+  "finalizada",
+]);
+
+/**
+ * Mostra o aviso de "pagamento pendente" fora de `aguardando_pagamento` (o
+ * próprio status já comunica isso ali — mostrar de novo seria redundante).
+ */
+export function mostraPagamentoPendente(status: StatusLocacao): boolean {
+  return STATUS_MOSTRA_PAGAMENTO_PENDENTE.has(status);
+}
+
 export const STATUS_ROTULO: Record<StatusLocacao, string> = {
   rascunho: "Rascunho",
   solicitada: "Solicitada",
@@ -96,7 +110,7 @@ export function grupoStatus(status: StatusLocacao): GrupoStatus {
   return "andamento";
 }
 
-export type TipoAcao = "normal" | "aprovar" | "motivo";
+export type TipoAcao = "normal" | "aprovar" | "motivo" | "confirmar_pendencia";
 export type VarianteAcao = "default" | "outline" | "destructive";
 
 export interface AcaoTransicao {
@@ -135,7 +149,7 @@ export const ACOES_POR_STATUS: Record<StatusLocacao, AcaoTransicao[]> = {
     { para: "cancelada", rotulo: "Cancelar", tipo: "motivo", variante: "outline" },
   ],
   aguardando_pagamento: [
-    { para: "confirmada", rotulo: "Confirmar locação", tipo: "normal", variante: "default" },
+    { para: "confirmada", rotulo: "Confirmar locação", tipo: "confirmar_pendencia", variante: "default" },
     { para: "cancelada", rotulo: "Cancelar", tipo: "motivo", variante: "outline" },
   ],
   confirmada: [

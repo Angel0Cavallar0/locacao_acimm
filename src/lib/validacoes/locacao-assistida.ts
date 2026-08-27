@@ -75,6 +75,14 @@ export const criarLocacaoSchema = z
       .default(null),
     aprovar: z.boolean().default(false),
     filaEsperaId: z.uuid().nullable().default(null),
+    // Conversão a partir de uma pendência sem data (marca convertido_locacao_id).
+    pendenciaId: z.uuid().nullable().optional().default(null),
+    // Conversão a partir de uma cotação (marca cotacoes.status = 'convertida').
+    cotacaoId: z.uuid().nullable().optional().default(null),
+    // Preferência de canal de notificação ao locatário (assistida) — default
+    // true preserva o comportamento atual quando o campo não é enviado.
+    notificarWhatsapp: z.boolean().optional().default(true),
+    notificarEmail: z.boolean().optional().default(true),
     periodoGratuitoRecusado: z.boolean().optional().default(false),
     comboId: z.uuid().nullable().default(null),
     // Sobreposição autorizada por colaborador (Spec 31 §7): permite gravar
@@ -82,6 +90,16 @@ export const criarLocacaoSchema = z
     sobreposicaoAutorizada: z.boolean().optional().default(false),
     // Lançamento retroativo (Spec 31 §6): evento passado, sem automações.
     retroativa: z.boolean().optional().default(false),
+    // Resultado do evento retroativo e situação do pagamento — só relevantes
+    // quando `retroativa = true` (ver completarRetroativa em nova/actions.ts).
+    retroativaResultado: z
+      .enum(["concluido", "cancelado"])
+      .optional()
+      .default("concluido"),
+    retroativaPagamento: z
+      .enum(["pago", "pendente"])
+      .optional()
+      .default("pago"),
     // Valor final por sala confirmado/sobrescrito pelo colaborador (Spec 34).
     valoresManuaisPorSala: z
       .record(z.string().uuid(), z.number().int().min(0).max(100_000_000))

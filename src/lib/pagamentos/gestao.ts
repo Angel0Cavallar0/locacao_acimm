@@ -296,6 +296,48 @@ export async function estornarPagamento(input: {
 }
 
 /**
+ * Confirma a locação a partir de `aguardando_pagamento` mesmo com pagamento(s)
+ * ainda pendente(s) — ação explícita e auditada (o "pulo" da confirmação
+ * automática por quitação). O pagamento em si não é alterado: continua
+ * `pendente`, visível na seção de Pagamentos, e pode ser baixado depois.
+ */
+export async function confirmarComPagamentoPendente(
+  locacaoId: string,
+): Promise<ResultadoPagamento> {
+  const { user } = await requireColaborador();
+  const admin = createAdminClient();
+
+  const { data: loc } = await admin
+    .from("locacoes")
+    .select("status")
+    .eq("id", locacaoId)
+    .maybeSingle();
+  if (!loc || loc.status !== "aguardando_pagamento") {
+    return {
+      erro: "Só é possível confirmar a partir de aguardando pagamento.",
+    };
+  }
+
+  const r = await aplicarTransicao({
+    locacaoId,
+    para: "confirmada",
+    autorUserId: user.id,
+  });
+  if ("erro" in r) return { erro: r.erro };
+
+  await registrar(
+    admin,
+    locacaoId,
+    "confirmada",
+    user.id,
+    "Locação confirmada com pagamento ainda pendente",
+    "confirmada_pagamento_pendente",
+  );
+  revalidar(locacaoId);
+  return { ok: true };
+}
+
+/**
  * Recompõe os registros de pagamento (divisão híbrida — §4). Só enquanto TODOS
  * pendentes e a locação em `aguardando_pagamento`; soma validada ao centavo.
  */
