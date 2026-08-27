@@ -2,6 +2,7 @@
 
 import { requireColaborador } from "@/lib/auth/guards";
 import {
+  confirmarComPagamentoPendente,
   darBaixaPagamento,
   estornarPagamento,
   recomporPagamentos,
@@ -42,6 +43,14 @@ export async function estornarAction(input: {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
   const r = await estornarPagamento(parsed.data);
+  return "ok" in r ? {} : { error: r.erro };
+}
+
+/** Confirma a locação mesmo com pagamento pendente — ação explícita e auditada. */
+export async function confirmarComPendenciaAction(
+  locacaoId: string,
+): Promise<ResultadoAcao> {
+  const r = await confirmarComPagamentoPendente(locacaoId);
   return "ok" in r ? {} : { error: r.erro };
 }
 

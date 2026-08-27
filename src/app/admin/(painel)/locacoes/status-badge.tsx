@@ -33,3 +33,17 @@ export function StatusBadge({
     </span>
   );
 }
+
+/** Etiqueta complementar: sinaliza pagamento ainda pendente fora do status "Aguardando pagamento". */
+export function PagamentoPendenteBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 w-fit items-center rounded-full bg-amber-500/15 px-2 text-xs font-medium whitespace-nowrap text-amber-700 dark:text-amber-400",
+        className,
+      )}
+    >
+      Pagamento pendente
+    </span>
+  );
+}

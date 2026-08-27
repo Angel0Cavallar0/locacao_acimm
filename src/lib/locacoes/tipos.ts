@@ -61,6 +61,8 @@ export interface LocacaoLista {
   status: StatusLocacao;
   valorTotalCentavos: number;
   formaPagamento: FormaPagamento | null;
+  /** Há pagamento vigente com status `pendente` (independe da forma preferida). */
+  pagamentoPendente: boolean;
   criadoEmUtc: string;
   salas: string[];
 }
